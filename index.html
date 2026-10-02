@@ -84,6 +84,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button data-style="clay" aria-pressed="false" aria-label="Clay" title="Clay">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4.2c4.6-.2 7.9 3.1 7.7 7.6-.2 4.4-3.3 7.8-7.9 8-4.4.2-7.8-3.2-7.7-7.8C4.2 7.6 7.6 4.4 12 4.2z"/><path d="M13.2 9.2a2 2.4 0 1 1-1.6 3.5M14.6 8.4a3.4 3.8 0 1 1-4.2 5.8" stroke-width="1.1"/></svg>
   </button>
+  <button data-style="fur" aria-pressed="false" aria-label="Fur" title="Fur">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="13" r="6.5"/><path d="M12 6.5V3.5M9.5 7l-1-2.4M14.5 7l1-2.4M5.5 13H3M21 13h-2.5M6.8 8.6 5 7M17.2 8.6 19 7M6.8 17.4 5 19M17.2 17.4 19 19"/></svg>
+  </button>
   <button data-style="bubble" aria-pressed="false" aria-label="Bubble" title="Bubble">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><rect x="7.6" y="7.6" width="3.6" height="2.8" rx=".6" fill="currentColor" stroke="none" transform="rotate(-25 9.4 9)"/><circle cx="15.6" cy="15.4" r=".9" fill="currentColor" stroke="none"/></svg>
   </button>
@@ -480,7 +483,7 @@ const skin=(()=>{
 
 // ---- ball styles: jelly (glossy, with a band-aid) and fabric (matte felt, stitched seam, X stitch) ----
 let ballStyle='jelly';
-try{ const v=localStorage.getItem('dahrooj-style'); if(['jelly','fabric','clay','bubble'].includes(v)) ballStyle=v; }catch(_){}
+try{ const v=localStorage.getItem('dahrooj-style'); if(['jelly','fabric','clay','bubble','fur'].includes(v)) ballStyle=v; }catch(_){}
 const felt=(()=>{
   const c=document.createElement('canvas'); c.width=c.height=96; const g=c.getContext('2d');
   for(let i=0;i<700;i++){
@@ -557,7 +560,140 @@ function tickStyle(dt){
 }
 const clayNoise=i=>1+0.035*Math.sin(i*2.3+1)+0.022*Math.sin(i*5.1+0.4);
 
+// ---- fur style (free mode for now): pre-rendered inner coat + live rim hairs that follow the jelly skin ----
+let paintingFree=false;
+const furVel={x:0,y:0};
+const FUR={white:[243,238,230],whiteDk:[214,204,190],brown:[150,102,64],brownLt:[196,150,104]};
+// brown patches in body-local units (-1..1)
+function furPatch(x,y){
+  const a=((x-0.42)/0.62)**2+((y+0.2)/0.7)**2;
+  const b=((x+0.95)/0.4)**2+((y-0.15)/0.55)**2;
+  return Math.max(0,Math.min(1,(1-Math.min(a,b))*3));
+}
+function furColor(x,y,shade){
+  const m=furPatch(x,y), w=FUR.white, wd=FUR.whiteDk, br=FUR.brown, bl=FUR.brownLt;
+  const lt=Math.max(0,Math.min(1,0.5-y*0.5))*0.6+shade*0.4;
+  const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+  const base=mix(mix(wd,w,lt),mix(br,bl,lt),m);
+  return base;
+}
+let furSprite=null, furKey='';
+function furCoat(){
+  const R=64, key=String(dpr); if(furSprite && furKey===key) return furSprite;
+  const S=Math.ceil(R*2.6*dpr), c=document.createElement('canvas'); c.width=c.height=S;
+  const g=c.getContext('2d'); g.scale(dpr,dpr); g.translate(R*1.3,R*1.3);
+  // under-coat
+  const rg=g.createRadialGradient(-R*0.3,-R*0.4,R*0.1,0,0,R*1.25);
+  rg.addColorStop(0,'#f6f1ea'); rg.addColorStop(1,'#cfc4b4');
+  g.fillStyle=rg; g.beginPath(); g.arc(0,0,R*1.25,0,Math.PI*2); g.fill();
+  // brown patches under-coat
+  for(let i=0;i<900;i++){ const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*R*1.2, x=Math.cos(a)*r, y=Math.sin(a)*r;
+    const m=furPatch(x/R,y/R); if(m<0.3) continue; g.fillStyle=`rgba(${FUR.brown.join(',')},${0.25*m})`; g.beginPath(); g.arc(x,y,R*0.09,0,Math.PI*2); g.fill(); }
+  // thousands of short strands flowing outward
+  g.lineCap='round';
+  for(let i=0;i<6500;i++){
+    const a=Math.random()*Math.PI*2, r=Math.pow(Math.random(),0.7)*R*1.18, x=Math.cos(a)*r, y=Math.sin(a)*r;
+    const dir=a+(Math.random()-0.5)*1.1, len=R*(0.05+Math.random()*0.09);
+    const col=furColor(x/R,y/R,Math.random());
+    const k=0.75+Math.random()*0.35;
+    g.strokeStyle=`rgba(${Math.min(255,col[0]*k)|0},${Math.min(255,col[1]*k)|0},${Math.min(255,col[2]*k)|0},${0.25+Math.random()*0.35})`;
+    g.lineWidth=R*(0.009+Math.random()*0.013);
+    g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+Math.cos(dir)*len*0.5+Math.sin(dir)*len*0.15,y+Math.sin(dir)*len*0.5,x+Math.cos(dir)*len,y+Math.sin(dir)*len); g.stroke();
+  }
+  furSprite={c,S}; furKey=key; return furSprite;
+}
+// stable random hair parameters for the rim
+const RIM=(()=>{ const a=[]; for(let i=0;i<600;i++) a.push({j:(Math.random()-0.5)*1.1,l:0.07+Math.random()*0.1,w:0.01+Math.random()*0.014,s:Math.random(),t:Math.random()}); return a; })();
+function paintFur(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
+  const n=P.length;
+  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  const path=()=>{ c.beginPath(); let m=mid(P[n-1],P[0]); c.moveTo(m.x,m.y); for(let i=0;i<n;i++){ const q=mid(P[i],P[(i+1)%n]); c.quadraticCurveTo(P[i].x,P[i].y,q.x,q.y); } c.closePath(); };
+  // samples along the smoothed skin
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a=mid(P[(i-1+n)%n],P[i]), b=P[i], e=mid(P[i],P[(i+1)%n]);
+    for(let k=0;k<8;k++){ const t=k/8, u=1-t; pts.push({x:u*u*a.x+2*u*t*b.x+t*t*e.x,y:u*u*a.y+2*u*t*b.y+t*t*e.y}); }
+  }
+  const lagx=Math.max(-R*0.25,Math.min(R*0.25,-furVel.x*0.012)), lagy=Math.max(-R*0.25,Math.min(R*0.25,-furVel.y*0.012));
+  const drawRim=(from,to,alphaMul,lenMul)=>{
+    c.lineCap='round';
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i], dx=p.x-cx, dy=p.y-cy, dl=Math.hypot(dx,dy)||1, nx=dx/dl, ny=dy/dl;
+      for(let h=from;h<to;h++){
+        const r=RIM[(i*3+h)%RIM.length], ang=Math.atan2(ny,nx)+r.j, len=R*r.l*lenMul;
+        const bx=p.x-nx*R*0.08, by=p.y-ny*R*0.08;
+        const tx=bx+Math.cos(ang)*len+lagx*r.t, ty=by+Math.sin(ang)*len+lagy*r.t+len*0.15;
+        const col=furColor(dx/(R*sx),dy/(R*sy),r.s);
+        c.strokeStyle=`rgba(${col[0]|0},${col[1]|0},${col[2]|0},${(0.35+r.s*0.35)*alphaMul})`;
+        c.lineWidth=R*r.w;
+        c.beginPath(); c.moveTo(bx,by); c.quadraticCurveTo(bx+Math.cos(ang)*len*0.55-ny*len*0.12*(r.j>0?1:-1),by+Math.sin(ang)*len*0.55,tx,ty); c.stroke();
+      }
+    }
+  };
+  // soft fuzz halo so the edge reads as fluffy, not spiky
+  c.save(); c.shadowColor='rgba(236,229,219,.85)'; c.shadowBlur=Math.max(3,R*0.22); path(); c.fillStyle='rgba(236,229,219,.9)'; c.fill(); c.restore();
+  // back layer of rim hairs (underneath)
+  drawRim(0,2,0.8,1.2);
+  // inner coat, clipped to the body and stretched with it
+  const sp=furCoat();
+  c.save(); path(); c.clip();
+  c.translate(cx,cy); c.scale(sx,sy); c.drawImage(sp.c,-R*1.3,-R*1.3,R*2.6,R*2.6);
+  c.restore();
+  // soft volume: light from the top, shade underneath
+  c.save(); path(); c.clip();
+  const sh=c.createRadialGradient(cx,cy+R*1.1*sy,R*0.1,cx,cy+R*1.0*sy,R*1.2*sx);
+  sh.addColorStop(0,'rgba(60,40,25,.35)'); sh.addColorStop(1,'rgba(60,40,25,0)');
+  c.fillStyle=sh; c.fillRect(cx-R*2,cy-R*2,R*4,R*4);
+  const hl=c.createRadialGradient(cx-R*0.3*sx,cy-R*0.55*sy,0,cx-R*0.3*sx,cy-R*0.55*sy,R*0.9);
+  hl.addColorStop(0,'rgba(255,255,255,.22)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+  c.fillStyle=hl; c.fillRect(cx-R*2,cy-R*2,R*4,R*4);
+  c.restore();
+  // front layer of rim hairs, fluffy edge
+  drawRim(2,4,1,0.9);
+  // tuft on top
+  c.save(); c.lineCap='round';
+  const top=pts.reduce((a,b)=>b.y<a.y?b:a);
+  for(let k=0;k<7;k++){
+    const ang=-Math.PI/2+(k-3)*0.18+Math.sin(time*2+k)*0.05, len=R*(0.16+(k%3)*0.05);
+    const bx=top.x+(k-3)*R*0.035, by=top.y+R*0.08;
+    c.strokeStyle=k%2?'rgba(205,165,120,.75)':'rgba(170,120,80,.75)'; c.lineWidth=R*0.022;
+    c.beginPath(); c.moveTo(bx,by); c.quadraticCurveTo(bx+Math.cos(ang)*len*0.7+R*0.08,by+Math.sin(ang)*len*0.7,bx+Math.cos(ang)*len+lagx*0.6+R*0.1,by+Math.sin(ang)*len+lagy*0.6+R*0.04);
+    c.stroke();
+  }
+  c.restore();
+  drawBow(c,top.x+R*0.06,top.y+R*0.1,R,lagx,lagy);
+  c.save(); c.translate(cx,cy); c.scale(Math.min(1.25,sx),Math.min(1.25,sy));
+  drawFace(c,R,face,lx,ly,blushK,blinkOn);
+  c.restore();
+}
+// a little ribbon bow tied on the tuft; it sways and trails with motion
+function drawBow(c,x,y,R,lagx,lagy){
+  const sway=Math.sin(time*2.2)*0.12+lagx/R*0.6;
+  c.save(); c.translate(x,y); c.rotate(-0.25+sway); c.scale(1.35,1.35);
+  const red='#e2603f', dark='#b8432a';
+  c.lineJoin='round'; c.lineCap='round';
+  // tails
+  for(const s of [-1,1]){
+    c.fillStyle=dark; c.beginPath();
+    c.moveTo(0,0); c.lineTo(s*R*0.12+lagx*0.3,R*0.26+lagy*0.3); c.lineTo(s*R*0.03+lagx*0.3,R*0.22+lagy*0.3); c.closePath(); c.fill();
+  }
+  // loops
+  for(const s of [-1,1]){
+    const g=c.createLinearGradient(0,-R*0.1,s*R*0.24,R*0.06);
+    g.addColorStop(0,'#f08a6c'); g.addColorStop(1,red);
+    c.fillStyle=g; c.beginPath();
+    c.moveTo(0,0); c.bezierCurveTo(s*R*0.1,-R*0.16,s*R*0.27,-R*0.13,s*R*0.24,0); c.bezierCurveTo(s*R*0.22,R*0.11,s*R*0.08,R*0.08,0,0); c.closePath(); c.fill();
+    c.strokeStyle='rgba(120,40,25,.35)'; c.lineWidth=Math.max(0.6,R*0.015); c.stroke();
+    c.strokeStyle='rgba(120,40,25,.3)'; c.beginPath(); c.moveTo(s*R*0.05,-R*0.02); c.quadraticCurveTo(s*R*0.12,-R*0.06,s*R*0.18,-R*0.02); c.stroke();
+  }
+  // knot
+  c.fillStyle=dark; c.beginPath(); c.ellipse(0,0,R*0.055,R*0.065,0,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(255,255,255,.25)'; c.beginPath(); c.ellipse(-R*0.015,-R*0.02,R*0.02,R*0.015,0,0,Math.PI*2); c.fill();
+  c.restore();
+}
+
 function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
+  if(ballStyle==='fur'){ paintFur(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn); return; }
   const st=ballStyle, n=P.length;
   // bubble pop: droplets, then the bubble grows back
   if(st==='bubble' && bub.t>0){
@@ -688,7 +824,9 @@ function render(){
   else if(ptr.down && ptr.mode==='charge' && ptr.charge>0.15) face='squint';
   else if(ptr.down && ptr.mode==='grab') face='wide';
   else if(!ball.grounded && sp>1600) face='wide';
+  paintingFree=true; furVel.x=J.vx; furVel.y=J.vy;
   paintJelly(ctx,face,lx,ly,(ptr.down&&ptr.mode==='charge')?ptr.charge:0,blink>0);
+  paintingFree=false;
 
   for(const s of dashes){
     const k=s.life/s.max, t=1-Math.pow(1-k,3);
@@ -1566,6 +1704,7 @@ function make3D(){
     const behind=stage.behind(S.pos);
     const c=behind?ctx:fx;
     if(behind) ctx.setTransform(dpr,0,0,dpr,0,0);
+    { const ah=toScreen(S.pos.clone().addScaledVector(S.vel,0.1)); furVel.x=(ah.x-bs.x)*10; furVel.y=(ah.y-bs.y)*10; }
     const sk=skin.points(bs.x,bs.y,rs,S.d,ang,face==='laugh');
     let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; for(const q of sk.P){ mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y); }
     paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),face,lx2,ly2,blushK,S.blink>0);
