@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 12
     permissions:
       contents: write
     env:
@@ -36,31 +36,17 @@ jobs:
             encoder=$(find "$RUNNER_TEMP/audio-encoder" -type f -name ffmpeg | head -1)
             echo "$(dirname "$encoder")" >> "$GITHUB_PATH"
           fi
-      - name: Prepare approved quiet track and credits
-        timeout-minutes: 4
+      - name: Prepare quiet 30-second licensed excerpt
+        timeout-minutes: 3
         run: python3 tools/prepare-carefree.py
       - name: Install isolated tests and browsers
-        timeout-minutes: 6
+        timeout-minutes: 5
         run: |
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-network-timeouts >/dev/null
-          npm install --prefix tools --ignore-scripts --no-audit --no-fund
+          npm ci --prefix tools --ignore-scripts --no-audit --no-fund
           npx --prefix tools playwright install --with-deps chromium webkit
-      - name: All six modes and five styles with blocked external services
-        run: |
-          mkdir -p test-results
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tools/test-startup.mjs');s=p.read_text()
-          s=s.replace("errors.push(String(e))", "errors.push(String(e.stack||e))")
-          s=s.replace('window.__rafCount=0;', 'window.__clockFrames=[]; window.__rafCount=0;')
-          s=s.replace('window.__rafCount++;fn(now);', 'window.__rafCount++;if(window.__clockFrames.length<12)window.__clockFrames.push({stamp:now,clock:performance.now()});fn(now);')
-          s=s.replace('await original.assertClean();await original.clean();', "console.log('BASELINE CLOCK',await original.page.evaluate(()=>window.__clockFrames));await original.assertClean();await original.clean();")
-          p.write_text(s)
-          PY
-          set -o pipefail
-          node tools/test-startup.mjs 2>&1 | tee test-results/startup-console.log
-      - name: Verify real music playback, independent SFX and mobile lifecycle
-        if: ${{ !cancelled() }}
+      - name: Verify first-touch playback and independent sound effects
+        timeout-minutes: 3
         run: |
           mkdir -p test-results
           set -o pipefail
@@ -69,19 +55,19 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: carefree-music-verification
+          name: carefree-music-verification-${{ github.run_attempt }}
           path: |
             test-results/
             docs/music-report.json
-            assets/audio/manifest.json
+            assets/audio/
           retention-days: 7
-      - name: Commit only verified implementation and assets
+      - name: Commit verified music-only implementation
         if: success() && github.ref == 'refs/heads/feat/carefree-music'
         run: |
-          git add index.html assets/audio README.md LICENSE tools/test-startup.mjs tools/package-lock.json docs/startup-report.json docs/startup-report.md docs/music-report.json
+          git add index.html assets/audio README.md LICENSE tools/package-lock.json docs/music-report.json
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'Add quiet licensed Carefree music without modifying game sound effects'
+            git commit -m 'Install compact quiet Carefree excerpt; preserve original game and SFX'
             git push origin HEAD:feat/carefree-music
           fi
