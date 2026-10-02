@@ -58,15 +58,9 @@
   document.querySelector('.side')?.appendChild(button);
   const panel = document.getElementById('chpanel');
   if (panel) panel.style.top = 'calc(144px + env(safe-area-inset-top,0px))';
-  const credit = document.createElement('a');
-  credit.id = 'music-credit';
-  credit.href = new URL('credits.html', base).href;
-  credit.textContent = 'Carefree · Kevin MacLeod';
-  credit.title = 'حقوق الموسيقى — CC BY 4.0';
-  credit.style.cssText = 'pointer-events:auto;color:inherit;font-size:10px;line-height:1;letter-spacing:.02em;text-transform:none;text-decoration:none;';
-  document.querySelector('.credit')?.appendChild(credit);
+
   function gesture(event) {
-    if (event.isTrusted && !event.target?.closest?.('#btn-music,#music-credit')) play(true);
+    if (event.isTrusted && !event.target?.closest?.('#btn-music')) play(true);
   }
   for (const event of ['pointerdown', 'pointerup', 'touchend', 'keydown']) {
     document.addEventListener(event, gesture, {passive:true});
