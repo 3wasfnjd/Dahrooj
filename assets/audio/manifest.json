@@ -1,0 +1,29 @@
+{
+  "edition": "excerpt-30s-mono-v2",
+  "title": "Carefree",
+  "artist": "Kevin MacLeod",
+  "isrc": "USUAN1400037",
+  "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3",
+  "source_page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400037",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "source_sha256": "8433b770a630d9b1594fd484442c677907ece899a4d149954cd2e74fd733e311",
+  "output_sha256": "694944cc5247d00c45d48be3eb4ca5813a781a1a3a07cff012de16e66b8a9761",
+  "source_bytes": 6566713,
+  "output_bytes": 240865,
+  "excerpt_start_seconds": 20,
+  "excerpt_length_seconds": 30,
+  "duration_seconds": 30.040816,
+  "encoding": "MP3 64 kb/s, 44.1 kHz mono",
+  "amplitude_multiplier": 0.18,
+  "attenuation_db": -14.895,
+  "reference_excerpt_level_dbfs": {
+    "mean_volume": -24.2,
+    "max_volume": -8.1
+  },
+  "output_level_dbfs": {
+    "mean_volume": -39.6,
+    "max_volume": -23.5
+  },
+  "changes": "30-second excerpt from 00:20 to 00:50; downmixed to mono, re-encoded, attenuated, and given 0.12s/0.35s edge fades. No endorsement implied."
+}

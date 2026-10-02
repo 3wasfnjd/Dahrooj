@@ -1,0 +1,69 @@
+{
+  "baseline": "4f9264588ec4b5e9c3541c91d29881d333250d01",
+  "original_game_and_sfx_byte_identical": true,
+  "track": {
+    "edition": "excerpt-30s-mono-v2",
+    "title": "Carefree",
+    "artist": "Kevin MacLeod",
+    "isrc": "USUAN1400037",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3",
+    "source_page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1400037",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source_sha256": "8433b770a630d9b1594fd484442c677907ece899a4d149954cd2e74fd733e311",
+    "output_sha256": "694944cc5247d00c45d48be3eb4ca5813a781a1a3a07cff012de16e66b8a9761",
+    "source_bytes": 6566713,
+    "output_bytes": 240865,
+    "excerpt_start_seconds": 20,
+    "excerpt_length_seconds": 30,
+    "duration_seconds": 30.040816,
+    "encoding": "MP3 64 kb/s, 44.1 kHz mono",
+    "amplitude_multiplier": 0.18,
+    "attenuation_db": -14.895,
+    "reference_excerpt_level_dbfs": {
+      "mean_volume": -24.2,
+      "max_volume": -8.1
+    },
+    "output_level_dbfs": {
+      "mean_volume": -39.6,
+      "max_volume": -23.5
+    },
+    "changes": "30-second excerpt from 00:20 to 00:50; downmixed to mono, re-encoded, attenuated, and given 0.12s/0.35s edge fades. No endorsement implied."
+  },
+  "browsers": [
+    {
+      "name": "chromium",
+      "version": "140.0.7339.186",
+      "no_audio_request_before_gesture": true,
+      "first_note_tap_starts_real_mp3": true,
+      "touch_only_mute_resume": true,
+      "music_and_sfx_simultaneous": true,
+      "music_only_mute_preserves_sfx": true,
+      "mute_preference_persists": true,
+      "visibility_pause_resume": true,
+      "page_lifecycle": true,
+      "short_excerpt_loops": true,
+      "small_screen_controls_and_credit": true,
+      "missing_audio_does_not_stop_game": true
+    },
+    {
+      "name": "webkit",
+      "version": "26.0",
+      "no_audio_request_before_gesture": true,
+      "first_note_tap_starts_real_mp3": true,
+      "touch_only_mute_resume": true,
+      "music_and_sfx_simultaneous": true,
+      "music_only_mute_preserves_sfx": true,
+      "mute_preference_persists": true,
+      "visibility_pause_resume": true,
+      "page_lifecycle": true,
+      "short_excerpt_loops": true,
+      "small_screen_controls_and_credit": true,
+      "missing_audio_does_not_stop_game": true
+    }
+  ],
+  "failures": [],
+  "scope": "Focused music playback and original SFX coexistence in the goal stage, selected before the first simulated game frame. Not a new pass of the historical 60-case startup suite.",
+  "known_legacy_issue": "Prior baseline/current startup tests intermittently failed with a non-finite canvas gradient in free mode (Actions run 37037069168). The root cause has not been established conclusively. This unrelated game code remains unchanged.",
+  "limitations": "Chromium/WebKit mobile emulation, not physical iPhone listening. Visibility changes are simulated. Touch and mouse tested separately; game frame counts, rather than a fixed wall-clock delay, allow the original ball to settle on software rendering."
+}
