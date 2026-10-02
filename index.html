@@ -51,6 +51,45 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .styles button svg{width:20px;height:20px}
 .styles button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .styles button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+.side{
+  position:fixed;z-index:4;right:calc(14px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px;
+  background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.side button{
+  min-width:34px;height:34px;border-radius:999px;border:0;background:transparent;color:var(--ink);
+  display:grid;place-items:center;cursor:pointer;padding:0 4px;transition:background .2s ease,color .2s ease,transform .2s ease;
+  font:800 12px/1 "Grandstander","Trebuchet MS",sans-serif;font-variant-numeric:tabular-nums;
+}
+.side button svg{width:20px;height:20px}
+.side button[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
+.side button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+.side button.ping{animation:ping .9s cubic-bezier(.2,.9,.3,1)}
+@keyframes ping{0%{transform:scale(1)}25%{transform:scale(1.35) rotate(-8deg)}50%{transform:scale(.95) rotate(4deg)}100%{transform:none}}
+#chpanel{
+  position:fixed;z-index:5;right:calc(14px + env(safe-area-inset-right,0px));top:calc(104px + env(safe-area-inset-top,0px));
+  width:min(290px,calc(100vw - 32px));padding:12px 14px;border-radius:18px;
+  background:rgba(255,252,246,.94);border:1.5px solid rgba(44,45,61,.14);box-shadow:0 10px 30px rgba(44,45,61,.12);
+  font:600 14px/1.25 "Grandstander","Trebuchet MS",sans-serif;color:var(--ink);
+}
+.ch-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:17px;margin-bottom:8px}
+.ch-n{font-size:13px;opacity:.55;font-variant-numeric:tabular-nums}
+.ch-row{display:grid;grid-template-columns:20px 1fr auto;column-gap:8px;row-gap:5px;align-items:center;padding:7px 0;border-top:1px solid rgba(44,45,61,.08)}
+.ch-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(44,45,61,.35);display:grid;place-items:center;font-size:11px;color:var(--paper)}
+.ch-row.ok .ch-dot{background:var(--ink);border-color:var(--ink)}
+.ch-row.ok .ch-t{opacity:.55}
+.ch-t{min-width:0}
+.ch-v{font-size:12px;opacity:.55;font-variant-numeric:tabular-nums}
+.ch-bar{grid-column:2/4;height:4px;border-radius:2px;background:rgba(44,45,61,.1);overflow:hidden}
+.ch-bar i{display:block;height:100%;background:var(--ball);border-radius:2px;transition:width .4s ease}
+#toast{
+  position:fixed;z-index:6;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);
+  max-width:calc(100vw - 32px);padding:9px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font:700 14px/1.2 "Grandstander","Trebuchet MS",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  opacity:0;pointer-events:none;transition:opacity .3s ease,transform .45s cubic-bezier(.2,.9,.3,1);
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
 .credit{
   position:fixed;z-index:3;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom,0px));margin:0;
   display:flex;flex-direction:column;align-items:center;gap:5px;
@@ -104,6 +143,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><rect x="7.6" y="7.6" width="3.6" height="2.8" rx=".6" fill="currentColor" stroke="none" transform="rotate(-25 9.4 9)"/><circle cx="15.6" cy="15.4" r=".9" fill="currentColor" stroke="none"/></svg>
   </button>
 </div>
+<div class="side" role="group" aria-label="Challenges and visits">
+  <button id="btn-ch" aria-label="Challenges" title="Challenges" aria-expanded="false" aria-controls="chpanel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v3M9 20h6M10 16h4v4h-4z"/></svg>
+  </button>
+  <button id="btn-visits" aria-label="Visits" title="Visits">…</button>
+</div>
+<div id="chpanel" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="count" aria-live="polite">0</div>
 <div id="title" aria-live="polite"></div>
 <div class="modes" role="group" aria-label="Modes">
@@ -153,6 +200,10 @@ function showCount(){ elCount.textContent=counts[mode]; }
 function addCount(m,reset){
   const before=counts[m];
   counts[m]=reset?0:counts[m]+1;
+  if(m==='free') chProgress('free25',counts.free);
+  if(m==='goal') chProgress('keeper3',counts.goal);
+  if(m==='padel') chProgress('rally10',counts.padel);
+  if(m==='hoop'){ hoopStreak++; chProgress('hoop3',hoopStreak); }
   if(m!==mode || before===counts[m] || reset) return;
   elCount.textContent=counts[m];
   elCount.classList.remove('show'); void elCount.offsetWidth; elCount.classList.add('show');
@@ -1276,7 +1327,7 @@ function make3D(){
     }
     const samples=[];
     for(const s of [-1,1]) for(let k=0;k<8;k++){ const a=k/8*Math.PI*2; samples.push(V(Math.cos(a)*CR,s*CH/2,Math.sin(a)*CR)); }
-    let cleared=false, clangT=0, touched=false;
+    let cleared=false, clangT=0, touched=false, fullShot=false;
     function resetCans(){
       const g=0.006, sp=2*CR+g;
       const layout=[[-sp,0],[0,0],[sp,0],[-sp/2,1],[sp/2,1],[0,2]];
@@ -1336,7 +1387,7 @@ function make3D(){
       grp, aimZ:TZ,
       ft:sp=>Math.max(0.8,Math.min(1.6,1.75-sp/2400)),
       behind:P=>P.z<TZ-0.7,
-      onRespawn(){ if(cleared) resetCans(); touched=false; },
+      onRespawn(){ if(cleared) resetCans(); touched=false; fullShot=false; },
       touched:()=>touched,
       collide(){
         if(S.shot && !touched && S.pos.z<TZ-1) miss();
@@ -1357,7 +1408,7 @@ function make3D(){
             n.divideScalar(d); wakeAll();
             const before=S.vel.dot(n);
             const j=contact(ballBody,c,wp.clone(),n,BR-d,0.35,0.3);
-            if(j>0){ hit(n,Math.max(0,-before)*0.7,wp.clone()); clang(Math.min(1,j/4)); if(!touched && S.shot){ touched=true; react('joy',1.3); } }
+            if(j>0){ hit(n,Math.max(0,-before)*0.7,wp.clone()); clang(Math.min(1,j/4)); if(!touched && S.shot){ touched=true; fullShot=cans.every(onTable); react('joy',1.3); } }
           }
         }
         if(cans.every(c=>c.sleep)) return;
@@ -1384,7 +1435,7 @@ function make3D(){
           }
         }
         for(const c of cans){ c.mesh.position.copy(c.x); c.mesh.quaternion.copy(c.q); if(!c.down && !onTable(c)){ c.down=true; addCount('cans'); } }
-        if(!cleared && cans.every(c=>!onTable(c))){ cleared=true; if(S.shot){ S.scoredT=0; S.missT=0; success(); } }
+        if(!cleared && cans.every(c=>!onTable(c))){ cleared=true; if(S.shot && fullShot) chProgress('cansOne',1); if(S.shot){ S.scoredT=0; S.missT=0; success(); } }
       }
     };
   }
@@ -1566,6 +1617,7 @@ function make3D(){
       do{ nx=(Math.random()*2-1)*3.2; ny=0.9+Math.random()*1.9; tries++; }
       while(Math.hypot(nx-W.x,ny-W.y)<1.6 && tries<20);
       W.x=nx; W.y=ny; build();
+      if(W.size<=MIN+1e-6) chProgress('windowMin',1);
     }
     build();
     const wp=V(0,0,0), wq=V(0,0,0);
@@ -1601,6 +1653,7 @@ function make3D(){
   function react(kind,dur,next){ S.mood=kind; S.moodT=dur; S.moodNext=next||null; }
   function success(){ if(S.scoredT>0||S.missT>0) return; S.scoredT=1.7; react('joy',1.7); confetti.celebrate(S.pos); if(stageName==='goal'||stageName==='hoop'||stageName==='window') addCount(stageName); }
   function miss(){
+    if(stageName==='hoop') hoopStreak=0;
     if(S.scoredT>0||S.missT>0) return;
     if(stage.touched && stage.touched()){ S.missT=1.0; return; }
     S.missT=1.7;
@@ -1760,11 +1813,90 @@ function make3D(){
   return {update:update3,render:render3,resize:resize3,setStage};
 }
 
+/* ---------- challenges (saved on this device) ---------- */
+const CHALLENGES=[
+  {id:'free25',   title:'25 bounces',                    goal:25},
+  {id:'keeper3',  title:'Beat the keeper 3 times',       goal:3},
+  {id:'hoop3',    title:'3 hoops in a row',              goal:3},
+  {id:'windowMin',title:'Shrink the window all the way', goal:1},
+  {id:'rally10',  title:'Padel rally of 10',             goal:10},
+  {id:'cansOne',  title:'Clear all cans in one throw',   goal:1},
+  {id:'styles5',  title:'Play in all 5 styles',          goal:5},
+];
+let chState={}, stylesUsed=[];
+try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
+let hoopStreak=0;
+const elToast=document.getElementById('toast'), elPanel=document.getElementById('chpanel'), btnCh=document.getElementById('btn-ch'), btnVisits=document.getElementById('btn-visits');
+let toastTimer=0;
+function toast(text){
+  elToast.textContent=text; elToast.classList.remove('show'); void elToast.offsetWidth; elToast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>elToast.classList.remove('show'),2300);
+}
+function chime(){
+  if(!audio) return;
+  [659,880,1175].forEach((f,i)=>{ const t=audio.currentTime+i*0.08, o=audio.createOscillator(), g=audio.createGain();
+    o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.07,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t+0.32); });
+}
+function chProgress(id,value){
+  const c=CHALLENGES.find(x=>x.id===id); if(!c) return;
+  const before=chState[id]||0; if(value<=before) return;
+  chState[id]=Math.min(c.goal,value);
+  try{ localStorage.setItem('dahrooj-ch',JSON.stringify(chState)); }catch(_){}
+  if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+c.title); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
+  if(!elPanel.hidden) renderPanel();
+}
+function renderPanel(){
+  const done=CHALLENGES.filter(c=>(chState[c.id]||0)>=c.goal).length;
+  elPanel.innerHTML=`<div class="ch-head"><span>Challenges</span><span class="ch-n">${done}/${CHALLENGES.length}</span></div>`+
+    CHALLENGES.map(c=>{ const v=chState[c.id]||0, ok=v>=c.goal;
+      return `<div class="ch-row${ok?' ok':''}"><span class="ch-dot">${ok?'✓':''}</span><span class="ch-t">${c.title}</span><span class="ch-v">${Math.min(v,c.goal)}/${c.goal}</span><span class="ch-bar"><i style="width:${Math.min(100,v/c.goal*100)}%"></i></span></div>`; }).join('');
+}
+btnCh.addEventListener('click',e=>{ e.stopPropagation(); elPanel.hidden=!elPanel.hidden; btnCh.setAttribute('aria-expanded',!elPanel.hidden); if(!elPanel.hidden) renderPanel(); });
+document.addEventListener('pointerdown',e=>{ if(!elPanel.hidden && !elPanel.contains(e.target) && e.target!==btnCh && !btnCh.contains(e.target)){ elPanel.hidden=true; btnCh.setAttribute('aria-expanded','false'); } });
+function noteStyle(v){ if(!stylesUsed.includes(v)){ stylesUsed.push(v); try{ localStorage.setItem('dahrooj-styles',JSON.stringify(stylesUsed)); }catch(_){} } chProgress('styles5',stylesUsed.length); }
+
+/* ---------- shared visit counter (Firebase, same project and pattern as Motri's sinkhole counter) ---------- */
+const FIREBASE_CONFIG={
+  apiKey:'AIzaSyBbyByEIqSslyNhQvv3ed-HQhF-43fK_Wk', authDomain:'motri-4ed44.firebaseapp.com', projectId:'motri-4ed44',
+  storageBucket:'motri-4ed44.firebasestorage.app', messagingSenderId:'241178340893', appId:'1:241178340893:web:8a01dbbf985a074e52e0f4'
+};
+let visits=null;
+const fmt=n=>n==null?'…':n>=100000?(n/1000).toFixed(0)+'k':n>=10000?(n/1000).toFixed(1)+'k':n.toLocaleString('en-US');
+function setVisits(n){ visits=n; btnVisits.textContent=fmt(n); btnVisits.setAttribute('aria-label',n==null?'Visits':`${n} visits`); }
+btnVisits.addEventListener('click',()=>toast(visits==null?'Visits are counted when the game is online':`${visits.toLocaleString('en-US')} visits`));
+function loadScript(src){ return new Promise((ok,no)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); }); }
+async function initVisits(){
+  setVisits(null);
+  try{
+    const base='https://www.gstatic.com/firebasejs/10.12.2/';
+    await loadScript(base+'firebase-app-compat.js');
+    await loadScript(base+'firebase-auth-compat.js');
+    await loadScript(base+'firebase-firestore-compat.js');
+    const fb=window.firebase; if(!fb) return;
+    if(!fb.apps.length) fb.initializeApp(FIREBASE_CONFIG);
+    if(!fb.auth().currentUser) await fb.auth().signInAnonymously();
+    const db=fb.firestore(), ref=db.collection('worldCounters').doc('dahrooj');
+    ref.onSnapshot(s=>{ if(s.exists) setVisits(s.data().count); }, ()=>{});
+    let counted=false; try{ counted=sessionStorage.getItem('dahrooj-visit')==='1'; }catch(_){}
+    if(!counted){
+      const uid=fb.auth().currentUser.uid, ts=fb.firestore.FieldValue.serverTimestamp();
+      await db.runTransaction(async tx=>{
+        const d=await tx.get(ref);
+        if(!d.exists) tx.set(ref,{count:1,lastUserId:uid,updatedAt:ts});
+        else tx.update(ref,{count:(d.data().count||0)+1,lastUserId:uid,updatedAt:ts});
+      });
+      try{ sessionStorage.setItem('dahrooj-visit','1'); }catch(_){}
+    }
+  }catch(_){ /* offline, blocked, or rules not published yet: keep the ellipsis */ }
+}
+initVisits();
+
 /* ---------- modes ---------- */
 const modeBtns=[...document.querySelectorAll('.modes button')];
 const styleBtns=[...document.querySelectorAll('.styles button')];
 function setStyle(v){
-  const changed=ballStyle!==v;
+  const changed=ballStyle!==v; noteStyle(v);
   ballStyle=v; if(changed) makePaper(true); for(const b of styleBtns) b.setAttribute('aria-pressed',b.dataset.style===v);
   try{ localStorage.setItem('dahrooj-style',v); }catch(_){}
 }
