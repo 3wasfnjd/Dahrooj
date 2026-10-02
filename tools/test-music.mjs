@@ -27,28 +27,34 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
 const origin=`http://127.0.0.1:${server.address().port}`;
-const report={baseline,original_game_and_sfx_byte_identical:true,track,browsers:[],failures:[],scope:'Music-specific playback and SFX coexistence checks. This is not a new claim that the full historical 60-case startup suite passes.',known_legacy_issue:'The unchanged free-mode physics divided by dt on duplicate RAF timestamps in prior baseline/current startup checks. It remains outside this music-only change; see Actions run 37037069168. Touch and mouse automation are tested in separate contexts.',limitations:'Chromium/WebKit mobile emulation, not physical iPhone listening. Lifecycle visibility changes are simulated. Audio levels measured from decoded samples.'};
+const report={baseline,original_game_and_sfx_byte_identical:true,track,browsers:[],failures:[],scope:'Focused music playback and original SFX coexistence in the goal stage, selected before the first simulated game frame. Not a new pass of the historical 60-case startup suite.',known_legacy_issue:'Prior baseline/current startup tests intermittently failed with a non-finite canvas gradient in free mode (Actions run 37037069168). The root cause has not been established conclusively. This unrelated game code remains unchanged.',limitations:'Chromium/WebKit mobile emulation, not physical iPhone listening. Visibility changes are simulated. Touch and mouse tested separately; game frame counts, rather than a fixed wall-clock delay, allow the original ball to settle on software rendering.'};
 async function open(browser,failMusic=false){
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});context.setDefaultTimeout(10000);
   const requests=[],errors=[];
   await context.addInitScript(()=>{
-    window.__unhandled=[];window.__sfx=0;window.__gameFrames=0;window.__hidden=false;
+    window.__unhandled=[];window.__sfx=0;window.__gameFrames=0;window.__hidden=false;window.__stageReady=false;
     Object.defineProperty(document,'hidden',{get:()=>window.__hidden,configurable:true});
     addEventListener('unhandledrejection',e=>window.__unhandled.push(String(e.reason)));
-    const raf=requestAnimationFrame.bind(window);window.requestAnimationFrame=f=>raf(t=>{if(f.name==='frame')window.__gameFrames++;f(t);});
+    const raf=requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=f=>raf(t=>{
+      if(f.name==='frame'){
+        if(!window.__stageReady){document.querySelector('[data-mode="goal"]').click();window.__stageReady=true;}
+        window.__gameFrames++;
+      }
+      f(t);
+    });
     const proto=(window.AudioContext||window.webkitAudioContext)?.prototype;
     if(proto){const original=proto.createOscillator;proto.createOscillator=function(...args){window.__sfx++;return original.apply(this,args);};}
   });
   await context.route('**/*',route=>{const url=route.request().url();requests.push(url);return !url.startsWith(origin+'/')||(failMusic&&url.endsWith('.mp3'))?route.abort():route.continue();});
   const page=await context.newPage();page.on('pageerror',e=>errors.push(String(e.stack||e)));
-  await page.goto(origin+'/Dahrooj/',{waitUntil:'domcontentloaded'});
-  // Select a 3D stage as setup WITHOUT a trusted gesture or audio unlock.
-  await page.evaluate(()=>document.querySelector('[data-mode="goal"]').click());
-  await page.waitForSelector('#btn-music');
+  await page.goto(origin+'/Dahrooj/',{waitUntil:'domcontentloaded'});await page.waitForSelector('#btn-music');
+  await page.waitForFunction(()=>window.__stageReady&&window.__gameFrames>2,null,{polling:50});
   return{context,page,requests,errors};
 }
 async function clean(c){assert.deepEqual(c.errors,[]);assert.deepEqual(await c.page.evaluate(()=>window.__unhandled),[]);}
 async function playing(page){await page.waitForFunction(()=>{const a=document.getElementById('dahrooj-bgm');return !a.paused&&a.currentTime>.1;},null,{timeout:15000,polling:50});}
+async function settle(page){const n=await page.evaluate(()=>window.__gameFrames);await page.waitForFunction(n=>window.__gameFrames>n+70,n,{timeout:20000,polling:50});}
 async function swipe(page){await page.mouse.move(195,540);await page.mouse.down();await page.mouse.move(195,250,{steps:10});await page.mouse.up();}
 try{
   for(const[name,type]of[['chromium',chromium],['webkit',webkit]]){
@@ -61,16 +67,15 @@ try{
       await touch.page.locator('#btn-music').tap();assert(await touch.page.$eval('#dahrooj-bgm',a=>a.paused));
       await touch.page.locator('#btn-music').tap();await playing(touch.page);result.touch_only_mute_resume=true;
       await clean(touch);await touch.context.close();
-      // Use only mouse input in this second context, including buttons and swipes.
       const c=await open(browser),{page}=c;await page.locator('[data-mode="goal"]').click();await playing(page);
-      await page.waitForTimeout(1600);let n=await page.evaluate(()=>window.__sfx);await swipe(page);
+      await settle(page);await clean(c);let n=await page.evaluate(()=>window.__sfx);await swipe(page);
       await page.waitForFunction(n=>window.__sfx>n,n,{timeout:10000,polling:50});
       assert(await page.$eval('#dahrooj-bgm',a=>!a.paused));result.music_and_sfx_simultaneous=true;
       await page.locator('#btn-music').click();assert(await page.$eval('#dahrooj-bgm',a=>a.paused));
-      await page.locator('[data-mode="goal"]').click();await page.waitForTimeout(1600);n=await page.evaluate(()=>window.__sfx);await swipe(page);
+      await page.locator('[data-mode="goal"]').click();await settle(page);n=await page.evaluate(()=>window.__sfx);await swipe(page);
       await page.waitForFunction(n=>window.__sfx>n,n,{timeout:10000,polling:50});
       assert(await page.$eval('#dahrooj-bgm',a=>a.paused));result.music_only_mute_preserves_sfx=true;
-      await page.reload({waitUntil:'domcontentloaded'});await page.evaluate(()=>document.querySelector('[data-mode="goal"]').click());await page.waitForSelector('#btn-music');
+      await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('#btn-music');await page.waitForFunction(()=>window.__stageReady,null,{polling:50});
       assert.equal(await page.locator('#btn-music').getAttribute('aria-pressed'),'false');
       await page.locator('[data-mode="goal"]').click();assert(await page.$eval('#dahrooj-bgm',a=>!a.hasAttribute('src')));result.mute_preference_persists=true;
       await page.locator('#btn-music').click();await playing(page);
