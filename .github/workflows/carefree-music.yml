@@ -1,0 +1,55 @@
+name: Carefree background music verification
+on:
+  push:
+    branches: [feat/carefree-music]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install audio encoder if needed
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y ffmpeg; fi
+      - name: Prepare approved quiet track and credits
+        run: python3 tools/prepare-carefree.py
+      - name: Install isolated tests and browsers
+        run: |
+          npm install --prefix tools --ignore-scripts --no-audit --no-fund
+          npx --prefix tools playwright install --with-deps chromium webkit
+      - name: All six modes and five styles with blocked external services
+        run: node tools/test-startup.mjs
+      - name: Verify real music playback, independent SFX and mobile lifecycle
+        run: node tools/test-music.mjs
+      - name: Save verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carefree-music-verification
+          path: |
+            test-results/
+            docs/music-report.json
+            assets/audio/manifest.json
+          retention-days: 7
+      - name: Commit only verified implementation and assets
+        if: github.ref == 'refs/heads/feat/carefree-music'
+        run: |
+          git add index.html assets/audio README.md LICENSE tools/test-startup.mjs tools/package-lock.json docs/startup-report.json docs/startup-report.md docs/music-report.json
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Add quiet licensed Carefree music without modifying game sound effects'
+            git push origin HEAD:feat/carefree-music
+          fi
