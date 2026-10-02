@@ -1,0 +1,73 @@
+name: Carefree background music verification
+on:
+  push:
+    branches: [feat/carefree-music]
+  workflow_dispatch:
+concurrency:
+  group: carefree-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone audio encoder if needed
+        timeout-minutes: 3
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/audio-encoder"
+            curl -fL --retry 1 --connect-timeout 15 --max-time 90 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o "$RUNNER_TEMP/audio-encoder/build.tar.xz"
+            curl -fsSL --connect-timeout 15 --max-time 30 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz.md5 -o "$RUNNER_TEMP/audio-encoder/checksum"
+            actual=$(md5sum "$RUNNER_TEMP/audio-encoder/build.tar.xz" | cut -d' ' -f1)
+            grep -q "$actual" "$RUNNER_TEMP/audio-encoder/checksum"
+            tar -xf "$RUNNER_TEMP/audio-encoder/build.tar.xz" -C "$RUNNER_TEMP/audio-encoder"
+            encoder=$(find "$RUNNER_TEMP/audio-encoder" -type f -name ffmpeg | head -1)
+            echo "$(dirname "$encoder")" >> "$GITHUB_PATH"
+          fi
+      - name: Prepare quiet 30-second licensed excerpt
+        timeout-minutes: 3
+        run: python3 tools/prepare-carefree.py
+      - name: Install isolated tests and browsers
+        timeout-minutes: 5
+        run: |
+          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-network-timeouts >/dev/null
+          npm ci --prefix tools --ignore-scripts --no-audit --no-fund
+          npx --prefix tools playwright install --with-deps chromium webkit
+      - name: Verify first-touch playback and independent sound effects
+        timeout-minutes: 3
+        run: |
+          mkdir -p test-results
+          set -o pipefail
+          node tools/test-music.mjs 2>&1 | tee test-results/music-console.log
+      - name: Save verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carefree-music-verification-${{ github.run_attempt }}
+          path: |
+            test-results/
+            docs/music-report.json
+            assets/audio/
+          retention-days: 7
+      - name: Commit verified music-only implementation
+        if: success() && github.ref == 'refs/heads/feat/carefree-music'
+        run: |
+          git add index.html assets/audio README.md LICENSE tools/package-lock.json docs/music-report.json
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Install compact quiet Carefree excerpt; preserve original game and SFX'
+            git push origin HEAD:feat/carefree-music
+          fi
