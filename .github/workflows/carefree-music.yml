@@ -3,6 +3,9 @@ on:
   push:
     branches: [feat/carefree-music]
   workflow_dispatch:
+concurrency:
+  group: carefree-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -11,22 +14,43 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: write
     env:
       LIBGL_ALWAYS_SOFTWARE: '1'
     steps:
+      - name: Cancel superseded attempts on this work branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/workflows/carefree-music.yml/runs?branch=feat%2Fcarefree-music&status=in_progress" --jq '.workflow_runs[].id' | while read id; do
+            if [ "$id" != "${{ github.run_id }}" ]; then gh api -X POST "repos/${{ github.repository }}/actions/runs/$id/cancel" || true; fi
+          done
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install audio encoder if needed
+      - name: Install standalone audio encoder if needed
+        timeout-minutes: 3
         run: |
-          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y ffmpeg; fi
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/audio-encoder"
+            curl -fL --retry 1 --connect-timeout 15 --max-time 90 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o "$RUNNER_TEMP/audio-encoder/build.tar.xz"
+            curl -fsSL --connect-timeout 15 --max-time 30 https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz.md5 -o "$RUNNER_TEMP/audio-encoder/checksum"
+            actual=$(md5sum "$RUNNER_TEMP/audio-encoder/build.tar.xz" | cut -d' ' -f1)
+            grep -q "$actual" "$RUNNER_TEMP/audio-encoder/checksum"
+            tar -xf "$RUNNER_TEMP/audio-encoder/build.tar.xz" -C "$RUNNER_TEMP/audio-encoder"
+            encoder=$(find "$RUNNER_TEMP/audio-encoder" -type f -name ffmpeg | head -1)
+            echo "$(dirname "$encoder")" >> "$GITHUB_PATH"
+          fi
       - name: Prepare approved quiet track and credits
+        timeout-minutes: 4
         run: python3 tools/prepare-carefree.py
       - name: Install isolated tests and browsers
+        timeout-minutes: 6
         run: |
+          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-network-timeouts >/dev/null
           npm install --prefix tools --ignore-scripts --no-audit --no-fund
           npx --prefix tools playwright install --with-deps chromium webkit
       - name: All six modes and five styles with blocked external services
