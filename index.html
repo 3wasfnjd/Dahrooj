@@ -243,9 +243,9 @@ function makePaper(keepOld){
     for(let i=0;i<(bg.width*bg.height)/(260*dpr);i++){ const x=Math.random()*bg.width,y=Math.random()*bg.height,a=Math.random()*6.28,l=(3+Math.random()*5)*dpr; g.strokeStyle=Math.random()<.5?'rgba(255,255,255,.12)':'rgba(120,70,60,.06)'; g.lineWidth=0.8*dpr; g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l); g.stroke(); }
   } else if(st==='bubble'){ // faint floating bubbles
     for(let i=0;i<26;i++){ const x=Math.random()*bg.width,y=Math.random()*bg.height,r=(8+Math.random()*46)*dpr;
-      g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=1.2*dpr; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.stroke();
-      g.fillStyle='rgba(255,255,255,.08)'; g.fill();
-      g.fillStyle='rgba(255,255,255,.4)'; g.beginPath(); g.arc(x-r*0.35,y-r*0.35,Math.max(1,r*0.12),0,Math.PI*2); g.fill(); }
+      g.strokeStyle='rgba(255,255,255,.14)'; g.lineWidth=1*dpr; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.stroke();
+      g.fillStyle='rgba(255,255,255,.03)'; g.fill();
+      g.fillStyle='rgba(255,255,255,.16)'; g.beginPath(); g.arc(x-r*0.35,y-r*0.35,Math.max(1,r*0.12),0,Math.PI*2); g.fill(); }
   }
   const vg=g.createRadialGradient(bg.width/2,bg.height*.45,Math.min(bg.width,bg.height)*.3,bg.width/2,bg.height/2,Math.max(bg.width,bg.height)*.8);
   vg.addColorStop(0,'rgba(255,255,255,.16)'); vg.addColorStop(1,'rgba(40,30,20,.12)');
