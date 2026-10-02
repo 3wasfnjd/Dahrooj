@@ -14,17 +14,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-      actions: write
     env:
       LIBGL_ALWAYS_SOFTWARE: '1'
     steps:
-      - name: Cancel superseded attempts on this work branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api "repos/${{ github.repository }}/actions/workflows/carefree-music.yml/runs?branch=feat%2Fcarefree-music&status=in_progress" --jq '.workflow_runs[].id' | while read id; do
-            if [ "$id" != "${{ github.run_id }}" ]; then gh api -X POST "repos/${{ github.repository }}/actions/runs/$id/cancel" || true; fi
-          done
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -54,9 +46,25 @@ jobs:
           npm install --prefix tools --ignore-scripts --no-audit --no-fund
           npx --prefix tools playwright install --with-deps chromium webkit
       - name: All six modes and five styles with blocked external services
-        run: node tools/test-startup.mjs
+        run: |
+          mkdir -p test-results
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tools/test-startup.mjs');s=p.read_text()
+          s=s.replace("errors.push(String(e))", "errors.push(String(e.stack||e))")
+          s=s.replace('window.__rafCount=0;', 'window.__clockFrames=[]; window.__rafCount=0;')
+          s=s.replace('window.__rafCount++;fn(now);', 'window.__rafCount++;if(window.__clockFrames.length<12)window.__clockFrames.push({stamp:now,clock:performance.now()});fn(now);')
+          s=s.replace('await original.assertClean();await original.clean();', "console.log('BASELINE CLOCK',await original.page.evaluate(()=>window.__clockFrames));await original.assertClean();await original.clean();")
+          p.write_text(s)
+          PY
+          set -o pipefail
+          node tools/test-startup.mjs 2>&1 | tee test-results/startup-console.log
       - name: Verify real music playback, independent SFX and mobile lifecycle
-        run: node tools/test-music.mjs
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p test-results
+          set -o pipefail
+          node tools/test-music.mjs 2>&1 | tee test-results/music-console.log
       - name: Save verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,7 +76,7 @@ jobs:
             assets/audio/manifest.json
           retention-days: 7
       - name: Commit only verified implementation and assets
-        if: github.ref == 'refs/heads/feat/carefree-music'
+        if: success() && github.ref == 'refs/heads/feat/carefree-music'
         run: |
           git add index.html assets/audio README.md LICENSE tools/test-startup.mjs tools/package-lock.json docs/startup-report.json docs/startup-report.md docs/music-report.json
           if ! git diff --cached --quiet; then
