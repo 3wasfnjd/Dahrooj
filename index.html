@@ -4,8 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dahrooj</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@600;700;800&family=Baloo+Bhaijaan+2:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="./vendor/fonts/fonts.css">
 <!-- Dahrooj by Aboden Games. Any use of this code or of the game idea must credit "Aboden Games". See LICENSE. -->
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
@@ -175,7 +174,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 </div>
 <p class="credit">Aboden Games<small>© 2026</small></p>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="./vendor/three/three-r128.min.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -1884,8 +1883,24 @@ const arN=n=>Number(n).toLocaleString('ar-EG');
 const fmt=n=>n==null?'…':n>=10000?arN(Math.round(n/100)/10)+' ألف':arN(n);
 function setVisits(n){ visits=n; btnVisits.textContent=fmt(n); btnVisits.setAttribute('aria-label',n==null?'الزيارات':`${arN(n)} زيارة`); }
 btnVisits.addEventListener('click',()=>toast(visits==null?'الزيارات تنحسب لما تكون اللعبة أونلاين':`${arN(visits)} زيارة`));
-function loadScript(src){ return new Promise((ok,no)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); }); }
+function loadScript(src){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    let settled=false;
+    const finish=error=>{
+      if(settled) return; settled=true; clearTimeout(timer);
+      s.onload=s.onerror=null;
+      if(error){ s.remove(); reject(error); } else resolve();
+    };
+    const timer=setTimeout(()=>finish(new Error('Optional visit counter timed out')),8000);
+    s.async=true; s.src=src;
+    s.onload=()=>finish();
+    s.onerror=()=>finish(new Error('Optional visit counter unavailable'));
+    document.head.appendChild(s);
+  });
+}
 async function initVisits(){
+  if(navigator.onLine===false) return;
   setVisits(null);
   try{
     const base='https://www.gstatic.com/firebasejs/10.12.2/';
@@ -1909,7 +1924,7 @@ async function initVisits(){
     }
   }catch(_){ /* offline, blocked, or rules not published yet: keep the ellipsis */ }
 }
-initVisits();
+// initVisits is scheduled after the first rendered game frame below.
 
 /* ---------- modes ---------- */
 const modeBtns=[...document.querySelectorAll('.modes button')];
@@ -1958,6 +1973,12 @@ function frame(now){
 }
 ball.y=floorY-R-H*0.35; ball.vy=0; ball.grounded=false; jellyInit(ball.x,ball.y);
 requestAnimationFrame(frame);
+// Optional analytics starts only after the first game frame, never in its critical path.
+requestAnimationFrame(()=>{
+  const startCounter=()=>{ void initVisits(); };
+  if('requestIdleCallback' in window) window.requestIdleCallback(startCounter,{timeout:2000});
+  else setTimeout(startCounter,250);
+});
 setTimeout(()=>showTitle('Dahrooj'),250);
 })();
 </script>

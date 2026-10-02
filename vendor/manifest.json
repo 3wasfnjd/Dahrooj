@@ -1,0 +1,81 @@
+{
+  "baseline_commit": "4001baefa83897212d481d0ad5d7a29b461d6b9d",
+  "font_request_user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+  "font_css_url": "https://fonts.googleapis.com/css2?family=Grandstander:wght@600;700;800&family=Baloo+Bhaijaan+2:wght@500;700;800&display=swap",
+  "three_version": "r128",
+  "gameplay_sections_unchanged": true,
+  "assets": [
+    {
+      "path": "vendor/three/three-r128.min.js",
+      "source_url": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+      "bytes": 603445,
+      "sha256": "9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2"
+    },
+    {
+      "path": "vendor/three/LICENSE",
+      "source_url": "https://raw.githubusercontent.com/mrdoob/three.js/r128/LICENSE",
+      "bytes": 1081,
+      "sha256": "7dddf7c5b8fd10ee654db8857d75d104b5557889aa5a91fc4ca545ea7c07062f"
+    },
+    {
+      "path": "vendor/fonts/font-ddfc8d7ce4a727b6.woff2",
+      "source_url": "https://fonts.gstatic.com/s/baloobhaijaan2/v21/zYX9KUwuEqdVGqM8tPDdAA_Y-_bMAIRsdP3pBmtF8A.woff2",
+      "bytes": 38588,
+      "sha256": "ddfc8d7ce4a727b666b57681c4394688814573e601946bfa49f9abc10ee0ffce"
+    },
+    {
+      "path": "vendor/fonts/font-59bc619efe983cca.woff2",
+      "source_url": "https://fonts.gstatic.com/s/baloobhaijaan2/v21/zYX9KUwuEqdVGqM8tPDdAA_Y-_bMAI5sdP3pBmtF8A.woff2",
+      "bytes": 9060,
+      "sha256": "59bc619efe983ccaeffe2243f30de8f1f3c0b27fc69aa7f5e524950cc8cfd708"
+    },
+    {
+      "path": "vendor/fonts/font-cff0eb35b5c2c63d.woff2",
+      "source_url": "https://fonts.gstatic.com/s/baloobhaijaan2/v21/zYX9KUwuEqdVGqM8tPDdAA_Y-_bMAI9sdP3pBmtF8A.woff2",
+      "bytes": 30556,
+      "sha256": "cff0eb35b5c2c63d12bc71f1b10324cb429f56a717bf8bd9a5e63721c7d5c1f7"
+    },
+    {
+      "path": "vendor/fonts/font-9716a70e65cec699.woff2",
+      "source_url": "https://fonts.gstatic.com/s/baloobhaijaan2/v21/zYX9KUwuEqdVGqM8tPDdAA_Y-_bMAIFsdP3pBms.woff2",
+      "bytes": 34704,
+      "sha256": "9716a70e65cec6997acad8a854cf3510169faa76884d70f7c6f043b722c9e0cc"
+    },
+    {
+      "path": "vendor/fonts/font-ea1e2eee03d6d3a3.woff2",
+      "source_url": "https://fonts.gstatic.com/s/grandstander/v20/ga6KawtA-GpSsTWrnNHPCSImZTC7XsdBMr8R.woff2",
+      "bytes": 11812,
+      "sha256": "ea1e2eee03d6d3a3a1fd66f51454768be4fbcc39f6e048e41db25ead654235e9"
+    },
+    {
+      "path": "vendor/fonts/font-1dfae4ec2ecc049e.woff2",
+      "source_url": "https://fonts.gstatic.com/s/grandstander/v20/ga6KawtA-GpSsTWrnNHPCSImZDC7XsdBMr8R.woff2",
+      "bytes": 34060,
+      "sha256": "1dfae4ec2ecc049e88606a0ee9eceb9dd5b1ebf78c0abb18dc898d3a7ad30bf5"
+    },
+    {
+      "path": "vendor/fonts/font-1bb44f8aae120ac8.woff2",
+      "source_url": "https://fonts.gstatic.com/s/grandstander/v20/ga6KawtA-GpSsTWrnNHPCSImajC7XsdBMg.woff2",
+      "bytes": 42440,
+      "sha256": "1bb44f8aae120ac89a6f9c9b611b670063aaaf45bc644c63604520e24e19e4a4"
+    },
+    {
+      "path": "vendor/fonts/fonts.css",
+      "source_url": "https://fonts.googleapis.com/css2?family=Grandstander:wght@600;700;800&family=Baloo+Bhaijaan+2:wght@500;700;800&display=swap",
+      "bytes": 9294,
+      "sha256": "9f79f7aaecf3c3cef0ee1813975fc65669235f09d0a2a8e5face979305acd4c8"
+    },
+    {
+      "path": "vendor/fonts/grandstander-OFL.txt",
+      "source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/grandstander/OFL.txt",
+      "bytes": 4403,
+      "sha256": "c98642ce049ee94f1868c47db44dbdc69e1800e2cf3edb539f030ac4abc22ceb"
+    },
+    {
+      "path": "vendor/fonts/baloobhaijaan2-OFL.txt",
+      "source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/baloobhaijaan2/OFL.txt",
+      "bytes": 4384,
+      "sha256": "ad09b05dc8bc678c9daf7c4c5f7ef1f55e5726127f4330b2e98e40b9dffcb860"
+    }
+  ]
+}
