@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dahrooj</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@600;700;800&family=Baloo+Bhaijaan+2:wght@500;700;800&display=swap">
 <!-- Dahrooj by Aboden Games. Any use of this code or of the game idea must credit "Aboden Games". See LICENSE. -->
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
@@ -71,7 +71,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   position:fixed;z-index:5;right:calc(14px + env(safe-area-inset-right,0px));top:calc(104px + env(safe-area-inset-top,0px));
   width:min(290px,calc(100vw - 32px));padding:12px 14px;border-radius:18px;
   background:rgba(255,252,246,.94);border:1.5px solid rgba(44,45,61,.14);box-shadow:0 10px 30px rgba(44,45,61,.12);
-  font:600 14px/1.25 "Grandstander","Trebuchet MS",sans-serif;color:var(--ink);
+  font:600 15px/1.35 "Baloo Bhaijaan 2","Grandstander",Tahoma,sans-serif;color:var(--ink);direction:rtl;
 }
 .ch-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:17px;margin-bottom:8px}
 .ch-n{font-size:13px;opacity:.55;font-variant-numeric:tabular-nums}
@@ -86,7 +86,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #toast{
   position:fixed;z-index:6;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);
   max-width:calc(100vw - 32px);padding:9px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
-  font:700 14px/1.2 "Grandstander","Trebuchet MS",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font:700 14px/1.3 "Baloo Bhaijaan 2","Grandstander",Tahoma,sans-serif;white-space:nowrap;direction:rtl;unicode-bidi:plaintext;overflow:hidden;text-overflow:ellipsis;
   opacity:0;pointer-events:none;transition:opacity .3s ease,transform .45s cubic-bezier(.2,.9,.3,1);
 }
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -1815,13 +1815,13 @@ function make3D(){
 
 /* ---------- challenges (saved on this device) ---------- */
 const CHALLENGES=[
-  {id:'free25',   title:'25 bounces',                    goal:25},
-  {id:'keeper3',  title:'Beat the keeper 3 times',       goal:3},
-  {id:'hoop3',    title:'3 hoops in a row',              goal:3},
-  {id:'windowMin',title:'Shrink the window all the way', goal:1},
-  {id:'rally10',  title:'Padel rally of 10',             goal:10},
-  {id:'cansOne',  title:'Clear all cans in one throw',   goal:1},
-  {id:'styles5',  title:'Play in all 5 styles',          goal:5},
+  {id:'free25',   title:'٢٥ ارتداد',                    goal:25},
+  {id:'keeper3',  title:'سجّل على الحارس ٣ مرات',       goal:3},
+  {id:'hoop3',    title:'٣ سلات ورا بعض',              goal:3},
+  {id:'windowMin',title:'صغّر الشباك لأصغر حجم', goal:1},
+  {id:'rally10',  title:'رالي بادل ١٠ ضربات',             goal:10},
+  {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   goal:1},
+  {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
 ];
 let chState={}, stylesUsed=[];
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
@@ -1846,11 +1846,12 @@ function chProgress(id,value){
   if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+c.title); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
   if(!elPanel.hidden) renderPanel();
 }
+const ar=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
 function renderPanel(){
   const done=CHALLENGES.filter(c=>(chState[c.id]||0)>=c.goal).length;
-  elPanel.innerHTML=`<div class="ch-head"><span>Challenges</span><span class="ch-n">${done}/${CHALLENGES.length}</span></div>`+
+  elPanel.innerHTML=`<div class="ch-head"><span>التحديات</span><span class="ch-n">${ar(done)} من ${ar(CHALLENGES.length)}</span></div>`+
     CHALLENGES.map(c=>{ const v=chState[c.id]||0, ok=v>=c.goal;
-      return `<div class="ch-row${ok?' ok':''}"><span class="ch-dot">${ok?'✓':''}</span><span class="ch-t">${c.title}</span><span class="ch-v">${Math.min(v,c.goal)}/${c.goal}</span><span class="ch-bar"><i style="width:${Math.min(100,v/c.goal*100)}%"></i></span></div>`; }).join('');
+      return `<div class="ch-row${ok?' ok':''}"><span class="ch-dot">${ok?'✓':''}</span><span class="ch-t">${c.title}</span><span class="ch-v">${ar(Math.min(v,c.goal))} من ${ar(c.goal)}</span><span class="ch-bar"><i style="width:${Math.min(100,v/c.goal*100)}%"></i></span></div>`; }).join('');
 }
 btnCh.addEventListener('click',e=>{ e.stopPropagation(); elPanel.hidden=!elPanel.hidden; btnCh.setAttribute('aria-expanded',!elPanel.hidden); if(!elPanel.hidden) renderPanel(); });
 document.addEventListener('pointerdown',e=>{ if(!elPanel.hidden && !elPanel.contains(e.target) && e.target!==btnCh && !btnCh.contains(e.target)){ elPanel.hidden=true; btnCh.setAttribute('aria-expanded','false'); } });
