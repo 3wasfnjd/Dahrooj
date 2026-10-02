@@ -1,9 +1,11 @@
 <!doctype html>
-<html lang="ar">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>دحروج</title>
+<title>Dahrooj</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@600&display=swap">
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
 :root{
@@ -25,6 +27,15 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   transition:transform .18s cubic-bezier(.3,1.6,.5,1);
 }
 #count.pop{transform:scale(1.3)}
+#title{
+  position:fixed;z-index:3;left:16px;right:16px;top:26%;text-align:center;pointer-events:none;user-select:none;
+  font:600 46px/1.2 "Reem Kufi","Tahoma",sans-serif;color:#2c2d3d;letter-spacing:.04em;
+  opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .6s cubic-bezier(.2,.9,.3,1);
+}
+#title::after{content:"";display:block;width:34px;height:3px;margin:12px auto 0;border-radius:2px;background:var(--ball);opacity:.8;transition:width .7s cubic-bezier(.2,.9,.3,1)}
+#title.show{opacity:1;transform:none}
+#title.show::after{width:64px}
+@media (prefers-reduced-motion:reduce){#title{transition:opacity .3s}}
 .modes{
   position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
   display:flex;gap:6px;padding:5px;
@@ -46,20 +57,24 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <canvas id="g" hidden aria-label="مشهد ثلاثي الأبعاد، اسحب لأعلى للتسديد"></canvas>
 <canvas id="fx" hidden></canvas>
 <div id="count" aria-live="polite">0</div>
-<div class="modes" role="group" aria-label="الأنماط">
-  <button data-mode="free" aria-pressed="true" aria-label="حر" title="حر">
+<div id="title" aria-live="polite"></div>
+<div class="modes" role="group" aria-label="Modes">
+  <button data-mode="free" aria-pressed="true" aria-label="Free" title="Free">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12.5" r="5.5"/><path d="M4 20.5h2.5M17.5 20.5H20M5 6l1.5 1.5M19 6l-1.5 1.5"/></svg>
   </button>
-  <button data-mode="goal" aria-pressed="false" aria-label="مرمى" title="مرمى">
+  <button data-mode="goal" aria-pressed="false" aria-label="Goal" title="Goal">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V6h18v13"/><path d="M7.5 6v13M12 6v13M16.5 6v13M3 10.5h18M3 15h18" stroke-width="1" opacity=".55"/></svg>
   </button>
-  <button data-mode="hoop" aria-pressed="false" aria-label="سلة" title="سلة">
+  <button data-mode="hoop" aria-pressed="false" aria-label="Hoop" title="Hoop">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="8" rx="1"/><path d="M7.5 12.5h9"/><path d="M8 12.5l1.5 7h5l1.5-7M10 12.5l1 7M14 12.5l-1 7" stroke-width="1" opacity=".6"/></svg>
   </button>
-  <button data-mode="padel" aria-pressed="false" aria-label="بادل" title="بادل">
+  <button data-mode="window" aria-pressed="false" aria-label="Window" title="Window">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><rect x="10" y="4" width="10" height="10"/><path d="M15 14v7"/><circle cx="6" cy="17" r="2.5"/></svg>
+  </button>
+  <button data-mode="padel" aria-pressed="false" aria-label="Padel" title="Padel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="13.5" cy="8.5" rx="5.5" ry="6" transform="rotate(30 13.5 8.5)"/><path d="M10.2 13.8L5 20.5"/><circle cx="13.5" cy="8.5" r=".6" fill="currentColor"/><circle cx="11.6" cy="7.6" r=".6" fill="currentColor"/><circle cx="15.4" cy="9.4" r=".6" fill="currentColor"/></svg>
   </button>
-  <button data-mode="cans" aria-pressed="false" aria-label="علب" title="علب">
+  <button data-mode="cans" aria-pressed="false" aria-label="Cans" title="Cans">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="13" width="5" height="7" rx="1"/><rect x="9.5" y="13" width="5" height="7" rx="1"/><rect x="15.5" y="13" width="5" height="7" rx="1"/><rect x="6.5" y="5" width="5" height="7" rx="1"/><rect x="12.5" y="5" width="5" height="7" rx="1"/></svg>
   </button>
 </div>
@@ -84,7 +99,7 @@ let shake=0, dizzy=0, hitT=0, blink=0, nextBlink=2, idle=0, time=0;
 let audio=null;
 let G3=null, played=false;
 const elCount=document.getElementById('count');
-const counts={free:0,goal:0,hoop:0,cans:0,padel:0};
+const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0};
 function showCount(){ elCount.textContent=counts[mode]; }
 function addCount(m,reset){
   const before=counts[m];
@@ -623,6 +638,76 @@ function make3D(){
     bar(grp,V(-GW/2,GH,GZ-GD),V(GW/2,GH,GZ-GD),tb);
     bar(grp,V(-GW/2,0.02,GZ),V(-GW/2,0.02,GZ-GD),tb); bar(grp,V(GW/2,0.02,GZ),V(GW/2,0.02,GZ-GD),tb); bar(grp,V(-GW/2,0.02,GZ-GD),V(GW/2,0.02,GZ-GD),tb);
     const solids=[ [V(-GW/2,0,GZ),V(-GW/2,GH,GZ),PR], [V(GW/2,0,GZ),V(GW/2,GH,GZ),PR], [V(-GW/2,GH,GZ),V(GW/2,GH,GZ),PR] ];
+    // ---- goalkeeper: a round ink buddy with two floating gloves; sways, reads the shot, dives ----
+    const KZ=GZ+0.35, KR=0.42, HR=0.135;
+    const kRoot=new T.Group(); grp.add(kRoot);
+    const kBody=new T.Group(); kRoot.add(kBody);
+    const inkMat=new T.MeshStandardMaterial({color:0xe2603f,roughness:0.5});
+    const gloveMat=new T.MeshStandardMaterial({color:0xf3ead9,roughness:0.6});
+    const kBall=new T.Mesh(new T.SphereGeometry(KR,36,24),inkMat); kBall.position.y=KR; kBall.castShadow=true; kBody.add(kBall);
+    const eyeW=new T.MeshBasicMaterial({color:0xfffaf2}), eyeD=new T.MeshBasicMaterial({color:0x151515});
+    const EY=KR*1.12;
+    const kEyes=[-1,1].map(sx=>{
+      const w=new T.Mesh(new T.SphereGeometry(0.085,16,12),eyeW); w.scale.set(1,1.15,0.45); w.position.set(sx*0.13,EY,KR*0.9); kBody.add(w);
+      const p=new T.Mesh(new T.SphereGeometry(0.044,12,8),eyeD); p.scale.set(1,1,0.4); p.position.set(sx*0.13,EY,KR*0.9+0.035); kBody.add(p);
+      return {w,p,sx};
+    });
+    const kHands=[-1,1].map(sx=>{
+      const h=new T.Mesh(new T.SphereGeometry(HR,18,12),gloveMat); h.castShadow=true; kRoot.add(h);
+      return {h,sx};
+    });
+    const KH=KR*2;
+    const K={x:0,y:0,vy:0,ang:0,tx:0,tang:0,plan:false,wait:0,recover:0,saved:false};
+    function keeperReset(){ Object.assign(K,{x:0,y:0,vy:0,ang:0,tx:0,tang:0,plan:false,wait:0,recover:0,saved:false}); }
+    function keeperPlan(){
+      const P=S.pos, v=S.vel; if(v.z>=-0.5) return;
+      const t=(KZ-P.z)/v.z;
+      let px=P.x+v.x*t+0.5*S.side.x*t*t, py=P.y+v.y*t-0.5*GRAV*t*t;
+      if(Math.random()<0.07) px=K.x-(px-K.x)*0.6;          // rarely guesses the wrong side
+      else px+=(Math.random()-0.5)*0.3;
+      K.tx=Math.max(-GW/2+0.35,Math.min(GW/2-0.35,px));
+      const dx=K.tx-K.x;
+      K.tang=Math.abs(dx)>0.5 ? -Math.sign(dx)*Math.min(1.35,Math.abs(dx)*0.75) : 0;
+      K.jump=py>1.15;
+      K.wait=0.07+Math.random()*0.06; K.plan=true;
+    }
+    function keeperUpdate(dt){
+      if(S.shot && !K.plan && S.shotT>0.02) keeperPlan();
+      if(!S.shot){ K.tx=S.pos.x*0.55+Math.sin(time*0.9)*0.25; K.tang=0; }   // cuts the angle to the ball
+      if(K.wait>0){ K.wait-=dt; if(K.wait<=0 && K.jump && K.y<=0){ K.vy=5.6; } }
+      else {
+        const sp=K.plan?8:2.4, dx=K.tx-K.x;
+        K.x+=Math.sign(dx)*Math.min(Math.abs(dx),sp*dt);
+        const da=K.tang-K.ang; K.ang+=Math.sign(da)*Math.min(Math.abs(da),9*dt);
+      }
+      if(K.y>0||K.vy>0){ K.vy-=GRAV*dt; K.y=Math.max(0,K.y+K.vy*dt); if(K.y===0) K.vy=0; }
+      if(K.plan && S.shotT>1.2){ K.tang=0; }
+      kRoot.position.set(K.x,K.y+Math.abs(Math.sin(K.ang))*0.25,KZ);
+      kRoot.rotation.z=K.ang;
+      // squash & stretch while diving or jumping, like the ball does
+      const lift=Math.min(1,Math.abs(K.ang)/1.1+(K.y>0.05?0.8:0));
+      const st=1+lift*0.32+Math.sin(time*3)*0.015;
+      kBody.scale.set(1/Math.sqrt(st),st,1/Math.sqrt(st));
+      // gloves: float at the sides when waiting, reach up over the head when diving
+      for(const hd of kHands){
+        const idle=V(hd.sx*(KR+0.19),KR*1.0+Math.sin(time*2.4+hd.sx)*0.05,0.12);
+        const reach=V(hd.sx*0.22,KR*2*st+0.34,0.05);
+        hd.h.position.copy(idle).lerp(reach,lift);
+      }
+      // eyes follow the ball
+      const lx=Math.max(-1,Math.min(1,(S.pos.x-K.x)/2)), ly=Math.max(-1,Math.min(1,(S.pos.y-(K.y+KR))/2));
+      for(const e of kEyes){ e.p.position.x=e.sx*0.13+lx*0.03; e.p.position.y=EY+ly*0.035; }
+    }
+    const ku=V(0,0,0), kf=V(0,0,0);
+    function keeperCollide(){
+      const ang=K.ang, st=kBody.scale.y, rr=KR*kBody.scale.x;
+      ku.set(-Math.sin(ang),Math.cos(ang),0);
+      kf.set(K.x,K.y+Math.abs(Math.sin(ang))*0.25,KZ);
+      let hitK=segCollide(kf.clone().addScaledVector(ku,rr),kf.clone().addScaledVector(ku,KR*2*st-rr),rr,0.45);
+      kRoot.updateMatrixWorld(true);
+      for(const hd of kHands){ const w=new T.Vector3(); hd.h.getWorldPosition(w); if(pointCollide(w,HR,0.5)) hitK=true; }
+      if(hitK && S.shot && !K.saved){ K.saved=true; ooh(); }
+    }
     const back=netGrid(grp,31,13,(u,v)=>[-GW/2+u*GW, v*GH, GZ-GD]);
     netGrid(grp,10,13,(u,v)=>[-GW/2, v*GH, GZ-u*GD]);
     netGrid(grp,10,13,(u,v)=>[ GW/2, v*GH, GZ-u*GD]);
@@ -637,8 +722,10 @@ function make3D(){
       grp, aimZ:GZ-0.3,
       ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
       behind:P=>P.z<GZ-0.05,
+      onRespawn(){ keeperReset(); },
       collide(){
         const P=S.pos, v=S.vel;
+        keeperCollide();
         for(const s of solids) if(segCollide(s[0],s[1],s[2])) ooh();
         const inX=Math.abs(P.x)<GW/2;
         if(inX && P.y<GH && P.z<GZ){
@@ -651,6 +738,7 @@ function make3D(){
         if(S.shot && S.scoredT<=0 && S.prevZ>=GZ && P.z<GZ){ if(Math.abs(P.x)<GW/2 && P.y<GH) success(); else miss(); }
       },
       update(dt){
+        keeperUpdate(dt);
         const p=back.geo.attributes.position.array, nu=back.nu, nv=back.nv;
         for(let j=0;j<nv;j++) for(let i=0;i<nu;i++){
           const k=j*nu+i;
@@ -1028,7 +1116,55 @@ function make3D(){
     };
   }
 
-  const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel};
+  /* ---------- stage: square window that moves and shrinks after each score ---------- */
+  function buildWindow(){
+    const grp=new T.Group(); scene.add(grp);
+    const WZ=-11, FR=0.05;
+    groundLine(grp,-14,WZ,14,WZ);
+    const START=1.15, MIN=BR*2*1.2, SHRINK=0.85;
+    const W={size:START,x:2.4,y:1.6,frame:null,bars:[],pop:1,won:false};
+    function build(){
+      if(W.frame){ grp.remove(W.frame); W.frame.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+      W.frame=new T.Group(); grp.add(W.frame);
+      const h=W.size/2+FR;
+      const c=[V(-h,-h,0),V(h,-h,0),V(h,h,0),V(-h,h,0)];
+      for(let i=0;i<4;i++) bar(W.frame,c[i],c[(i+1)%4],FR);
+      for(const p of c){ const k=new T.Mesh(new T.SphereGeometry(FR*1.4,12,8),postMat); k.position.copy(p); k.castShadow=true; W.frame.add(k); }
+      W.frame.position.set(W.x,W.y,WZ);
+      W.pole=bar(W.frame,V(0,-W.y,0),V(0,-h,0),0.035);
+      W.bars=[0,1,2,3].map(i=>[c[i],c[(i+1)%4]]);
+      W.pop=0;
+    }
+    function relocate(){
+      W.size=Math.max(MIN,W.size*SHRINK);
+      let nx,ny,tries=0;
+      do{ nx=(Math.random()*2-1)*3.2; ny=0.9+Math.random()*1.9; tries++; }
+      while(Math.hypot(nx-W.x,ny-W.y)<1.6 && tries<20);
+      W.x=nx; W.y=ny; build();
+    }
+    build();
+    const wp=V(0,0,0), wq=V(0,0,0);
+    return {
+      grp, aimZ:WZ,
+      ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
+      behind:P=>P.z<WZ-0.05,
+      onRespawn(){ if(W.won){ W.won=false; relocate(); } },
+      collide(){
+        const P=S.pos, o=W.frame.position;
+        for(const [a,b] of W.bars){ if(segCollide(wp.copy(a).add(o),wq.copy(b).add(o),FR,0.6)) ooh(); }
+        segCollide(V(o.x,0,WZ),V(o.x,o.y-W.size/2-FR,WZ),0.035,0.5);
+        if(S.shot && S.scoredT<=0 && S.missT<=0 && S.prevZ>=WZ && P.z<WZ){
+          const h=W.size/2;
+          if(Math.abs(P.x-o.x)<h && Math.abs(P.y-o.y)<h){ W.won=true; success(); } else miss();
+        }
+      },
+      update(dt){
+        if(W.pop<1){ W.pop=Math.min(1,W.pop+dt*3.5); const t=W.pop, s=1+Math.sin(t*Math.PI)*0.25*(1-t); W.frame.scale.setScalar(Math.max(0.001,t<1?Math.min(1,t*1.4)*s:1)); }
+      }
+    };
+  }
+
+  const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow};
   const stages={}; let stage=null, stageName='';
   function setStage(name){
     if(!stages[name]) stages[name]=builders[name]();
@@ -1038,7 +1174,7 @@ function make3D(){
     fxDash=[]; respawn();
   }
   function react(kind,dur,next){ S.mood=kind; S.moodT=dur; S.moodNext=next||null; }
-  function success(){ if(S.scoredT>0||S.missT>0) return; S.scoredT=1.7; react('joy',1.7); confetti.celebrate(S.pos); if(stageName==='goal'||stageName==='hoop') addCount(stageName); }
+  function success(){ if(S.scoredT>0||S.missT>0) return; S.scoredT=1.7; react('joy',1.7); confetti.celebrate(S.pos); if(stageName==='goal'||stageName==='hoop'||stageName==='window') addCount(stageName); }
   function miss(){
     if(S.scoredT>0||S.missT>0) return;
     if(stage.touched && stage.touched()){ S.missT=1.0; return; }
@@ -1197,6 +1333,12 @@ function make3D(){
 
 /* ---------- modes ---------- */
 const modeBtns=[...document.querySelectorAll('.modes button')];
+const elTitle=document.getElementById('title');
+let titleTimer=0;
+function showTitle(text){
+  elTitle.textContent=text; elTitle.classList.remove('show'); void elTitle.offsetWidth; elTitle.classList.add('show');
+  clearTimeout(titleTimer); titleTimer=setTimeout(()=>elTitle.classList.remove('show'),1400);
+}
 function setMode(m){
   if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }
@@ -1206,6 +1348,7 @@ function setMode(m){
   for(const b of modeBtns) b.setAttribute('aria-pressed',b.dataset.mode===m);
   gcv.hidden = fxc.hidden = m==='free';
   showCount();
+  const btn=modeBtns.find(b=>b.dataset.mode===m); if(btn) showTitle(btn.getAttribute('aria-label'));
 }
 for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode));
 
@@ -1227,6 +1370,7 @@ function frame(now){
 }
 ball.y=floorY-R-H*0.35; ball.vy=0; ball.grounded=false;
 requestAnimationFrame(frame);
+setTimeout(()=>showTitle('Dahrooj'),250);
 })();
 </script>
 
