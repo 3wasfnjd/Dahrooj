@@ -17,20 +17,21 @@ class Peer extends Events {
   destroy(){peers.delete(this.id);}
 }
 class Element {
-  constructor(){this.hidden=false;this.disabled=false;this.value='';this.children=[];this.dataset={};this.attributes={};this.nodes=new Map();this.textContent='';}
+  constructor(){this.hidden=false;this.disabled=false;this.value='';this.children=[];this.dataset={};this.attributes={};this.nodes=new Map();this.textContent='';this.style={};this.classList={add(){},remove(){}};}
   appendChild(e){this.children.push(e);}
   setAttribute(k,v){this.attributes[k]=v;}
   focus(){}select(){}setPointerCapture(){}
-  querySelector(k){if(!this.nodes.has(k)){const e=new Element();if(k==='#duel-power')e.value='46';if(k==='#duel-aim')e.value='0';this.nodes.set(k,e);}return this.nodes.get(k);}
+  querySelector(k){if(!this.nodes.has(k)){const e=new Element();if(k==='#duel-power')e.value='46';if(k==='#duel-aim')e.value='0';if(k==='#duel-round')e.children=Array.from({length:6},()=>new Element());this.nodes.set(k,e);}return this.nodes.get(k);}
   querySelectorAll(){return [];}
   getContext(){return new Proxy({},{get:()=>()=>{}});}
 }
 function player(){
   let root;const document={body:new Element(),head:new Element(),createElement:tag=>{const e=new Element();if(tag==='section')root=e;return e;}};
   const context=vm.createContext({document,Peer,Image:Element,crypto:webcrypto,URL,location:{href:'https://example.test/index.html'},navigator:{clipboard:{writeText:async()=>{}}},innerWidth:390,innerHeight:844,devicePixelRatio:1,performance:{now:()=>clock},Date:{now:()=>clock},addEventListener(){},setTimeout(fn,ms){const id=++serial;timers.set(id,{fn,at:clock+ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>++serial,clearInterval(){}});
-  context.window=context;vm.runInContext(rules,context);vm.runInContext(controller,context);
+  context.window=context;context.createDahroojArena=()=>({canvas:document.createElement('canvas'),resize(){},render(){},clear(){}});vm.runInContext(rules,context);vm.runInContext(controller,context);
+  let input;context.createDahroojArena=()=>({canvas:input=new Element(),resize(){},render(){},clear(){}});
   const duel=context.createDahroojDuel({sprite:()=>({toDataURL:()=>''}),pop(){},exit(){duel.close();}});duel.open('fur');
-  return {$:s=>root.querySelector(s),duel};
+  return {$:s=>root.querySelector(s),duel,input};
 }
 const host=player(),guest=player();host.$('#duel-create').onclick();await flush();
 const room=host.$('#duel-room').textContent;assert.match(room,/^[A-HJ-NP-Z2-9]{8}$/);
@@ -38,23 +39,29 @@ guest.$('#duel-code').value=room;guest.$('#duel-join').onclick();await flush();
 assert.equal(host.$('#duel-turn').textContent,'دورك');assert.equal(guest.$('#duel-turn').textContent,'دور المنافس');
 // A third player cannot displace the active pair.
 const third=player();third.$('#duel-code').value=room;third.$('#duel-join').onclick();await flush();
-assert.equal(third.$('h1').textContent,'المواجهة متوقفة');assert.equal(host.$('#duel-turn').textContent,'دورك');
+assert.equal(third.$('#duel-status').textContent,'غادر المنافس');assert.equal(host.$('#duel-turn').textContent,'دورك');
 for(let i=0;i<12;i++){
   const player=i%2?guest:host,waiting=i%2?host:guest;
   assert.equal(player.$('#duel-turn').textContent,'دورك');
   // Inactive controls cannot create a second shot.
-  waiting.$('#duel-fire').onclick();await flush();assert.equal(player.$('#duel-turn').textContent,'دورك');
-  player.$('#duel-aim').value='100';player.$('#duel-power').value='0';player.$('#duel-fire').onclick();await flush();
-  assert.equal(host.$('#duel-turn').textContent,'السهم بالطريق…');assert.equal(guest.$('#duel-turn').textContent,'السهم بالطريق…');
-  player.$('#duel-fire').onclick();await flush();await advance(2201);
-  assert.equal(host.$('#duel-mine').textContent,'♥♥♥');assert.equal(guest.$('#duel-mine').textContent,'♥♥♥');
+  waiting.input.onkeydown({key:' ',preventDefault(){}});await flush();assert.equal(player.$('#duel-turn').textContent,'دورك');
+  player.input.onpointerdown({pointerId:1,clientX:100,clientY:700});player.input.onpointerup({pointerId:1,clientX:350,clientY:680});await flush();
+  assert.equal(host.$('#duel-turn').textContent,'');assert.equal(guest.$('#duel-turn').textContent,'');
+  player.input.onkeydown({key:' ',preventDefault(){}});await flush();await advance(2201);
+
 }
-assert.equal(host.$('h1').textContent,'تعادل!');assert.equal(guest.$('h1').textContent,'تعادل!');
-guest.$('#duel-rematch').onclick();await flush();assert.equal(host.$('h1').textContent,'تعادل!');
-host.$('#duel-rematch').onclick();await flush();assert.equal(host.$('#duel-turn').textContent,'دورك');assert.equal(guest.$('#duel-round').textContent,'الجولة 1 من ٦');
+assert.equal(host.$('h1').textContent,'تعادل');assert.equal(guest.$('h1').textContent,'تعادل');
+guest.$('#duel-rematch').onclick();await flush();assert.equal(host.$('h1').textContent,'تعادل');
+host.$('#duel-rematch').onclick();await flush();assert.equal(host.$('#duel-turn').textContent,'دورك');assert.equal(guest.$('#duel-round').attributes['aria-label'],'الجولة 1 من ٦');
 host.duel.render(clock);guest.duel.render(clock);
-guest.duel.close();await flush();assert.equal(host.$('h1').textContent,'المواجهة متوقفة');
-host.$('#duel-retry').onclick();assert.equal(host.$('#duel-setup').hidden,false);
+guest.duel.close();await flush();assert.equal(host.$('#duel-status').textContent,'غادر المنافس');
+host.$('#duel-retry').onclick();assert.equal(host.$('#duel-lobby').hidden,false);
 host.$('#duel-code').value='BAD';host.$('#duel-join').onclick();assert.match(host.$('#duel-status').textContent,/٨/);
 host.$('#duel-code').value='ABCDEFGH';host.$('#duel-join').onclick();await flush();assert.match(host.$('#duel-status').textContent,/غير موجودة/);
 console.log('PASS: real controller with mocked DOM/transport: room, two peers, full room, 12 alternating shots, duplicates, tie, mutual rematch, leave, invalid room. WebRTC/visuals not exercised.');
+
+const solo=player();solo.$('#duel-bot').onclick();await flush();assert.equal(solo.$('#duel-turn').textContent,'دورك');
+solo.input.onpointerdown({pointerId:1,clientX:100,clientY:700});solo.input.onpointerup({pointerId:1,clientX:350,clientY:680});await advance(2201);
+assert.equal(solo.$('#duel-turn').textContent,'دور الكمبيوتر');await advance(1600);assert.equal(solo.$('#duel-turn').textContent,'');await advance(2201);assert.equal(solo.$('#duel-turn').textContent,'دورك');
+solo.input.onpointerdown({pointerId:2,clientX:100,clientY:700});solo.input.onpointercancel();solo.input.onpointerup({pointerId:2,clientX:100,clientY:500});assert.equal(solo.$('#duel-turn').textContent,'دورك');
+solo.duel.close();await advance(10000);console.log('PASS: offline AI turn, player regains turn, pointer cancellation, pending AI timers cancelled on exit.');

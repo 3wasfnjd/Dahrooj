@@ -2,9 +2,9 @@
 
 Aboden Games — https://github.com/3wasfnjd/Dahrooj
 
-The crossed-arrows mode reuses the game's five original ball renderers and paper background. Create a room and share its invitation link, or enter its eight-character code on another device. Each player chooses a style before joining. Swipe upward to aim and set power, or use the two sliders and Fire button.
+Rebuilt after visual review: the crossed-arrows mode reuses the game's five original ball renderers and paper background. Create a room and share its invitation link, or enter its eight-character code on another device. Each player chooses a style before joining. Press Play for an offline AI opponent; invite/join controls remain separate. Swipe upward to aim and release to fire. There are no in-match panels, sliders or Fire button. Keyboard arrows adjust aim/power and Space fires. Hearts stay above each character and six small dots show rounds. The character uses the original live skin/face/material rendering, and the arrow is a rounded Three.js mesh with matching materials for all five styles.
 
-Six rounds contain one shot per player (12 shots maximum). Host shoots first; turns alternate. A hit removes exactly one of the opponent's three hearts, with a pop animation. Zero hearts ends the match immediately. Otherwise the player with more hearts after 12 shots wins; equal hearts is a draw. Both players must request a rematch. Leaving or losing the connection stops the match without awarding a win.
+Six rounds contain one shot per player (12 shots maximum). Host shoots first; turns alternate. A hit removes exactly one of the opponent's three hearts, with a pop animation. Zero hearts ends the match immediately. Otherwise the player with more hearts after 12 shots wins; equal hearts is a draw. Both online players must request a rematch; offline rematches start immediately. The AI uses the same projectile rules with variable aim error, and does not read player health to adjust accuracy. Leaving or losing the connection stops the match without awarding a win.
 
 ## Transport and trust
 
@@ -14,6 +14,6 @@ No Firebase rules, accounts or existing modes are changed. No paid service or ba
 
 ## Verification
 
-Run `node tools/test-duel.mjs` and `node tools/test-fast-return.mjs`.
+Run `node tools/test-duel.mjs` `node tools/test-duel-session.mjs` and `node tools/test-fast-return.mjs`.
 
 Before merging, test two real devices: create/join by code and invitation link, each style, alternate shots, third-hit knockout, six-round tie and win, simultaneous rematch requests, room full/invalid, pointer cancel, leave, connection loss, portrait and landscape. Local browser automation in the implementation environment was blocked by socket permissions; actual WebRTC and visual verification remain outstanding.

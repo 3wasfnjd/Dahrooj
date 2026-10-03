@@ -8,8 +8,8 @@
       hearts:[3,3],turn:0,phase:'aim',shot:null,winner:null,revision:0};
   }
   const round=s=>Math.min(6,Math.floor(s.turn/2)+1);
-  const target=s=>({x:Math.sin(s.seed%1000+s.turn*1.97)*2.1,y:1.3,z:12});
-  function point(shot,t){return {x:shot.aim*4.8*t,y:1.3+(4+shot.power*7)*t-6*t*t,z:10*t};}
+  const target=s=>({x:Math.sin(s.seed%1000+s.turn*1.97)*2.1,y:.6,z:12});
+  function point(shot,t){return {x:shot.aim*4.8*t,y:.6+(4+shot.power*7)*t-6*t*t,z:10*t};}
   function outcome(s,shot){
     const targetPos=target(s);
     for(let t=0;t<=1.5;t+=1/240){
