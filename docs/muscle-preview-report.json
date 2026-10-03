@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "browser": "Chromium 140",
+  "checks": [
+    "Intro sprites retain original styles and bounds",
+    "Default fabric muscular body renders on 390x844 mobile",
+    "Normal comparison disables muscle rendering",
+    "Drag and release work; arms tuck in flight",
+    "Muscular renderer works in goal",
+    "Muscular renderer works in hoop",
+    "Muscular renderer works in window",
+    "Muscular renderer works in padel",
+    "Muscular renderer works in cans",
+    "Muscular renderer works in free",
+    "Comparison controls fit 320x568",
+    "Comparison controls fit 844x390",
+    "Comparison controls fit 1280x800",
+    "No uncaught JavaScript errors throughout modes, styles and resize"
+  ],
+  "errors": []
+}

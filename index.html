@@ -119,6 +119,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .modes button svg{width:22px;height:22px}
 .modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .modes button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+.muscle-preview{position:fixed;z-index:4;top:calc(18px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:4px;border:1px solid #7c294133;border-radius:24px;background:#fffaf0db;direction:rtl}
+.muscle-preview button{min-height:36px;padding:0 13px;border:0;border-radius:20px;background:transparent;color:#63263c;font:700 14px Tahoma,sans-serif;cursor:pointer;touch-action:manipulation}
+.muscle-preview button[aria-pressed="true"]{background:#7c2941;color:#fff8eb}
+.muscle-preview button:focus-visible{outline:2px solid #7c2941;outline-offset:2px}
 </style>
 <style>[hidden]{display:none!important}*{box-sizing:border-box}</style>
 <script defer src="./assets/audio/background-music.js"></script>
@@ -128,6 +132,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <canvas id="g" hidden aria-label="مشهد ثلاثي الأبعاد، اسحب لأعلى للتسديد"></canvas>
 <canvas id="fx" hidden></canvas>
 <div id="game-ui" hidden inert>
+<div class="muscle-preview" role="group" aria-label="مقارنة شكل دحروج القماشي">
+  <button id="muscle-on" aria-pressed="true" title="دحروج المعضّل">معضّل</button>
+  <button id="muscle-off" aria-pressed="false" title="دحروج القماشي الأصلي">عادي</button>
+</div>
 <div class="styles" role="group" aria-label="Style">
   <button data-style="jelly" aria-pressed="true" aria-label="Jelly" title="Jelly">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M8 9.5a4.5 4.5 0 0 1 3-2.6"/></svg>
@@ -197,6 +205,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
 <script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
+<script src="./assets/muscle/muscle.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -593,8 +602,8 @@ const skin=(()=>{
 })();
 
 // ---- ball styles: jelly (glossy, with a band-aid) and fabric (matte felt, stitched seam, X stitch) ----
-let ballStyle='jelly';
-try{ const v=localStorage.getItem('dahrooj-style'); if(['jelly','fabric','clay','bubble','fur'].includes(v)) ballStyle=v; }catch(_){}
+// The review branch opens with its new look; production preferences stay separate.
+let ballStyle='fabric', muscleEnabled=true, paintingStart=false, muscleMotion=0, musclePose=.8;
 const felt=(()=>{
   const c=document.createElement('canvas'); c.width=c.height=96; const g=c.getContext('2d');
   for(let i=0;i<700;i++){
@@ -804,6 +813,8 @@ function drawBow(c,x,y,R,lagx,lagy){
 }
 
 function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
+  const muscular=ballStyle==='fabric' && muscleEnabled && !paintingStart && window.DahroojMuscle;
+  if(muscular) muscular.arms(c,cx,cy,R,sx,sy,musclePose,reduce?0:time,felt,W);
   if(ballStyle==='fur'){ paintFur(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn); return; }
   const st=ballStyle, n=P.length;
   // bubble pop: droplets, then the bubble grows back
@@ -881,6 +892,7 @@ function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
   c.save(); c.translate(cx,cy); c.scale(Math.min(1.25,sx),Math.min(1.25,sy));
   if(st==='fabric') drawXStitch(c,R); else if(st==='clay') drawThumbprint(c,R); else drawBandaid(c,R);
   drawFace(c,R,face,lx,ly,blushK,blinkOn);
+  if(muscular) muscular.expression(c,R,face);
   c.restore();
 }
 function drawThumbprint(c,R){
@@ -940,6 +952,7 @@ function render(){
   else if(ptr.down && ptr.mode==='grab') face='wide';
   else if(!ball.grounded && sp>1600) face='wide';
   paintingFree=true; furVel.x=J.vx; furVel.y=J.vy;
+  muscleMotion=(!ball.grounded && sp>300 && !ptr.down)?1:0;
   paintJelly(ctx,face,lx,ly,(ptr.down&&ptr.mode==='charge')?ptr.charge:0,blink>0);
   paintingFree=false;
 
@@ -1823,6 +1836,7 @@ function make3D(){
     if(behind) ctx.setTransform(dpr,0,0,dpr,0,0);
     { const ah=toScreen(S.pos.clone().addScaledVector(S.vel,0.1)); furVel.x=(ah.x-bs.x)*10; furVel.y=(ah.y-bs.y)*10; }
     const sk=skin.points(bs.x,bs.y,rs,S.d,ang,face==='laugh');
+    muscleMotion=(S.scoredT>0 || aim.down)?0:(S.shot && S.vel.length()>2?1:0);
     let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; for(const q of sk.P){ mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y); }
     paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),face,lx2,ly2,blushK,S.blink>0);
     if(stage.paint) stage.paint(fx);
@@ -1964,10 +1978,15 @@ const styleBtns=[...document.querySelectorAll('.styles button')];
 function setStyle(v){
   const changed=ballStyle!==v; noteStyle(v);
   ballStyle=v; if(changed) makePaper(true); for(const b of styleBtns) b.setAttribute('aria-pressed',b.dataset.style===v);
-  try{ localStorage.setItem('dahrooj-style',v); }catch(_){}
+  document.getElementById('muscle-on').setAttribute('aria-pressed',v==='fabric' && muscleEnabled);
+  document.getElementById('muscle-off').setAttribute('aria-pressed',v==='fabric' && !muscleEnabled);
 }
 for(const b of styleBtns) b.addEventListener('click',()=>{ setStyle(b.dataset.style); showTitle(b.getAttribute('aria-label')); });
 setStyle(ballStyle);
+for(const enabled of [true,false]) document.getElementById(enabled?'muscle-on':'muscle-off').addEventListener('click',()=>{
+  muscleEnabled=enabled;setStyle('fabric');
+  showTitle(enabled?'دحروج المعضّل':'دحروج القماشي');
+});
 const elTitle=document.getElementById('title');
 let titleTimer=0;
 function showTitle(text){
@@ -2001,9 +2020,9 @@ function makeStartBallSprite(style,face,blinkOn=false){
     return {x:Math.cos(a)*radius,y:Math.sin(a)*radius};
   });
   try{
-    ballStyle=style;
+    ballStyle=style;paintingStart=true;
     paintBlob(g,points,0,0,radius,1,1,face,0,0,0,blinkOn);
-  }finally{ballStyle=previousStyle;}
+  }finally{ballStyle=previousStyle;paintingStart=false;}
   return sprite;
 }
 function enterGame(){
@@ -2033,6 +2052,8 @@ if(window.Matter && window.createDahroojStart){
 function frame(now){
   const elapsed=Math.max(0,(now-last)/1000);last=now;
   const dt=Math.max(.001,Math.min(0.033,elapsed));
+  const targetPose=muscleMotion ? .08 : .92;
+  musclePose=reduce?targetPose:musclePose+(targetPose-musclePose)*(1-Math.exp(-dt*12));
   const steps=3;
   if(intro){
     drawPaper();intro.tick(Math.min(.067,elapsed));
