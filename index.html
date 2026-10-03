@@ -1501,18 +1501,60 @@ function make3D(){
   /* ---------- stage: the cans shot, with Dahrooj as the target ---------- */
   function buildOpponent(){
     const grp=new T.Group(); scene.add(grp);
-    // Keep the cans' distance and flight time. The target fills the old stack's footprint.
-    const OZ=-20, OR=0.96, LIMIT=1.1;
-    const body=new T.Mesh(new T.SphereGeometry(OR,32,24),bmesh.material);
+    // Keep the cans' distance and flight time; match Dahrooj's resting size on screen.
+    const OZ=-20, LIMIT=1.1;
+    let OR=BR, fitW=0, fitH=0, burst=null;
+    const body=new T.Mesh(new T.SphereGeometry(1,32,24),bmesh.material);
     body.castShadow=true; grp.add(body);
     const skinAI=createSkin(), bubbleAI={t:0,parts:[]};
     const O={pos:V(0,OR,OZ),vel:V(0,0,0),axis:V(0,1,0),d:0,dv:0,
       grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0};
     const n=V(0,0,0), relative=V(0,0,0), tangent=V(0,0,0);
+    function radiusOnScreen(pos,r){
+      const p=toScreen(pos), edge=toScreen(pos.clone().addScaledVector(camera.up,r));
+      return Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
+    }
+    function matchSize(){
+      camera.updateMatrixWorld();
+      const wanted=radiusOnScreen(V(0,BR,0),BR);
+      let lo=BR, hi=BR*32;
+      for(let i=0;i<22;i++){
+        const r=(lo+hi)/2;
+        if(radiusOnScreen(V(0,r,OZ),r)<wanted) lo=r; else hi=r;
+      }
+      const r=(lo+hi)/2; O.pos.y+=r-OR; OR=r; fitW=W; fitH=H;
+    }
     function resetOpponent(){
+      matchSize();
       O.pos.set(0,OR,OZ); O.vel.set(0,0,0); O.axis.copy(UP);
       Object.assign(O,{d:0,dv:0,grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0});
-      skinAI.reset(); bubbleAI.t=0; bubbleAI.parts=[]; body.position.copy(O.pos); body.scale.set(1,1,1);
+      skinAI.reset(); bubbleAI.t=0; bubbleAI.parts=[]; burst=null;
+      body.visible=true; body.position.copy(O.pos); body.scale.setScalar(OR);
+    }
+    function popOpponent(){
+      const p=toScreen(O.pos), r=radiusOnScreen(O.pos,OR);
+      // Reuse the opening screen's pop colors, ring, particles and sound.
+      const colors={fabric:['#7c2941','#efe6d2'],jelly:['#8a8e97','#fffaf2'],
+        clay:['#825637','#ad805c'],fur:['#f3eee6','#966640'],bubble:['#fffaf2','#b9e8fa','#f4b5db']};
+      burst={x:p.x,y:p.y,r,t:0,colors:colors[ballStyle],parts:reduce?[]:
+        Array.from({length:12},(_,i)=>{
+          const a=i/12*Math.PI*2+Math.random()*.2,speed=r*(4+Math.random()*3);
+          return {vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,size:2+Math.random()*2};
+        })};
+      body.visible=false; startPopSound();
+    }
+    function paintPop(c){
+      if(!burst) return;
+      const duration=reduce?.2:.5,k=Math.max(0,Math.min(1,burst.t/duration));
+      if(k>=1) return;
+      c.save();c.globalAlpha=1-k;
+      c.strokeStyle='#fffaf2';c.lineWidth=2.5*(1-k)+.5;
+      c.beginPath();c.arc(burst.x,burst.y,burst.r*(1+k*.75),0,Math.PI*2);c.stroke();
+      burst.parts.forEach((p,i)=>{
+        c.fillStyle=burst.colors[i%burst.colors.length];c.beginPath();
+        c.arc(burst.x+p.vx*burst.t,burst.y+p.vy*burst.t+180*burst.t*burst.t,p.size*(1-k*.7),0,Math.PI*2);c.fill();
+      });
+      c.restore();
     }
     function impact(normal,speed,contact){
       const s=Math.min(1,speed/14); if(s<0.05) return;
@@ -1520,12 +1562,9 @@ function make3D(){
       if(s>0.55) O.hitT=0.28;
       const p=toScreen(O.pos), c=toScreen(contact);
       skinAI.dent(Math.atan2(c.y-p.y,c.x-p.x),s);
-      if(ballStyle==='bubble' && s>0.8){
-        const edge=toScreen(O.pos.clone().addScaledVector(camera.up,OR));
-        bubblePop(p.x,p.y,Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y)),bubbleAI);
-      }
     }
     function paintOpponent(c){
+      if(O.touched){paintPop(c);return;}
       const p=toScreen(O.pos), edge=toScreen(O.pos.clone().addScaledVector(camera.up,OR));
       const rs=Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
       const ax=toScreen(O.pos.clone().addScaledVector(O.axis,OR));
@@ -1546,6 +1585,8 @@ function make3D(){
       onRespawn:resetOpponent,
       touched:()=>O.touched,
       collide(){
+        if(fitW!==W || fitH!==H) matchSize();
+        if(O.touched) return;
         n.subVectors(S.pos,O.pos); const distance=n.length(), overlap=BR+OR-distance;
         if(overlap>0){
           if(distance>1e-5) n.divideScalar(distance); else n.set(0,0,1);
@@ -1561,12 +1602,13 @@ function make3D(){
             const contact=O.pos.clone().addScaledVector(n,OR);
             hit(n,-vn*0.7,contact); impact(n.clone().negate(),-vn*0.7,contact);
             if(O.vel.y>0) O.grounded=false;
-            if(S.shot && !O.touched){O.touched=true;addCount('opponent');success();}
+            if(S.shot && !O.touched){O.touched=true;popOpponent();addCount('opponent');success();}
           }
         }
         if(S.shot && !O.touched && S.pos.z<O.pos.z-OR-BR) miss();
       },
       update(dt){
+        if(O.touched){if(burst) burst.t+=dt;return;}
         // Read the ball only after release; react once, without following the pointer.
         if(S.shot && !O.planned && !O.touched && S.shotT>0.22 && S.vel.z<-0.5){
           O.planned=true;
@@ -1599,7 +1641,7 @@ function make3D(){
         O.blink=Math.max(0,O.blink-dt);O.hitT=Math.max(0,O.hitT-dt);
         skinAI.step(dt);tickStyle(dt,bubbleAI);
         body.position.copy(O.pos).addScaledVector(O.axis,-Math.max(0,OR*O.d));
-        body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(1+O.d*0.75,1-O.d,1+O.d*0.75);
+        body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(OR*(1+O.d*0.75),OR*(1-O.d),OR*(1+O.d*0.75));
       },
       paintBehind(c){if(S.pos.z>=O.pos.z) paintOpponent(c);},
       paint(c){if(S.pos.z<O.pos.z) paintOpponent(c);}

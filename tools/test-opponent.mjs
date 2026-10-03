@@ -9,9 +9,9 @@ import {fileURLToPath} from 'node:url';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const html=await readFile(resolve(root,'index.html'),'utf8');
 const inspected=html
-  .replace('grp,aimZ:OZ,','grp,aimZ:OZ, testState:O, testBubble:bubbleAI,')
+  .replace('grp,aimZ:OZ,','grp,aimZ:OZ, testState:O, testBubble:bubbleAI, testBody:body, testRadius:()=>OR, testBurst:()=>burst,')
   .replace('return {update:update3,render:render3,resize:resize3,setStage};',`
-    window.__test3={S,aim,camera,toScreen,shoot,respawn,get stage(){return stage;},
+    window.__test3={S,BR,aim,camera,toScreen,shoot,respawn,get stage(){return stage;},
       popPlayer(){const p=toScreen(S.pos);bubblePop(p.x,p.y,screenRadius());},get playerBubble(){return bub;},
       step(seconds){for(let i=0;i<Math.round(seconds*180);i++){time+=1/180;update3(1/180);}drawPaper();render3();}};
     return {update:update3,render:render3,resize:resize3,setStage};`)
@@ -32,8 +32,8 @@ const report={checks:[],failures:[],limitation:'Chromium mobile/desktop emulatio
 const browser=await chromium.launch({headless:true,
   ...(process.env.DAHROOJ_CHROMIUM?{executablePath:process.env.DAHROOJ_CHROMIUM}:{}),
   args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-async function open(inspect,width=390,height=844){
-  const context=await browser.newContext({viewport:{width,height},deviceScaleFactor:1,hasTouch:true,isMobile:true,reducedMotion:'reduce'});
+async function open(inspect,width=390,height=844,reducedMotion='reduce'){
+  const context=await browser.newContext({viewport:{width,height},deviceScaleFactor:1,hasTouch:true,isMobile:true,reducedMotion});
   await context.route('**/*',r=>r.request().url().startsWith(origin+'/')?r.continue():r.abort());
   await context.addInitScript(()=>{Object.defineProperty(navigator,'onLine',{get:()=>false});});
   const page=await context.newPage(),errors=[];
@@ -52,7 +52,7 @@ async function snapshot(page){
     const {S,stage}=window.__test3,O=stage.testState;
     return {pos:S.pos.toArray(),vel:S.vel.toArray(),shot:S.shot,scored:S.scoredT,miss:S.missT,
       grounded:S.grounded,count:document.querySelector('#count').textContent,
-      opponent:O?{pos:O.pos.toArray(),vel:O.vel.toArray(),planned:O.planned,touched:O.touched}:null};
+      opponent:O?{pos:O.pos.toArray(),vel:O.vel.toArray(),planned:O.planned,touched:O.touched,popped:!stage.testBody.visible}:null};
   });
 }
 try{
@@ -75,8 +75,23 @@ try{
   assert.deepEqual(plain.errors,[]);await plain.context.close();
   report.checks.push('Unmodified page loads; all seven modes work; controls fit 320/390/844/1280 px.');
 
-  const c=await open(true),page=c.page;
+  const c=await open(true,390,844,'no-preference'),page=c.page;
   await select(page,'opponent');
+  report.sizes=[];
+  for(const [width,height] of [[390,844],[320,568],[844,390],[1280,800]]){
+    await page.setViewportSize({width,height});await page.waitForTimeout(100);
+    const sizes=await page.evaluate(()=>{
+      const t=window.__test3;t.respawn();t.step(2);
+      const radius=(pos,r)=>{const a=t.toScreen(pos),b=t.toScreen(pos.clone().addScaledVector(t.camera.up,r));return Math.hypot(a.x-b.x,a.y-b.y);};
+      return {player:radius(t.S.pos,t.BR),opponent:radius(t.stage.testState.pos,t.stage.testRadius())};
+    });
+    assert(Math.abs(sizes.player-sizes.opponent)<.005,'Resting characters have equal screen radii after resize');
+    report.sizes.push({width,height,...sizes});
+  }
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);
+  await select(page,'opponent');
+  await page.screenshot({path:resolve(root,'test-results/opponent-matching-size.png')});
+  report.checks.push('Opponent matches Dahrooj\'s resting screen size at 320/390/844/1280 px, including rotation.');
   // The same gesture must launch the exact same trajectory in the cans and opponent stages.
   for(const curve of [0,35,-35]){
     const paths=[];
@@ -116,8 +131,9 @@ try{
   assert(s.opponent.planned && Math.abs(s.opponent.pos[0])>.02,'AI reacts after release and moves');
   await page.evaluate(()=>window.__test3.step(1.2));s=await snapshot(page);
   assert.equal(s.count,'1','A real touch shot can hit the opponent');
+  assert(s.opponent.popped,'The struck opponent disappears, including its shadow');
   await page.evaluate(()=>window.__test3.step(3));s=await snapshot(page);
-  assert(!s.shot && s.grounded && !s.opponent.touched,'Both characters reset for the next throw');
+  assert(!s.shot && s.grounded && !s.opponent.touched && !s.opponent.popped,'Both characters reset for the next throw');
   report.checks.push('Trusted touch swipe launches; AI waits for release, dodges, can be hit, scores once and resets.');
 
   // A genuine miss never scores, and an offscreen shot returns immediately.
@@ -146,8 +162,27 @@ try{
   assert.equal(await page.evaluate(()=>window.__test3.stage.testBubble.t),0);
   await select(page,'cans');assert.equal((await snapshot(page)).count,'0');
   await select(page,'opponent');assert.equal((await snapshot(page)).count,'1');
-  assert.deepEqual(c.errors,[]);await c.context.close();
   report.checks.push('All five existing styles render; opponent bubble state and cans score stay independent.');
+
+  for(const style of ['jelly','fabric','clay','fur','bubble']){
+    await select(page,'opponent');await page.locator(`[data-style="${style}"]`).tap();
+    const count=Number((await snapshot(page)).count);
+    const popped=await page.evaluate(()=>{
+      const t=window.__test3,O=t.stage.testState;
+      t.S.pos.copy(O.pos);t.S.pos.z+=t.stage.testRadius()+t.BR-.02;t.S.vel.set(0,0,-12);t.S.shot=true;
+      t.stage.collide();const vel=t.S.vel.toArray();t.stage.collide();
+      return {hidden:!t.stage.testBody.visible,parts:t.stage.testBurst()?.parts.length,vel,after:t.S.vel.toArray()};
+    });
+    assert(popped.hidden && popped.parts===12,'Every style pops with the existing twelve-particle effect');
+    assert.deepEqual(popped.vel,popped.after,'The popped opponent has no invisible collider');
+    assert.equal(Number((await snapshot(page)).count),count+1,'Pop awards exactly one point');
+    await page.evaluate(()=>window.__test3.step(.08));
+    if(style==='jelly') await page.screenshot({path:resolve(root,'test-results/opponent-pop.png')});
+    await page.evaluate(()=>window.__test3.step(.7));assert((await snapshot(page)).opponent.popped,'No early regrowth after the effect fades');
+    await page.evaluate(()=>window.__test3.step(2));assert(!(await snapshot(page)).opponent.popped,'Opponent returns for the next throw');
+  }
+  assert.deepEqual(c.errors,[]);await c.context.close();
+  report.checks.push('All five styles pop once, hide the body/shadow/collider and return only with the next throw.');
   console.log(report.checks.map(s=>'PASS '+s).join('\n'));
 }catch(error){report.failures.push(String(error.stack||error));console.error(error);process.exitCode=1;}
 finally{
