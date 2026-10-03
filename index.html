@@ -6,6 +6,7 @@
 <title>Dahrooj</title>
 <link rel="stylesheet" href="./vendor/fonts/fonts.css">
 <link rel="stylesheet" href="./assets/start/start-screen.css">
+<link rel="stylesheet" href="./assets/duel/duel.css">
 <!-- Dahrooj by Aboden Games. Any use of this code or of the game idea must credit "Aboden Games". See LICENSE. -->
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
@@ -159,6 +160,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <div id="count" aria-live="polite">0</div>
 <div id="title" aria-live="polite"></div>
 <div class="modes" role="group" aria-label="Modes">
+  <button data-mode="duel" aria-pressed="false" aria-label="مواجهة أونلاين" title="مواجهة أونلاين"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4M14 4h6v6M4 4l16 16M4 14v6h6"/></svg></button>
   <button data-mode="free" aria-pressed="true" aria-label="Free" title="Free">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12.5" r="5.5"/><path d="M4 20.5h2.5M17.5 20.5H20M5 6l1.5 1.5M19 6l-1.5 1.5"/></svg>
   </button>
@@ -197,6 +199,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
 <script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
+<script src="./assets/duel/rules.js"></script>
+<script src="./assets/duel/duel.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -215,7 +219,7 @@ const ptr = {x:0,y:0,down:false,mode:null,t0:0,charge:0,hist:[]};
 const dashes=[], splats=[], lines=[];
 let shake=0, dizzy=0, hitT=0, blink=0, nextBlink=2, idle=0, time=0;
 let audio=null;
-let G3=null, played=false;
+let G3=null, duel=null, played=false;
 const elCount=document.getElementById('count');
 const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0};
 function showCount(){ elCount.textContent=counts[mode]; }
@@ -1991,14 +1995,19 @@ function showTitle(text){
 }
 function setMode(m){
   if(intro) return;
-  if(m!=='free'){
+  if(mode==='duel'&&m!=='duel') duel?.close();
+  if(m==='duel'){
+    if(!duel) duel=window.createDahroojDuel({sprite:makeStartBallSprite,pop:startPopSound,exit:()=>setMode('free')});
+    duel.open(ballStyle);
+  }else if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }
     G3.setStage(m);
   }
   mode=m;
   for(const b of modeBtns) b.setAttribute('aria-pressed',b.dataset.mode===m);
-  gcv.hidden = fxc.hidden = m==='free';
-  showCount();
+  gcv.hidden = fxc.hidden = m==='free'||m==='duel';
+  document.getElementById('game-ui').inert=m==='duel';
+  if(m!=='duel') showCount();
   const btn=modeBtns.find(b=>b.dataset.mode===m); if(btn) showTitle(btn.getAttribute('aria-label'));
 }
 for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode));
@@ -2029,6 +2038,7 @@ function enterGame(){
   last=performance.now();
   document.querySelector('[data-mode="free"]').focus({preventScroll:true});
   showTitle('Dahrooj');
+  if(new URL(location.href).searchParams.has('duel')) setMode('duel');
 }
 function startPopSound(){
   if(!audio || audio.state!=='running') return;
@@ -2051,6 +2061,8 @@ function frame(now){
   const steps=3;
   if(intro){
     drawPaper();intro.tick(Math.min(.067,elapsed));
+  }else if(mode==='duel'){
+    drawPaper();duel.render(now);
   }else if(mode==='free'){
     for(let i=0;i<8;i++) update(dt/8);
     render();
