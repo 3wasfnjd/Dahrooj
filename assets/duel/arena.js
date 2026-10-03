@@ -5,7 +5,9 @@ window.createDahroojArena=function(root,bridge){
   const T=window.THREE,gl=document.createElement('canvas'),canvas=document.createElement('canvas');
   gl.className='duel-world';canvas.className='duel-touch';canvas.tabIndex=0;canvas.setAttribute('aria-label','اسحب السهم وارمه. لوحة المفاتيح: الاتجاهات للتصويب والمسافة للإطلاق');
   root.prepend(gl,canvas);
-  const ctx=canvas.getContext('2d'),renderer=new T.WebGLRenderer({canvas:gl,alpha:true,antialias:true});
+  const ctx=canvas.getContext('2d');
+  const gpu=gl.getContext('webgl2',{alpha:true,antialias:true})||gl.getContext('webgl',{alpha:true,antialias:true});
+  const renderer=gpu?new T.WebGLRenderer({canvas:gl,context:gpu,alpha:true,antialias:true}):{shadowMap:{},setClearColor(){},setPixelRatio(){},setSize(){},render(){},dispose(){}};
   renderer.setClearColor(0,0);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(45,1,.1,120),V=(x,y,z)=>new T.Vector3(x,y,z);
   scene.add(new T.HemisphereLight(0xfff8ee,0xd8cbb8,.95));
@@ -17,7 +19,7 @@ window.createDahroojArena=function(root,bridge){
   const actors=[bridge.actor(),bridge.actor()],arrow=new T.Group();scene.add(arrow);
   const palette={jelly:['#8a8e97','#4b4e56','#2a2c31'],fabric:['#a55267','#7c2941','#50172c'],clay:['#ad805c','#825637','#55331f'],fur:['#fff8ef','#eadbcd','#694c3a'],bubble:['#f1eaff','#bddfee','#d6b4df']};
   let style='',width=0,height=0,dpr=1,last=0,shotId='',popped=false,impactAt=0,particles=[],displayTarget={x:0,y:.6,z:12};
-  const tmp=V(0,0,0),up=V(0,1,0),clock=new T.Clock();
+  const tmp=V(0,0,0),up=V(0,1,0);
   function material(color,roughness=.38){return new T.MeshStandardMaterial({color,roughness,metalness:0});}
   function texture(fabric){
     const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#b5b5b5';g.fillRect(0,0,128,128);
@@ -63,6 +65,31 @@ window.createDahroojArena=function(root,bridge){
   function burst(p,s){
     const q=project(p);particles=Array.from({length:22},(_,i)=>{const a=i*2.39996;return {x:q.x,y:q.y,vx:Math.cos(a)*q.r*(2+i%4),vy:Math.sin(a)*q.r*(2+i%3),r:q.r*(.04+(i%3)*.025),color:palette[s][i%3],life:0};});
   }
+  // Canvas fallback shares projection, palette and rounded silhouette for devices without WebGL.
+  function paintSoftArrow(){
+    const a=arrow.position.clone().add(V(0,-.4,0).applyQuaternion(arrow.quaternion)).project(camera);
+    const b=arrow.position.clone().add(V(0,.48,0).applyQuaternion(arrow.quaternion)).project(camera);
+    const x=(a.x+1)*width/2,y=(1-a.y)*height/2,dx=(b.x-a.x)*width/2,dy=-(b.y-a.y)*height/2,len=Math.max(12,Math.hypot(dx,dy));
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(dy,dx));ctx.scale(len/100,len/100);
+    const colors=palette[style];
+    const shaft=ctx.createLinearGradient(0,-4,0,4);shaft.addColorStop(0,colors[0]);shaft.addColorStop(.45,colors[1]);shaft.addColorStop(1,colors[2]);
+    ctx.shadowColor='#2c2d3d18';ctx.shadowBlur=5;ctx.fillStyle=shaft;
+    ctx.beginPath();ctx.roundRect(6,-3.5,66,7,3.5);ctx.fill();ctx.shadowBlur=0;
+    for(const side of [-1,1]){
+      ctx.save();ctx.scale(1,side);const feather=ctx.createLinearGradient(10,-16,18,1);feather.addColorStop(0,colors[0]);feather.addColorStop(1,colors[2]);ctx.fillStyle=feather;
+      ctx.beginPath();ctx.moveTo(4,-2);ctx.bezierCurveTo(4,-9,10,-20,17,-17);ctx.bezierCurveTo(24,-13,32,-6,34,-2);ctx.bezierCurveTo(23,0,14,1,4,-2);ctx.fill();
+      ctx.strokeStyle=style==='fabric'?'#e6c8b5aa':'#ffffff38';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(8,-4);ctx.quadraticCurveTo(17,-6,24,-9);ctx.stroke();ctx.restore();
+    }
+    const tip=ctx.createRadialGradient(76,-8,1,78,0,23);tip.addColorStop(0,colors[0]);tip.addColorStop(.6,colors[1]);tip.addColorStop(1,colors[2]);ctx.fillStyle=tip;
+    if(style==='bubble')ctx.globalAlpha=.65;
+    ctx.beginPath();ctx.moveTo(68,-3);ctx.bezierCurveTo(63,-14,68,-18,74,-14);ctx.bezierCurveTo(83,-10,94,-4,99,-1.5);ctx.quadraticCurveTo(102,0,99,1.5);ctx.bezierCurveTo(91,5,82,11,74,14);ctx.bezierCurveTo(68,18,63,14,68,3);ctx.closePath();ctx.fill();
+    ctx.fillStyle=style==='clay'?'#ffffff20':'#ffffff50';ctx.beginPath();ctx.ellipse(75,-7,6,2,.45,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle=style==='fabric'?'#e7c9bb':'#d6ad87';ctx.lineWidth=2;for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(59+i*3,-4);ctx.lineTo(59+i*3,4);ctx.stroke();}
+    if(style==='fabric'){ctx.strokeStyle='#e7c9bb99';ctx.lineWidth=.85;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(70,-10);ctx.lineTo(93,0);ctx.lineTo(70,10);ctx.stroke();ctx.setLineDash([]);}
+    if(style==='clay'){ctx.strokeStyle='#55331f55';ctx.lineWidth=.6;for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(75,3,2+i*1.3,1+i*.8,0,.1,5.2);ctx.stroke();}}
+    if(style==='fur'){ctx.strokeStyle='#eadbcd';ctx.lineWidth=.7;for(let i=0;i<14;i++){const x=7+i*1.4,y=-3-Math.sin(i/14*Math.PI)*12;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-2,y-2);ctx.stroke();}}
+    ctx.restore();
+  }
   function render(now,{state,me,selected,aim,power,drag,waiting}){
     if(width!==innerWidth||height!==innerHeight)resize();const dt=Math.min(.035,Math.max(.001,(now-last)/1000||.016));last=now;
     const rule=window.DahroojDuelRules,round=state||rule.create('lobby',[selected,selected],0),target=rule.target(round),shooting=round.phase==='flying',shooter=round.turn%2;
@@ -88,6 +115,10 @@ window.createDahroojArena=function(root,bridge){
       const p=positions[j];actorShadows[j].position.copy(world(p));actorShadows[j].visible=!(hit&&canonical[j]===hitPlayer);spots[j].position.x=p.x*.4;spots[j].position.z=-p.z*.2;
     }
     renderer.render(scene,camera);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
+    if(!gpu){
+      for(const p of positions){const q=project({...p,y:0});ctx.save();ctx.fillStyle='#2c2d3d22';ctx.filter='blur(4px)';ctx.beginPath();ctx.ellipse(q.x,q.y,q.r*.95,q.r*.19,0,0,Math.PI*2);ctx.fill();ctx.restore();}
+      if(arrow.visible)paintSoftArrow();
+    }
     for(const j of [1,0]){
       const player=canonical[j],p=positions[j],q=project(p);let scale=1,face='open',squash=.018*Math.sin(now*.0024+j*1.7);
       if(hit&&player===hitPlayer){const elapsed=t-outcome.t;if(elapsed<.62||round.hearts[player]<=1)continue;const k=Math.min(1,(elapsed-.62)/.45);scale=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);face='wide';}
