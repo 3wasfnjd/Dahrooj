@@ -51,13 +51,13 @@ window.createDahroojArena=function(root,bridge){
     if(s==='fur')for(let i=0;i<20;i++){const a=i*2.4;const tuft=mesh(new T.SphereGeometry(1,8,6),i%4===0?dark:light,Math.cos(a)*.061,-.28+(i%5)*.025,Math.sin(a)*.061);tuft.scale.set(.014,.028,.014);}
     if(s==='bubble')for(let i=0;i<3;i++){const rim=material(['#edb7d4','#b5dfeb','#ede3b6'][i],.12);const ring=mesh(new T.TorusGeometry(.09-i*.019,.004,8,40),rim,0,.29+i*.034);ring.rotation.x=Math.PI/2;}
   }
-  const world=p=>V(p.x*.4,p.y*.4,-p.z*.2);
+  const world=p=>V(p.x*.4,p.y*.4,-p.z*.3);
   function project(p){const v=world(p);tmp.copy(v).project(camera);const x=(tmp.x+1)*width/2,y=(1-tmp.y)*height/2;tmp.copy(v).addScaledVector(camera.up,.24).project(camera);return {x,y,r:Math.abs((1-tmp.y)*height/2-y)};}
   function resize(){
     width=innerWidth;height=innerHeight;dpr=Math.min(2,devicePixelRatio||1);renderer.setPixelRatio(dpr);renderer.setSize(width,height,false);canvas.width=width*dpr;canvas.height=height*dpr;
     const radius=Math.max(28,Math.min(48,Math.min(width,height)*.085)),aspect=width/height,minH=34*Math.PI/180;
     camera.aspect=aspect;camera.fov=Math.min(aspect<1.3?2*Math.atan(Math.tan(minH/2)/aspect)*180/Math.PI:40,72);
-    const tan=Math.tan(camera.fov*Math.PI/360),dist=.24*(height/2)/(radius*tan),el=14*Math.PI/180;
+    const tan=Math.tan(camera.fov*Math.PI/360),dist=.24*(height/2)/(radius*tan),el=35*Math.PI/180;
     camera.position.set(0,.24+dist*Math.sin(el),dist*Math.cos(el));
     const th=Math.atan(((height*.77-radius)-height/2)/(height/2)*tan),lp=-el+th;
     camera.lookAt(0,camera.position.y+Math.sin(lp)*10,camera.position.z-Math.cos(lp)*10);camera.updateProjectionMatrix();camera.updateMatrixWorld();
@@ -112,7 +112,7 @@ window.createDahroojArena=function(root,bridge){
     }
     arrow.visible=!!arrowPos;if(arrowPos){arrow.position.copy(arrowPos);arrow.quaternion.setFromUnitVectors(up,dir.normalize());const tension=drag?.96:1;arrow.scale.set(tension,1/tension,tension);}
     for(let j=0;j<2;j++){
-      const p=positions[j];actorShadows[j].position.copy(world(p));actorShadows[j].visible=!(hit&&canonical[j]===hitPlayer);spots[j].position.x=p.x*.4;spots[j].position.z=-p.z*.2;
+      const p=positions[j];actorShadows[j].position.copy(world(p));actorShadows[j].visible=!(hit&&canonical[j]===hitPlayer);spots[j].position.x=p.x*.4;spots[j].position.z=-p.z*.3;
     }
     renderer.render(scene,camera);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
     if(!gpu){
@@ -136,7 +136,7 @@ window.createDahroojArena=function(root,bridge){
       }
     }
     if(aiming){const q=project(positions[0]);ctx.strokeStyle='rgba(44,45,61,.18)';ctx.lineWidth=1.4;ctx.beginPath();ctx.ellipse(q.x,q.y+q.r*.94,q.r*1.28,q.r*.22,0,0,Math.PI*2);ctx.stroke();
-      if(drag){ctx.fillStyle='rgba(44,45,61,.25)';for(let t=.12;t<.55;t+=.075){const p=project(rule.point({aim,power},t));ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill();}}
+      if(drag){ctx.fillStyle='rgba(44,45,61,.25)';for(let t=.12;t<.95;t+=.075){const p=project(rule.point({aim,power},t));ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill();}}
     }
     for(const p of particles){p.life+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=160*dt;ctx.globalAlpha=Math.max(0,1-p.life/.7);ctx.fillStyle=p.color;ctx.beginPath();ctx.ellipse(p.x,p.y,p.r,p.r*.65,p.life*3,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;particles=particles.filter(p=>p.life<.7);
   }
