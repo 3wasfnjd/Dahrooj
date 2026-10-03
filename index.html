@@ -199,6 +199,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
 <script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
+<script src="./assets/duel/shot.js"></script>
 <script src="./assets/duel/rules.js"></script>
 <script src="./assets/duel/arena.js"></script>
 <script src="./assets/duel/duel.js"></script>
@@ -1760,10 +1761,9 @@ function make3D(){
     else target=V(0,1,stage.aimZ);
     target.x=Math.max(-9,Math.min(9,target.x)); target.y=Math.max(0.35,Math.min(6,target.y));
     const ft=stage.ft(sp2);
-    const flat=V(target.x-S.pos.x,0,target.z-S.pos.z).normalize();
-    S.side.set(-flat.z,0,flat.x).multiplyScalar(curve*9);
-    const acc=V(S.side.x,-GRAV,S.side.z);
-    S.vel.copy(target).sub(S.pos).addScaledVector(acc,-0.5*ft*ft).divideScalar(ft);
+    const launch=window.DahroojShot.launch(S.pos,target,ft,curve);
+    S.side.set(launch.side.x,0,launch.side.z);
+    S.vel.set(launch.vel.x,launch.vel.y,launch.vel.z);
     S.shot=true; S.shotT=0; S.grounded=false; S.prevZ=S.pos.z; S.prevY=S.pos.y;
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp2/3000)*8;
     whoosh(Math.min(1,sp2/3000));

@@ -1,4 +1,4 @@
-/* Aboden Games — six alternating rounds, online or against a fallible AI. */
+/* Aboden Games — Dahrooj-versus-Dahrooj, online or against a fallible AI. */
 (function(){
 'use strict';
 const R=window.DahroojDuelRules;
@@ -10,15 +10,16 @@ window.createDahroojDuel=function(bridge){
     <div class="duel-heading">مواجهة</div><div id="duel-round" hidden aria-label="الجولات الست">${Array.from({length:6},()=>'<i></i>').join('')}</div>
     <div id="duel-turn" class="duel-sr" role="status"></div><div id="duel-styles" aria-label="ستايل دحروج"></div>
     <div id="duel-lobby"><div id="duel-actions"><button id="duel-create" class="duel-icon" aria-label="دعوة صاحبك" title="دعوة صاحبك">${icons.invite}</button><button id="duel-bot" class="duel-icon duel-play" aria-label="العب ضد الكمبيوتر" title="العب ضد الكمبيوتر">${icons.play}</button><button id="duel-enter" class="duel-icon" aria-label="دخول غرفة" title="دخول غرفة">${icons.join}</button></div>
-    <div id="duel-join-row" hidden><input id="duel-code" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="رمز الغرفة" aria-label="رمز الغرفة"><button id="duel-join" class="duel-icon" aria-label="دخول" title="دخول">${icons.join}</button></div>
-    <div id="duel-invite" hidden><span id="duel-room" dir="ltr"></span><button id="duel-copy" class="duel-icon" aria-label="نسخ الدعوة" title="نسخ الدعوة">${icons.copy}</button><button id="duel-wait-bot" class="duel-icon" aria-label="العب ضد الكمبيوتر بدل الانتظار" title="العب ضد الكمبيوتر">${icons.play}</button><input id="duel-link" type="text" readonly hidden aria-label="رابط الدعوة"></div></div>
+    <div id="duel-join-row" hidden><input id="duel-code" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="رمز الغرفة" aria-label="رمز الغرفة"></div>
+    <div id="duel-invite" hidden><button id="duel-wait-bot" class="duel-icon" aria-label="العب ضد الكمبيوتر بدل الانتظار" title="العب ضد الكمبيوتر">${icons.play}</button></div></div>
+    <button id="duel-room" hidden dir="ltr" aria-label="نسخ رمز الغرفة" title="نسخ رمز الغرفة"></button><div id="duel-score" hidden dir="ltr" role="status" aria-live="polite"></div>
     <div id="duel-result" hidden><h1></h1><button id="duel-rematch" class="duel-icon" aria-label="مواجهة جديدة" title="مواجهة جديدة">${icons.again}</button></div>
     <div id="duel-status" role="status" aria-live="polite"></div><button id="duel-retry" class="duel-icon" aria-label="إعادة المحاولة" title="إعادة المحاولة" hidden>${icons.again}</button>
     <div class="duel-credit">ABODEN GAMES</div>`;
   document.body.appendChild(root);
   const $=s=>root.querySelector(s),status=$('#duel-status'),arena=window.createDahroojArena(root,bridge),canvas=arena.canvas;
   let active=false,peer=null,conn=null,host=false,me=0,state=null,selected='jelly',room='',generation=0,bot=false;
-  let timer=null,flightTimer=null,botTimer=null,heartbeat=null,lastSeen=0,ready=false,localAgain=false,remoteAgain=false,drag=null,aimValue=0,powerValue=.457,pending=false;
+  let timer=null,flightTimer=null,botTimer=null,heartbeat=null,lastSeen=0,ready=false,localAgain=false,remoteAgain=false,drag=null,shotInput=null,pending=false;
   const names={jelly:'جيلي',fabric:'قماش',clay:'طين',fur:'فرو',bubble:'فقاعة'};
   for(const style of R.STYLES){const b=document.createElement('button');b.dataset.style=style;b.setAttribute('aria-label',names[style]);b.title=names[style];const img=new Image();img.src=bridge.sprite(style,'open').toDataURL();img.alt='';b.appendChild(img);b.onclick=()=>choose(style);$('#duel-styles').appendChild(b);}
   function choose(s){selected=R.STYLES.includes(s)?s:'jelly';bridge.style?.(selected);for(const b of $('#duel-styles').children)b.setAttribute('aria-pressed',b.dataset.style===selected);}
@@ -29,14 +30,13 @@ window.createDahroojDuel=function(bridge){
   }
   function lobby(){
     cleanup();root.classList.remove('playing');$('#duel-lobby').hidden=$('#duel-styles').hidden=false;
-    for(const id of ['duel-round','duel-invite','duel-join-row','duel-result','duel-retry','duel-link'])$('#'+id).hidden=true;
-    $('#duel-actions').hidden=false;$('#duel-create').disabled=$('#duel-join').disabled=false;status.textContent='';
+    for(const id of ['duel-round','duel-invite','duel-join-row','duel-result','duel-retry','duel-room','duel-score'])$('#'+id).hidden=true;
+    $('#duel-actions').hidden=false;$('#duel-create').disabled=$('#duel-enter').disabled=false;status.textContent='';
   }
-  function fail(message){if(!active)return;cleanup();root.classList.remove('playing');$('#duel-lobby').hidden=$('#duel-round').hidden=$('#duel-result').hidden=true;$('#duel-retry').hidden=false;status.textContent=message;}
+  function fail(message){if(!active)return;cleanup();root.classList.remove('playing');$('#duel-score').hidden=$('#duel-room').hidden=true;$('#duel-lobby').hidden=$('#duel-round').hidden=$('#duel-result').hidden=true;$('#duel-retry').hidden=false;status.textContent=message;}
   const random=()=>crypto.getRandomValues(new Uint32Array(1))[0];
   const id=()=>random().toString(36)+'-'+random().toString(36);
   const code=()=>Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%32]).join('');
-  function invite(){const url=new URL(location.href);url.searchParams.set('duel',room);url.hash='';return url.href;}
   function newMatch(){
     localAgain=remoteAgain=false;const opponent=bot?R.STYLES[(R.STYLES.indexOf(selected)+1+random()%4)%5]:conn.metadata.style;
     apply(R.create(id(),[selected,opponent],random()));broadcast();
@@ -50,17 +50,18 @@ window.createDahroojDuel=function(bridge){
       if(token!==generation||state?.id!==match||state.turn!==turn)return;
       // Same projectile physics as the player. No health/difficulty-dependent cheating.
       const randomUnit=()=>random()/0xffffffff,wide=randomUnit()<.26;
-      const aim=R.target(state).x/5.76+(randomUnit()-.5)*(wide?.52:.16);
-      const power=3.2/7+(randomUnit()-.5)*(wide?.32:.10);
-      acceptShot(1,{id:match,turn,aim:Math.max(-1,Math.min(1,aim)),power:Math.max(0,Math.min(1,power))});
+      const x=R.target(state).x+(randomUnit()-.5)*(wide?2.2:.35);
+      const y=.35+randomUnit()*(wide?1.3:.12);
+      acceptShot(1,{id:match,turn,x,y,ft:.65+randomUnit()*.45,curve:(randomUnit()-.5)*.06});
     },900+random()%650);
   }
   function apply(next){
     if(!R.valid(next))return;if(state&&next.id===state.id&&next.revision<=state.revision)return;
     if(state&&next.id!==state.id)localAgain=remoteAgain=false;
-    clearTimeout(timer);state=next;ready=true;pending=false;drag=null;root.classList.add('playing');
+    clearTimeout(timer);state=next;if(bot)$('#duel-room').hidden=true;ready=true;pending=false;drag=null;root.classList.add('playing');
     $('#duel-lobby').hidden=$('#duel-styles').hidden=$('#duel-retry').hidden=true;$('#duel-round').hidden=false;status.textContent='';
     $('#duel-result').hidden=state.phase!=='done';
+    const score=$('#duel-score'),mine=3-state.hearts[1-me],theirs=3-state.hearts[me];score.hidden=false;score.textContent=`${mine.toLocaleString('ar-SA')} — ${theirs.toLocaleString('ar-SA')}`;score.setAttribute('aria-label',`نتيجتك ${mine}، المنافس ${theirs}`);
     const round=R.round(state);for(const [i,dot] of Array.from($('#duel-round').children).entries()){dot.className=i+1<round?'past':i+1===round?'current':'';}
     $('#duel-round').setAttribute('aria-label',`الجولة ${round} من ٦`);
     $('#duel-turn').textContent=state.phase==='done'?'انتهت المواجهة':state.phase==='flying'?'':state.turn%2===me?'دورك':bot?'دور الكمبيوتر':'دور المنافس';
@@ -73,14 +74,14 @@ window.createDahroojDuel=function(bridge){
     apply(next);broadcast();const match=state.id,turn=state.turn,token=generation;
     flightTimer=setTimeout(()=>{if(token!==generation||state?.id!==match||state.turn!==turn)return;apply(R.settle(state));broadcast();},2200);
   }
-  function fire(){
-    if(!state||!ready||pending||state.phase!=='aim'||state.turn%2!==me)return;
-    const request={id:state.id,turn:state.turn,aim:aimValue,power:powerValue};drag=null;
+  function fire(input=shotInput){
+    if(!state||!ready||pending||state.phase!=='aim'||state.turn%2!==me||!input)return;
+    const request={id:state.id,turn:state.turn,...input};drag=null;
     bridge.sound?.(.1);if(host)acceptShot(me,request);else{pending=send({type:'shot',request});}
   }
   function wire(c,token){
     conn=c;lastSeen=Date.now();c.on('open',()=>{
-      if(token!==generation)return;clearTimeout(timer);lastSeen=Date.now();
+      if(token!==generation)return;clearTimeout(timer);lastSeen=Date.now();$('#duel-room').hidden=false;$('#duel-room').textContent=room;
       if(host)newMatch();else timer=setTimeout(()=>{if(token===generation&&!ready)fail('لم تبدأ المواجهة');},12000);
       heartbeat=setInterval(()=>{if(Date.now()-lastSeen>20000)fail('انقطع اتصال المنافس');else send({type:'ping'});},4000);
     });
@@ -99,40 +100,45 @@ window.createDahroojDuel=function(bridge){
     bridge.interact?.();
     const typed=$('#duel-code').value.trim().toUpperCase();if(!create&&!/^[A-HJ-NP-Z2-9]{8}$/.test(typed)){status.textContent='رمز الغرفة: ٨ أحرف وأرقام';return;}
     cleanup();host=create;me=create?0:1;room=create?code():typed;const token=generation;
-    $('#duel-create').disabled=$('#duel-join').disabled=true;status.textContent='…';
+    $('#duel-create').disabled=$('#duel-enter').disabled=true;status.textContent='…';
     timer=setTimeout(()=>{if(token===generation)fail('تعذّر الاتصال. جرّب شبكة ثانية');},25000);
     try{
-      await loadPeer();if(token!==generation)return;const options={debug:0,...(window.DAHROOJ_PEER_OPTIONS||{})};peer=host?new Peer('dahrooj-v2-'+room,options):new Peer(options);
+      await loadPeer();if(token!==generation)return;const options={debug:0,...(window.DAHROOJ_PEER_OPTIONS||{})};peer=host?new Peer('dahrooj-v3-'+room,options):new Peer(options);
       peer.on('open',()=>{
         if(token!==generation)return;
-        if(host){clearTimeout(timer);$('#duel-actions').hidden=$('#duel-join-row').hidden=true;$('#duel-invite').hidden=false;$('#duel-room').textContent=room;status.textContent='بانتظار صاحبك';}
-        else wire(peer.connect('dahrooj-v2-'+room,{reliable:true,serialization:'json',metadata:{v:2,style:selected}}),token);
+        if(host){clearTimeout(timer);$('#duel-actions').hidden=$('#duel-join-row').hidden=true;$('#duel-invite').hidden=false;$('#duel-room').textContent=room;$('#duel-room').hidden=false;status.textContent='';}
+        else wire(peer.connect('dahrooj-v3-'+room,{reliable:true,serialization:'json',metadata:{v:3,style:selected}}),token);
       });
-      peer.on('connection',c=>{if(token!==generation||!host||conn||c.metadata?.v!==2||!R.STYLES.includes(c.metadata?.style)){c.on('open',()=>c.close());return;}wire(c,token);timer=setTimeout(()=>{if(token===generation&&!ready)fail('لم يكتمل الاتصال');},25000);});
+      peer.on('connection',c=>{if(token!==generation||!host||conn||c.metadata?.v!==3||!R.STYLES.includes(c.metadata?.style)){c.on('open',()=>c.close());return;}wire(c,token);timer=setTimeout(()=>{if(token===generation&&!ready)fail('لم يكتمل الاتصال');},25000);});
       peer.on('error',e=>{if(token===generation)fail(e.type==='peer-unavailable'?'الغرفة غير موجودة':e.type==='unavailable-id'?'أنشئ غرفة جديدة':'تعذّر الاتصال. الكمبيوتر متاح بدون اتصال');});
       peer.on('disconnected',()=>{if(token===generation&&!ready)fail('انقطع الاتصال بخدمة الغرف');});
     }catch(_){if(token===generation)fail('تعذّر الاتصال. الكمبيوتر متاح بدون اتصال');}
   }
   $('#duel-bot').onclick=$('#duel-wait-bot').onclick=startBot;
-  $('#duel-create').onclick=()=>connect(true);$('#duel-join').onclick=()=>connect(false);
-  $('#duel-enter').onclick=()=>{$('#duel-join-row').hidden=!$('#duel-join-row').hidden;if(!$('#duel-join-row').hidden)$('#duel-code').focus();};
-  $('#duel-code').onkeydown=e=>{if(e.key==='Enter'&&!$('#duel-join').disabled)connect(false);};$('#duel-retry').onclick=lobby;
+  $('#duel-create').onclick=()=>connect(true);
+  $('#duel-enter').onclick=()=>{if($('#duel-join-row').hidden){$('#duel-join-row').hidden=false;$('#duel-code').focus();}else connect(false);};
+  $('#duel-code').onkeydown=e=>{if(e.key==='Enter'&&!$('#duel-enter').disabled)connect(false);};$('#duel-retry').onclick=lobby;
   $('#duel-rematch').onclick=()=>{if(state?.phase!=='done')return;if(bot){newMatch();return;}localAgain=true;$('#duel-rematch').disabled=true;status.textContent='بانتظار المنافس';if(host){if(remoteAgain)newMatch();}else send({type:'again',id:state.id});};
-  $('#duel-copy').onclick=async()=>{try{await navigator.clipboard.writeText(invite());status.textContent='تم نسخ الدعوة';}catch(_){const input=$('#duel-link');input.hidden=false;input.value=invite();input.focus();input.select();}};
+  $('#duel-room').onclick=async()=>{
+    const button=$('#duel-room'),token=generation;
+    try{await navigator.clipboard.writeText(room);if(token!==generation)return;button.textContent='✓';setTimeout(()=>{if(token===generation)button.textContent=room;},1000);}
+    catch(_){const text=document.createElement('textarea');text.value=room;text.style.position='fixed';text.style.opacity='0';root.appendChild(text);text.select();const copied=document.execCommand('copy');text.remove();if(copied){button.textContent='✓';setTimeout(()=>{if(token===generation)button.textContent=room;},1000);}else{status.textContent=room;}}
+  };
   $('.duel-exit').onclick=()=>bridge.exit();
   canvas.onpointerdown=e=>{
-    if(!ready||!state||state.phase!=='aim'||state.turn%2!==me||pending||drag||e.clientY<innerHeight*.42)return;
-    bridge.interact?.();drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus();canvas.style.cursor='grabbing';
+    if(!ready||!state||state.phase!=='aim'||state.turn%2!==me||pending||drag)return;
+    bridge.interact?.();const point={x:e.clientX,y:e.clientY,t:performance.now()/1000};drag={id:e.pointerId,x:point.x,y:point.y,currentX:point.x,currentY:point.y,points:[point]};canvas.setPointerCapture(e.pointerId);canvas.focus();canvas.style.cursor='grabbing';
   };
-  function aim(e){if(!drag||drag.id!==e.pointerId)return;aimValue=Math.max(-1,Math.min(1,(e.clientX-drag.x)/(innerWidth*.4)));powerValue=Math.max(0,Math.min(1,(drag.y-e.clientY)/(innerHeight*.42)));}
-  canvas.onpointermove=aim;canvas.onpointerup=e=>{if(!drag||drag.id!==e.pointerId)return;const distance=drag.y-e.clientY;aim(e);drag=null;if(distance>18)fire();else canvas.style.cursor='grab';};canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
+  function aim(e){if(!drag||drag.id!==e.pointerId)return;drag.currentX=e.clientX;drag.currentY=e.clientY;drag.points.push({x:e.clientX,y:e.clientY,t:performance.now()/1000});if(drag.points.length>80)drag.points.shift();}
+  canvas.onpointermove=aim;canvas.onpointerup=e=>{if(!drag||drag.id!==e.pointerId)return;aim(e);const shot=arena.shotFromGesture(drag.points);drag=null;if(shot){shotInput=shot;fire(shot);}else canvas.style.cursor='grab';};canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
   canvas.onkeydown=e=>{
     if(!state||state.phase!=='aim'||state.turn%2!==me)return;
+    if(!shotInput)shotInput={x:0,y:.35,ft:.85,curve:0};
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();
-    if(e.key==='ArrowLeft')aimValue=Math.max(-1,aimValue-.035);if(e.key==='ArrowRight')aimValue=Math.min(1,aimValue+.035);
-    if(e.key==='ArrowUp')powerValue=Math.min(1,powerValue+.02);if(e.key==='ArrowDown')powerValue=Math.max(0,powerValue-.02);if(e.key===' ')fire();
+    if(e.key==='ArrowLeft')shotInput.x=Math.max(-9,shotInput.x-.1);if(e.key==='ArrowRight')shotInput.x=Math.min(9,shotInput.x+.1);
+    if(e.key==='ArrowUp')shotInput.y=Math.min(6,shotInput.y+.1);if(e.key==='ArrowDown')shotInput.y=Math.max(.35,shotInput.y-.1);if(e.key===' ')fire();
   };
   addEventListener('pagehide',()=>{if(active)cleanup();});
-  return {open(style){active=true;root.hidden=false;choose(style);arena.resize();lobby();const code=new URL(location.href).searchParams.get('duel');if(code){$('#duel-code').value=code.toUpperCase();$('#duel-join-row').hidden=false;}$('#duel-bot').focus();},close(){active=false;cleanup();root.hidden=true;},render(now){if(active)arena.render(now,{state,me,selected,aim:aimValue,power:powerValue,drag,waiting:!!peer});}};
+  return {open(style){active=true;root.hidden=false;choose(style);arena.resize();lobby();const code=new URL(location.href).searchParams.get('duel');if(code){$('#duel-code').value=code.toUpperCase();$('#duel-join-row').hidden=false;}$('#duel-bot').focus();},close(){active=false;cleanup();root.hidden=true;},render(now){if(active)arena.render(now,{state,me,selected,drag,waiting:!!peer});}};
 };
 })();
