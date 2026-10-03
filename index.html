@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dahrooj</title>
 <link rel="stylesheet" href="./vendor/fonts/fonts.css">
+<link rel="stylesheet" href="./assets/start/start-screen.css">
 <!-- Dahrooj by Aboden Games. Any use of this code or of the game idea must credit "Aboden Games". See LICENSE. -->
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
@@ -126,6 +127,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <canvas id="c" aria-label="كرة برتقالية تفاعلية بعيون"></canvas>
 <canvas id="g" hidden aria-label="مشهد ثلاثي الأبعاد، اسحب لأعلى للتسديد"></canvas>
 <canvas id="fx" hidden></canvas>
+<div id="game-ui" hidden inert>
 <div class="styles" role="group" aria-label="Style">
   <button data-style="jelly" aria-pressed="true" aria-label="Jelly" title="Jelly">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M8 9.5a4.5 4.5 0 0 1 3-2.6"/></svg>
@@ -174,7 +176,26 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   </button>
 </div>
 <p class="credit">Aboden Games<small>© 2026</small></p>
+</div>
 
+<section id="start-screen" aria-labelledby="start-name" aria-describedby="start-hint">
+  <canvas id="start-balls" aria-label="كور دحروج المتساقطة؛ اسحب أي كرة بإصبعك وارمها"></canvas>
+  <header class="start-heading">
+    <h1 id="start-name">دحروج</h1>
+    <p id="start-hint">اسحب الكور… وخلّها تدحروج!</p>
+  </header>
+  <div class="start-actions">
+    <button id="start-play" type="button" hidden disabled>
+      <span>بدء اللعبة</span>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8c0-1.1 1.2-1.7 2.1-1.1l11 7.2a1.3 1.3 0 0 1 0 2.2l-11 7.2A1.3 1.3 0 0 1 7 19.2z"/></svg>
+    </button>
+  </div>
+  <p id="start-status" class="start-sr-only" role="status" aria-live="polite">تتساقط الكور… سيظهر زر بدء اللعبة بعد امتلاء الشاشة.</p>
+  <p class="start-brand"><span>ABODEN GAMES</span></p>
+</section>
+
+<script src="./vendor/matter/matter-0.20.0.min.js"></script>
+<script src="./assets/start/start-screen.js"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
 <script>
 (() => {
@@ -187,6 +208,7 @@ const COL = { ball:'#4b4e56', ballDark:'#2a2c31', ballLight:'#8a8e97', ink:'#2c2
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let mode='free';
+let intro=null;
 let W=0,H=0,dpr=1,R=48,floorY=0, bg=null;
 const ball = {x:0,y:0,vx:0,vy:0,d:0,dv:0,a:-Math.PI/2,grounded:false,lastHit:0};
 const ptr = {x:0,y:0,down:false,mode:null,t0:0,charge:0,hist:[]};
@@ -265,6 +287,7 @@ function resize(){
   jellyInit(ball.x,ball.y);
   makePaper();
   if(G3) G3.resize();
+  if(intro) intro.resize(W,H,dpr);
 }
 addEventListener('resize',()=>resize());
 
@@ -370,6 +393,7 @@ function impact(cx,cy,nx,ny,speed){
 
 function pos(e){const r=cv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
 cv.addEventListener('pointerdown',e=>{
+  if(intro) return;
   ensureAudio(); played=true;
   cv.setPointerCapture(e.pointerId);
   const p=pos(e); ptr.x=p.x; ptr.y=p.y; ptr.down=true; ptr.t0=time; ptr.charge=0; ptr.hist=[{x:p.x,y:p.y,t:time}];
@@ -382,6 +406,7 @@ cv.addEventListener('pointerdown',e=>{
   idle=0;
 });
 cv.addEventListener('pointermove',e=>{
+  if(intro) return;
   const p=pos(e); ptr.x=p.x; ptr.y=p.y;
   if(ptr.down){ptr.hist.push({x:p.x,y:p.y,t:time}); if(ptr.hist.length>8) ptr.hist.shift();}
   idle=0;
@@ -1944,6 +1969,7 @@ function showTitle(text){
   clearTimeout(titleTimer); titleTimer=setTimeout(()=>elTitle.classList.remove('show'),1400);
 }
 function setMode(m){
+  if(intro) return;
   if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }
     G3.setStage(m);
@@ -1957,11 +1983,47 @@ function setMode(m){
 for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode));
 
 resize();
+// Reuse the exact five game renderers. Cache their output for the many-ball intro.
+function makeStartBallSprite(style,face){
+  const previousStyle=ballStyle, radius=64;
+  const sprite=document.createElement('canvas');
+  sprite.width=sprite.height=Math.ceil(radius*2.8*dpr);
+  const g=sprite.getContext('2d');
+  g.scale(dpr,dpr);g.translate(radius*1.4,radius*1.4);
+  const points=Array.from({length:28},(_,i)=>{
+    const a=i/28*Math.PI*2-Math.PI/2;
+    return {x:Math.cos(a)*radius,y:Math.sin(a)*radius};
+  });
+  try{
+    ballStyle=style;
+    paintBlob(g,points,0,0,radius,1,1,face==='blink'?'open':face,0,0,0,face==='blink');
+  }finally{ballStyle=previousStyle;}
+  return sprite;
+}
+function enterGame(){
+  ensureAudio();
+  if(intro){intro.destroy();intro=null;}
+  const ui=document.getElementById('game-ui');ui.hidden=false;ui.inert=false;
+  cv.removeAttribute('aria-hidden');
+  last=performance.now();
+  document.querySelector('[data-mode="free"]').focus({preventScroll:true});
+  showTitle('Dahrooj');
+}
 let last=performance.now();
+if(window.Matter && window.createDahroojStart){
+  cv.setAttribute('aria-hidden','true');
+  intro=window.createDahroojStart({root:document.getElementById('start-screen'),canvas:document.getElementById('start-balls'),makeSprite:makeStartBallSprite,onStart:enterGame,reducedMotion:reduce});
+}else{
+  // A missing optional intro file must not prevent access to the game.
+  document.getElementById('start-screen').remove();enterGame();
+}
 function frame(now){
-  const dt=Math.min(0.033,(now-last)/1000); last=now;
+  const elapsed=Math.max(0,(now-last)/1000);last=now;
+  const dt=Math.max(.001,Math.min(0.033,elapsed));
   const steps=3;
-  if(mode==='free'){
+  if(intro){
+    drawPaper();intro.tick(Math.min(.067,elapsed));
+  }else if(mode==='free'){
     for(let i=0;i<8;i++) update(dt/8);
     render();
   } else {
@@ -1980,7 +2042,6 @@ requestAnimationFrame(()=>{
   if('requestIdleCallback' in window) window.requestIdleCallback(startCounter,{timeout:2000});
   else setTimeout(startCounter,250);
 });
-setTimeout(()=>showTitle('Dahrooj'),250);
 })();
 </script>
 
