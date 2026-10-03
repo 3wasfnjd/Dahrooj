@@ -29,6 +29,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   text-shadow:0 3px 0 rgba(255,255,255,.55);
 }
 #count.show{animation:countPop 1.5s cubic-bezier(.2,.9,.3,1) both}
+#count.duel{opacity:1;animation:none;transform:none;direction:ltr;font-size:24px;left:64px;right:64px;line-height:1.3}
 @keyframes countPop{
   0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-8deg)}
   16%{opacity:1;transform:translateY(0) scale(1.18) rotate(4deg)}
@@ -178,7 +179,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button data-mode="cans" aria-pressed="false" aria-label="Cans" title="Cans">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="13" width="5" height="7" rx="1"/><rect x="9.5" y="13" width="5" height="7" rx="1"/><rect x="15.5" y="13" width="5" height="7" rx="1"/><rect x="6.5" y="5" width="5" height="7" rx="1"/><rect x="12.5" y="5" width="5" height="7" rx="1"/></svg>
   </button>
-  <button data-mode="opponent" aria-pressed="false" aria-label="منافس" title="منافس">
+  <button data-mode="opponent" aria-pressed="false" aria-label="Duel" title="Duel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M9 10v2m6-2v2m-5.5 3a4 4 0 0 0 5 0"/></svg>
   </button>
 </div>
@@ -201,6 +202,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
 <script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
+<script src="./assets/duel-online/physics.js"></script>
+<script src="./assets/duel-online/client.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -1498,139 +1501,126 @@ function make3D(){
     };
   }
 
-  /* ---------- stage: the cans shot, with Dahrooj as the target ---------- */
+  /* ---------- stage: Duel — the same shot, against another online player ---------- */
   function buildOpponent(){
     const grp=new T.Group(); scene.add(grp);
-    // Same physical radius as Dahrooj; let the camera apply perspective naturally.
-    const OZ=-20, OR=BR, LIMIT=1.1;
-    let burst=null;
+    const OZ=-20, OR=BR, physics=window.DahroojDuelPhysics;
     const body=new T.Mesh(new T.SphereGeometry(1,32,24),bmesh.material);
     body.castShadow=true; grp.add(body);
-    const skinAI=createSkin(), bubbleAI={t:0,parts:[]};
+    const opponentSkin=createSkin(), opponentBubble={t:0,parts:[]};
     const O={pos:V(0,OR,OZ),vel:V(0,0,0),axis:V(0,1,0),d:0,dv:0,
-      grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0};
-    const n=V(0,0,0), relative=V(0,0,0), tangent=V(0,0,0);
+      grounded:true,touched:false,blink:0,nextBlink:2,hitT:0,lastHit:0};
+    let bursts=[],localPopped=false,visible=false,opponentStyle=ballStyle,lastMatch='',lastGeneration=[-1,-1];
+    const desired=V(0,0,0);
+    const client=new window.DahroojDuelClient({status:networkStatus,pop:popPlayers});
+    function networkStatus(status){
+      aim.down=false;
+      if(status!=='playing'){
+        visible=false;body.visible=false;localPopped=false;bursts=[];lastMatch='';
+        S.pos.set(0,BR,0);S.vel.set(0,0,0);S.side.set(0,0,0);S.shot=false;S.grounded=true;
+        skin.reset();opponentSkin.reset();
+      }
+      displayScore();
+    }
+    function displayScore(){
+      const labels={connecting:'Connecting…',waiting:'Waiting for player…',reconnecting:'Reconnecting…',version:'Refresh to play'};
+      const text=client.state?`${client.state.scores[client.slot]} — ${client.state.scores[1-client.slot]}`:(labels[client.status]||'Connecting…');
+      if(elCount.textContent!==text)elCount.textContent=text;
+    }
     function radiusOnScreen(pos,r){
-      const p=toScreen(pos), edge=toScreen(pos.clone().addScaledVector(camera.up,r));
+      const p=toScreen(pos),edge=toScreen(pos.clone().addScaledVector(camera.up,r));
       return Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
     }
-    function resetOpponent(){
-      O.pos.set(0,OR,OZ); O.vel.set(0,0,0); O.axis.copy(UP);
-      Object.assign(O,{d:0,dv:0,grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0});
-      skinAI.reset(); bubbleAI.t=0; bubbleAI.parts=[]; burst=null;
-      body.visible=true; body.position.copy(O.pos); body.scale.setScalar(OR);
-    }
-    function popOpponent(){
-      const p=toScreen(O.pos), r=radiusOnScreen(O.pos,OR);
-      // Reuse the opening screen's pop colors, particles and sound, without a ring.
+    function popPlayers(event){
       const colors={fabric:['#7c2941','#efe6d2'],jelly:['#8a8e97','#fffaf2'],
         clay:['#825637','#ad805c'],fur:['#f3eee6','#966640'],bubble:['#fffaf2','#b9e8fa','#f4b5db']};
-      burst={x:p.x,y:p.y,r,t:0,colors:colors[ballStyle],parts:reduce?[]:
-        Array.from({length:12},(_,i)=>{
-          const a=i/12*Math.PI*2+Math.random()*.2,speed=r*(4+Math.random()*3);
-          return {vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,size:2+Math.random()*2};
-        })};
-      body.visible=false; startPopSound();
+      for(const slot of event.slots){
+        const pos=V(...physics.position(event.positions[slot],client.slot));
+        const p=toScreen(pos),r=radiusOnScreen(pos,BR),style=client.state.styles[slot];
+        bursts.push({x:p.x,y:p.y,t:0,colors:colors[style],parts:reduce?[]:
+          Array.from({length:12},(_,i)=>{
+            const a=i/12*Math.PI*2+Math.random()*.2,speed=r*(4+Math.random()*3);
+            return {vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,size:2+Math.random()*2};
+          })});
+        if(slot===client.slot)localPopped=true;else {O.touched=true;body.visible=false;react('joy',1.7);confetti.celebrate(S.pos);}
+      }
+      aim.down=false;startPopSound();displayScore();
     }
     function paintPop(c){
-      if(!burst) return;
-      const duration=reduce?.2:.5,k=Math.max(0,Math.min(1,burst.t/duration));
-      if(k>=1) return;
-      c.save();c.globalAlpha=1-k;
-      burst.parts.forEach((p,i)=>{
-        c.fillStyle=burst.colors[i%burst.colors.length];c.beginPath();
-        c.arc(burst.x+p.vx*burst.t,burst.y+p.vy*burst.t+180*burst.t*burst.t,p.size*(1-k*.7),0,Math.PI*2);c.fill();
-      });
-      c.restore();
-    }
-    function impact(normal,speed,contact){
-      const s=Math.min(1,speed/14); if(s<0.05) return;
-      O.axis.copy(normal); if(O.d<0) O.d*=0.3; O.dv+=4+s*16; O.lastHit=time;
-      if(s>0.55) O.hitT=0.28;
-      const p=toScreen(O.pos), c=toScreen(contact);
-      skinAI.dent(Math.atan2(c.y-p.y,c.x-p.x),s);
+      for(const burst of bursts){
+        const duration=reduce?.2:.5,k=Math.max(0,Math.min(1,burst.t/duration));
+        if(k>=1)continue;
+        c.save();c.globalAlpha=1-k;
+        burst.parts.forEach((p,i)=>{
+          c.fillStyle=burst.colors[i%burst.colors.length];c.beginPath();
+          c.arc(burst.x+p.vx*burst.t,burst.y+p.vy*burst.t+180*burst.t*burst.t,p.size*(1-k*.7),0,Math.PI*2);c.fill();
+        });
+        c.restore();
+      }
     }
     function paintOpponent(c){
-      if(O.touched){paintPop(c);return;}
-      const p=toScreen(O.pos), edge=toScreen(O.pos.clone().addScaledVector(camera.up,OR));
-      const rs=Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
+      if(!visible||O.touched)return;
+      const p=toScreen(O.pos),rs=radiusOnScreen(O.pos,OR);
       const ax=toScreen(O.pos.clone().addScaledVector(O.axis,OR));
-      const face=O.hitT>0?'closed':O.touched?'wide':S.shot?'focus':'open';
-      const sk=skinAI.points(p.x,p.y,rs,O.d,Math.atan2(ax.y-p.y,ax.x-p.x),false);
+      const face=O.hitT>0?'closed':O.vel.length()>9?'wide':S.shot?'focus':'open';
+      const sk=opponentSkin.points(p.x,p.y,rs,O.d,Math.atan2(ax.y-p.y,ax.x-p.x),false);
       let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
       for(const q of sk.P){mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y);}
-      const player=toScreen(S.pos), ahead=toScreen(O.pos.clone().addScaledVector(O.vel,0.1));
-      const oldX=furVel.x, oldY=furVel.y; furVel.x=(ahead.x-p.x)*10; furVel.y=(ahead.y-p.y)*10;
-      paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),
-        face,Math.max(-1,Math.min(1,(player.x-p.x)/(rs*3))),Math.max(-1,Math.min(1,(player.y-p.y)/(rs*3))),0,O.blink>0,bubbleAI);
-      furVel.x=oldX; furVel.y=oldY;
+      const player=toScreen(S.pos),ahead=toScreen(O.pos.clone().addScaledVector(O.vel,.1));
+      const oldX=furVel.x,oldY=furVel.y,oldStyle=ballStyle;
+      try{
+        ballStyle=opponentStyle;furVel.x=(ahead.x-p.x)*10;furVel.y=(ahead.y-p.y)*10;
+        paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(.55,Math.min(1.6,(mxy-mny)/(2*rs))),
+          face,Math.max(-1,Math.min(1,(player.x-p.x)/(rs*3))),Math.max(-1,Math.min(1,(player.y-p.y)/(rs*3))),0,O.blink>0,opponentBubble);
+      }finally{ballStyle=oldStyle;furVel.x=oldX;furVel.y=oldY;}
+    }
+    function syncBall(target,ball,slot,dt){
+      const reset=lastMatch!==client.state.id||lastGeneration[slot]!==ball.generation;
+      desired.fromArray(physics.position(ball.p,client.slot));
+      if(reset||ball.popped||target.pos.distanceTo(desired)>2)target.pos.copy(desired);
+      else target.pos.lerp(desired,1-Math.exp(-40*dt));
+      const previousY=target.vel.y;
+      target.vel.fromArray(physics.vector(ball.v,client.slot));target.grounded=ball.grounded;
+      if(reset){target.d=0;target.dv=0;target.axis.copy(UP);lastGeneration[slot]=ball.generation;}
+      else if(previousY<-1.4&&target.vel.y>0){
+        if(target===S)hit(UP,-previousY,V(S.pos.x,0,S.pos.z));
+        else {target.axis.copy(UP);target.dv+=4+Math.min(1,-previousY/14)*16;target.lastHit=time;}
+      }
+      return reset;
     }
     return {
-      grp,aimZ:OZ,
-      ft:sp=>Math.max(0.8,Math.min(1.6,1.75-sp/2400)),
-      behind:()=>false,
-      onRespawn:resetOpponent,
-      touched:()=>O.touched,
-      collide(){
-        if(O.touched) return;
-        n.subVectors(S.pos,O.pos); const distance=n.length(), overlap=BR+OR-distance;
-        if(overlap>0){
-          if(distance>1e-5) n.divideScalar(distance); else n.set(0,0,1);
-          const correction=Math.max(0,overlap-0.002)*0.4;
-          S.pos.addScaledVector(n,correction); O.pos.addScaledVector(n,-correction);
-          relative.subVectors(S.vel,O.vel); const vn=relative.dot(n);
-          if(vn<0){
-            // Same restitution and friction as ball/can contact; both characters have equal mass.
-            const impulse=-(1+(vn>-0.6?0:0.35))*vn/2;
-            S.vel.addScaledVector(n,impulse); O.vel.addScaledVector(n,-impulse);
-            tangent.copy(relative).addScaledVector(n,-vn); const vt=tangent.length();
-            if(vt>1e-5){tangent.divideScalar(vt);const friction=Math.min(vt/2,0.3*impulse);S.vel.addScaledVector(tangent,-friction);O.vel.addScaledVector(tangent,friction);}
-            const contact=O.pos.clone().addScaledVector(n,OR);
-            hit(n,-vn*0.7,contact); impact(n.clone().negate(),-vn*0.7,contact);
-            if(O.vel.y>0) O.grounded=false;
-            if(S.shot && !O.touched){O.touched=true;popOpponent();addCount('opponent');success();}
-          }
-        }
-        if(S.shot && !O.touched && S.pos.z<O.pos.z-OR-BR) miss();
-      },
+      grp,aimZ:OZ,networked:true,
+      ft:sp=>Math.max(.8,Math.min(1.6,1.75-sp/2400)),behind:()=>false,
+      enter(){lastGeneration=[-1,-1];bursts=[];client.enter(ballStyle);},
+      leave(){client.leave();aim.down=false;visible=false;body.visible=false;localPopped=false;},
+      canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
+      submitShot:command=>client.shoot(command),
+      playerVisible:()=>!localPopped,
       update(dt){
-        if(O.touched){if(burst) burst.t+=dt;return;}
-        // Read the ball only after release; react once, without following the pointer.
-        if(S.shot && !O.planned && !O.touched && S.shotT>0.22 && S.vel.z<-0.5){
-          O.planned=true;
-          const t=Math.max(0,(O.pos.z-S.pos.z)/S.vel.z);
-          const x=S.pos.x+S.vel.x*t+0.5*S.side.x*t*t;
-          const y=S.pos.y+S.vel.y*t-0.5*GRAV*t*t;
-          if(t<1.6 && Math.abs(x-O.pos.x)<OR+BR+0.2 && y<OR*2+BR){
-            const direction=Math.abs(O.pos.x-x)>0.1?Math.sign(O.pos.x-x):(Math.random()<0.5?-1:1);
-            O.targetX=Math.max(-LIMIT,Math.min(LIMIT,O.pos.x+direction*0.9));
-          }
-        }
-        if(!O.touched){
-          const desired=Math.max(-0.9,Math.min(0.9,(O.targetX-O.pos.x)*4));
-          O.vel.x+=Math.max(-3*dt,Math.min(3*dt,desired-O.vel.x));
-        }
-        // The same gravity, air drag, floor bounce and ground friction as the player's ball.
-        if(!O.grounded) O.vel.y-=GRAV*dt;
-        O.vel.multiplyScalar(Math.pow(0.9,dt)); O.pos.addScaledVector(O.vel,dt);
-        if(O.pos.y<OR){
-          O.pos.y=OR;
-          if(O.vel.y<-1.4){impact(UP,-O.vel.y,V(O.pos.x,0,O.pos.z));O.vel.y=-O.vel.y*0.55;O.vel.x*=0.85;O.vel.z*=0.85;}
-          else {O.vel.y=0;O.grounded=true;}
-        }else if(O.grounded && O.pos.y>OR+0.01) O.grounded=false;
-        if(O.grounded){O.vel.x*=Math.pow(0.35,dt);O.vel.z*=Math.pow(0.35,dt);}
+        client.setStyle(ballStyle);client.step(dt);displayScore();
+        for(const burst of bursts)burst.t+=dt;bursts=bursts.filter(b=>b.t<.5);
+        if(!client.state)return;
+        const own=client.state.balls[client.slot],other=client.state.balls[1-client.slot];
+        if(syncBall(S,own,client.slot,dt)){skin.reset();bub.t=0;bub.parts=[];S.mood=null;S.moodT=0;S.scoredT=0;S.missT=0;}
+        if(syncBall(O,other,1-client.slot,dt)){opponentSkin.reset();opponentBubble.t=0;opponentBubble.parts=[];}
+        lastMatch=client.state.id;
+        S.side.fromArray(physics.vector(own.side,client.slot));S.shot=own.shot;S.shotT=own.shotT;
+        localPopped=own.popped;O.touched=other.popped;visible=true;body.visible=!O.touched;
+        opponentStyle=client.state.styles[1-client.slot];
+        if(!localPopped&&S.shot&&!client.state.resetT&&outsideView())client.returnBall();
         let target=0;
-        if(!O.grounded && O.vel.length()>2 && time-O.lastHit>0.12){if(Math.abs(O.d)<0.12) O.axis.copy(O.vel).normalize();target=-Math.min(0.22,O.vel.length()/90);}
-        else if(O.grounded){O.axis.copy(UP);target=0.018*Math.sin(time*2.4);}
-        O.dv+=((target-O.d)*420-O.dv*13)*dt;O.d=Math.max(-0.3,Math.min(0.5,O.d+O.dv*dt));
-        O.nextBlink-=dt;if(O.nextBlink<=0){O.blink=0.14;O.nextBlink=2+Math.random()*3.5;}
+        if(!O.grounded&&O.vel.length()>2&&time-O.lastHit>.12){if(Math.abs(O.d)<.12)O.axis.copy(O.vel).normalize();target=-Math.min(.22,O.vel.length()/90);}
+        else if(O.grounded){O.axis.copy(UP);target=.018*Math.sin(time*2.4);}
+        O.dv+=((target-O.d)*420-O.dv*13)*dt;O.d=Math.max(-.3,Math.min(.5,O.d+O.dv*dt));
+        O.nextBlink-=dt;if(O.nextBlink<=0){O.blink=.14;O.nextBlink=2+Math.random()*3.5;}
         O.blink=Math.max(0,O.blink-dt);O.hitT=Math.max(0,O.hitT-dt);
-        skinAI.step(dt);tickStyle(dt,bubbleAI);
+        const previousStyle=ballStyle;
+        try{ballStyle=opponentStyle;opponentSkin.step(dt);tickStyle(dt,opponentBubble);}finally{ballStyle=previousStyle;}
         body.position.copy(O.pos).addScaledVector(O.axis,-Math.max(0,OR*O.d));
-        body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(OR*(1+O.d*0.75),OR*(1-O.d),OR*(1+O.d*0.75));
+        body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(OR*(1+O.d*.75),OR*(1-O.d),OR*(1+O.d*.75));
       },
-      paintBehind(c){if(S.pos.z>=O.pos.z) paintOpponent(c);},
-      paint(c){if(S.pos.z<O.pos.z) paintOpponent(c);}
+      paintBehind(c){if(S.pos.z>=O.pos.z)paintOpponent(c);},
+      paint(c){if(S.pos.z<O.pos.z)paintOpponent(c);paintPop(c);}
     };
   }
 
@@ -1837,12 +1827,15 @@ function make3D(){
 
   const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow,opponent:buildOpponent};
   const stages={}; let stage=null, stageName='';
+  function leaveStage(){if(stage&&stage.leave)stage.leave();aim.down=false;}
   function setStage(name){
+    leaveStage();
     if(!stages[name]) stages[name]=builders[name]();
     for(const k in stages) stages[k].grp.visible=(k===name);
     stage=stages[name]; stageName=name;
     for(const s of splats3){ scene.remove(s.m); s.m.material.dispose(); } splats3.length=0;
     fxDash=[]; respawn();
+    if(stage.enter)stage.enter();
   }
   function react(kind,dur,next){ S.mood=kind; S.moodT=dur; S.moodNext=next||null; }
   function success(){ if(S.scoredT>0||S.missT>0) return; S.scoredT=1.7; react('joy',1.7); confetti.celebrate(S.pos); if(stageName==='goal'||stageName==='hoop'||stageName==='window') addCount(stageName); }
@@ -1902,6 +1895,7 @@ function make3D(){
     S.shot=true; S.shotT=0; S.grounded=false; S.prevZ=S.pos.z; S.prevY=S.pos.y;
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp2/3000)*8;
     whoosh(Math.min(1,sp2/3000));
+    if(stage.submitShot)stage.submitShot({target:target.toArray(),flight:ft,curve});
     if(stage.onHit) stage.onHit(sp2);
   }
   gcv.addEventListener('pointerup',shoot);
@@ -1910,6 +1904,7 @@ function make3D(){
   function update3(dt){
     if(stage.timeScale) dt*=stage.timeScale();
     const P=S.pos, v=S.vel;
+    if(stage.networked){stage.update(dt);}else{
     S.prevZ=P.z; S.prevY=P.y;
     if(!S.grounded){ v.y-=GRAV*dt; v.x+=S.side.x*dt; v.z+=S.side.z*dt; }
     v.multiplyScalar(Math.pow(0.9,dt));
@@ -1934,8 +1929,9 @@ function make3D(){
       else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) respawn(); }
       else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>16 || P.z<-34 || P.z>6) miss();
     }
+    }
     if(S.moodT>0){ S.moodT-=dt; if(S.moodT<=0){ if(S.moodNext){ react(S.moodNext,1.4); } else S.mood=null; } }
-    if(S.mood==='joy' && S.grounded && S.vel.y===0 && S.moodT>0.5){ S.vel.y=3.6; S.grounded=false; }
+    if(!stage.networked && S.mood==='joy' && S.grounded && S.vel.y===0 && S.moodT>0.5){ S.vel.y=3.6; S.grounded=false; }
     if(!S.shot && !aim.down) S.idle+=dt; else S.idle=0;
     const speed=v.length();
     let target=0;
@@ -1956,6 +1952,7 @@ function make3D(){
     ballRoot.position.copy(S.pos).addScaledVector(S.axis,-off);
     deform.quaternion.setFromUnitVectors(UP,S.axis);
     bmesh.scale.set(1+d*0.75,1-d,1+d*0.75);
+    ballRoot.visible=!stage.playerVisible||stage.playerVisible();
     renderer.render(scene,camera);
     fx.setTransform(dpr,0,0,dpr,0,0); fx.clearRect(0,0,W,H); fx.lineCap='round';
     if(stage.paintBehind) stage.paintBehind(fx);
@@ -1981,7 +1978,7 @@ function make3D(){
     { const ah=toScreen(S.pos.clone().addScaledVector(S.vel,0.1)); furVel.x=(ah.x-bs.x)*10; furVel.y=(ah.y-bs.y)*10; }
     const sk=skin.points(bs.x,bs.y,rs,S.d,ang,face==='laugh');
     let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; for(const q of sk.P){ mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y); }
-    paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),face,lx2,ly2,blushK,S.blink>0);
+    if(ballRoot.visible)paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),face,lx2,ly2,blushK,S.blink>0);
     if(stage.paint) stage.paint(fx);
     for(const s of fxDash){
       const k=s.life/s.max, t=1-Math.pow(1-k,3);
@@ -2009,7 +2006,7 @@ function make3D(){
     camera.updateProjectionMatrix();
   }
   resize3();
-  return {update:update3,render:render3,resize:resize3,setStage};
+  return {update:update3,render:render3,resize:resize3,setStage,leaveStage};
 }
 
 /* ---------- challenges (saved on this device) ---------- */
@@ -2133,11 +2130,13 @@ function showTitle(text){
 }
 function setMode(m){
   if(intro) return;
+  if(m===mode&&m==='opponent')return;
   if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }
     G3.setStage(m);
-  }
+  }else if(G3)G3.leaveStage();
   mode=m;
+  elCount.classList.toggle('duel',m==='opponent');
   for(const b of modeBtns) b.setAttribute('aria-pressed',b.dataset.mode===m);
   gcv.hidden = fxc.hidden = m==='free';
   showCount();
