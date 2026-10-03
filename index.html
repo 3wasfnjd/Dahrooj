@@ -1501,9 +1501,9 @@ function make3D(){
   /* ---------- stage: the cans shot, with Dahrooj as the target ---------- */
   function buildOpponent(){
     const grp=new T.Group(); scene.add(grp);
-    // Keep the cans' distance and flight time; match Dahrooj's resting size on screen.
-    const OZ=-20, LIMIT=1.1;
-    let OR=BR, fitW=0, fitH=0, burst=null;
+    // Same physical radius as Dahrooj; let the camera apply perspective naturally.
+    const OZ=-20, OR=BR, LIMIT=1.1;
+    let burst=null;
     const body=new T.Mesh(new T.SphereGeometry(1,32,24),bmesh.material);
     body.castShadow=true; grp.add(body);
     const skinAI=createSkin(), bubbleAI={t:0,parts:[]};
@@ -1514,18 +1514,7 @@ function make3D(){
       const p=toScreen(pos), edge=toScreen(pos.clone().addScaledVector(camera.up,r));
       return Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
     }
-    function matchSize(){
-      camera.updateMatrixWorld();
-      const wanted=radiusOnScreen(V(0,BR,0),BR);
-      let lo=BR, hi=BR*32;
-      for(let i=0;i<22;i++){
-        const r=(lo+hi)/2;
-        if(radiusOnScreen(V(0,r,OZ),r)<wanted) lo=r; else hi=r;
-      }
-      const r=(lo+hi)/2; O.pos.y+=r-OR; OR=r; fitW=W; fitH=H;
-    }
     function resetOpponent(){
-      matchSize();
       O.pos.set(0,OR,OZ); O.vel.set(0,0,0); O.axis.copy(UP);
       Object.assign(O,{d:0,dv:0,grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0});
       skinAI.reset(); bubbleAI.t=0; bubbleAI.parts=[]; burst=null;
@@ -1533,7 +1522,7 @@ function make3D(){
     }
     function popOpponent(){
       const p=toScreen(O.pos), r=radiusOnScreen(O.pos,OR);
-      // Reuse the opening screen's pop colors, ring, particles and sound.
+      // Reuse the opening screen's pop colors, particles and sound, without a ring.
       const colors={fabric:['#7c2941','#efe6d2'],jelly:['#8a8e97','#fffaf2'],
         clay:['#825637','#ad805c'],fur:['#f3eee6','#966640'],bubble:['#fffaf2','#b9e8fa','#f4b5db']};
       burst={x:p.x,y:p.y,r,t:0,colors:colors[ballStyle],parts:reduce?[]:
@@ -1548,8 +1537,6 @@ function make3D(){
       const duration=reduce?.2:.5,k=Math.max(0,Math.min(1,burst.t/duration));
       if(k>=1) return;
       c.save();c.globalAlpha=1-k;
-      c.strokeStyle='#fffaf2';c.lineWidth=2.5*(1-k)+.5;
-      c.beginPath();c.arc(burst.x,burst.y,burst.r*(1+k*.75),0,Math.PI*2);c.stroke();
       burst.parts.forEach((p,i)=>{
         c.fillStyle=burst.colors[i%burst.colors.length];c.beginPath();
         c.arc(burst.x+p.vx*burst.t,burst.y+p.vy*burst.t+180*burst.t*burst.t,p.size*(1-k*.7),0,Math.PI*2);c.fill();
@@ -1585,7 +1572,6 @@ function make3D(){
       onRespawn:resetOpponent,
       touched:()=>O.touched,
       collide(){
-        if(fitW!==W || fitH!==H) matchSize();
         if(O.touched) return;
         n.subVectors(S.pos,O.pos); const distance=n.length(), overlap=BR+OR-distance;
         if(overlap>0){

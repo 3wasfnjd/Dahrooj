@@ -83,15 +83,18 @@ try{
     const sizes=await page.evaluate(()=>{
       const t=window.__test3;t.respawn();t.step(2);
       const radius=(pos,r)=>{const a=t.toScreen(pos),b=t.toScreen(pos.clone().addScaledVector(t.camera.up,r));return Math.hypot(a.x-b.x,a.y-b.y);};
-      return {player:radius(t.S.pos,t.BR),opponent:radius(t.stage.testState.pos,t.stage.testRadius())};
+      return {player:radius(t.S.pos,t.BR),opponent:radius(t.stage.testState.pos,t.stage.testRadius()),
+        playerAtOpponentDepth:radius(t.stage.testState.pos,t.BR),playerWorldRadius:t.BR,opponentWorldRadius:t.stage.testRadius()};
     });
-    assert(Math.abs(sizes.player-sizes.opponent)<.005,'Resting characters have equal screen radii after resize');
+    assert.equal(sizes.opponentWorldRadius,sizes.playerWorldRadius,'Same physical size, independent of viewport');
+    assert.equal(sizes.opponent,sizes.playerAtOpponentDepth,'Same projected size when the characters meet');
+    assert(sizes.opponent<sizes.player,'Distant opponent uses natural camera perspective without enlargement');
     report.sizes.push({width,height,...sizes});
   }
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);
   await select(page,'opponent');
   await page.screenshot({path:resolve(root,'test-results/opponent-matching-size.png')});
-  report.checks.push('Opponent matches Dahrooj\'s resting screen size at 320/390/844/1280 px, including rotation.');
+  report.checks.push('Opponent uses Dahrooj\'s physical size and natural perspective at 320/390/844/1280 px, including rotation.');
   // The same gesture must launch the exact same trajectory in the cans and opponent stages.
   for(const curve of [0,35,-35]){
     const paths=[];
@@ -115,33 +118,40 @@ try{
   let s=await snapshot(page);assert.equal(s.opponent.planned,false);assert.equal(s.opponent.pos[0],0);
   await page.evaluate(()=>{window.__test3.aim.down=false;});
 
-  // Send a trusted touch swipe through the existing pointer handlers.
+  // Verify the real touch handlers; the smaller opponent may dodge this center swipe.
   const start=await page.evaluate(()=>window.__test3.toScreen(window.__test3.S.pos));
   const target=await page.evaluate(()=>window.__test3.toScreen(window.__test3.stage.testState.pos));
   const session=await c.context.newCDPSession(page);
   const touch=(type,x,y)=>session.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'||type==='touchCancel'?[]:[{x,y,id:1,radiusX:6,radiusY:6,force:1}]});
   await touch('touchStart',start.x,start.y);
-  for(let i=1;i<=6;i++){
-    await touch('touchMove',start.x+(target.x-start.x)*i/6,start.y+(target.y-start.y)*i/6);
-    await page.waitForTimeout(20);
+  for(let i=1;i<=2;i++){
+    await touch('touchMove',start.x+(target.x-start.x)*i/2,start.y+(target.y-start.y)*i/2);
   }
   await touch('touchEnd');assert.equal((await snapshot(page)).shot,true);
   await page.evaluate(()=>window.__test3.step(.2));assert.equal((await snapshot(page)).opponent.planned,false);
   await page.evaluate(()=>window.__test3.step(.38));s=await snapshot(page);
   assert(s.opponent.planned && Math.abs(s.opponent.pos[0])>.02,'AI reacts after release and moves');
   await page.evaluate(()=>window.__test3.step(1.2));s=await snapshot(page);
-  assert.equal(s.count,'1','A real touch shot can hit the opponent');
+  const touchScore=Number(s.count);
+  await page.evaluate(()=>window.__test3.step(3));
+  // Replay a 40 ms flick with fixed timing, independent of the test machine's input latency.
+  await page.evaluate(()=>{
+    const t=window.__test3,a=t.toScreen(t.S.pos),b=t.toScreen(t.stage.testState.pos);
+    t.aim.down=true;t.aim.pts=[{x:a.x,y:a.y,t:0},{x:b.x,y:b.y,t:.04}];t.shoot();t.step(1.2);
+  });
+  s=await snapshot(page);const earnedCount=touchScore+1;
+  assert.equal(s.count,String(earnedCount),'A fast flick reaches and hits the smaller moving opponent');
   assert(s.opponent.popped,'The struck opponent disappears, including its shadow');
   await page.evaluate(()=>window.__test3.step(3));s=await snapshot(page);
   assert(!s.shot && s.grounded && !s.opponent.touched && !s.opponent.popped,'Both characters reset for the next throw');
-  report.checks.push('Trusted touch swipe launches; AI waits for release, dodges, can be hit, scores once and resets.');
+  report.checks.push('Trusted touch launches and triggers AI; a timed fast flick hits the smaller target, scores once and resets.');
 
   // A genuine miss never scores, and an offscreen shot returns immediately.
   await select(page,'opponent');
   await page.evaluate(()=>{
     const t=window.__test3;t.aim.down=true;t.aim.pts=[{x:195,y:690,t:0},{x:385,y:500,t:.1},{x:385,y:350,t:.2}];t.shoot();t.step(5);
   });
-  s=await snapshot(page);assert.equal(s.count,'1');assert(!s.shot);
+  s=await snapshot(page);assert.equal(s.count,String(earnedCount));assert(!s.shot);
   await page.evaluate(()=>{const t=window.__test3;t.S.shot=true;t.S.pos.set(100,2,-5);t.step(1/180);});
   s=await snapshot(page);assert(!s.shot && s.pos[0]===0 && s.pos[2]===0);
   await page.evaluate(()=>window.__test3.step(1.5));
@@ -161,7 +171,7 @@ try{
   assert(await page.evaluate(()=>window.__test3.playerBubble.t>0));
   assert.equal(await page.evaluate(()=>window.__test3.stage.testBubble.t),0);
   await select(page,'cans');assert.equal((await snapshot(page)).count,'0');
-  await select(page,'opponent');assert.equal((await snapshot(page)).count,'1');
+  await select(page,'opponent');assert.equal((await snapshot(page)).count,String(earnedCount));
   report.checks.push('All five existing styles render; opponent bubble state and cans score stay independent.');
 
   for(const style of ['jelly','fabric','clay','fur','bubble']){
