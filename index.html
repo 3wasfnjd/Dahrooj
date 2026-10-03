@@ -1096,6 +1096,17 @@ function make3D(){
   function toScreen(v){ tmp2.copy(v).project(camera); return {x:(tmp2.x+1)/2*W, y:(1-tmp2.y)/2*H}; }
   function screenRadius(){ const a=toScreen(S.pos); const b=toScreen(S.pos.clone().addScaledVector(camera.up,BR)); return Math.max(4,Math.hypot(a.x-b.x,a.y-b.y)); }
 
+  // Reuse a conservative body bound so a partially visible ball is not reset.
+  const returnFrustum=new T.Frustum(), returnMatrix=new T.Matrix4();
+  const returnBounds=new T.Sphere(V(0,0,0),BR*2);
+  function outsideView(){
+    camera.updateMatrixWorld();
+    returnMatrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+    returnFrustum.setFromProjectionMatrix(returnMatrix);
+    returnBounds.center.copy(S.pos);
+    return !returnFrustum.intersectsSphere(returnBounds);
+  }
+
   function hit(n,speed,contact){
     const s=Math.min(1,speed/14);
     if(s<0.05) return;
@@ -1774,7 +1785,11 @@ function make3D(){
       S.shotT+=dt;
       const still=S.grounded && v.length()<0.35;
       S.restT=still?S.restT+dt:0;
-      if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) respawn(); }
+      if(outsideView()){
+        if(S.scoredT<=0) miss(); // Keep each mode's miss bookkeeping.
+        respawn();
+      }
+      else if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) respawn(); }
       else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) respawn(); }
       else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>16 || P.z<-34 || P.z>6) miss();
     }
