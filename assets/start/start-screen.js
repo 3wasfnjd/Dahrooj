@@ -8,7 +8,11 @@
     const context = canvas.getContext('2d');
     const play = root.querySelector('#start-play');
     const status = root.querySelector('#start-status');
-    const styles = ['jelly','fabric','clay','fur','bubble'];
+    // A shuffled bag guarantees more fabric and fewer clay balls in every batch.
+    const styles = Object.entries({fabric:9,jelly:4,fur:3,bubble:3,clay:1})
+      .flatMap(([style,count])=>Array(count).fill(style));
+    const expressions = ['joy','laugh','wide','focus','dizzy','closed'];
+    const styleBag=[], expressionBag=[];
     const sprites = new Map();
     const balls = [], grabs = new Map();
     const listeners = new AbortController();
@@ -18,6 +22,17 @@
     let elapsed=0, accumulator=0, area=0, nextDrop=0, lastDrop=0, ready=false, destroyed=false;
     let sequence=0;
     const STEP=1000/60, MAX_BALLS=180;
+
+    function takeFromBag(bag,choices) {
+      if(!bag.length){
+        bag.push(...choices);
+        for(let i=bag.length-1;i>0;i--){
+          const j=Math.floor(Math.random()*(i+1));
+          [bag[i],bag[j]]=[bag[j],bag[i]];
+        }
+      }
+      return bag.pop();
+    }
 
     function rebuildWalls() {
       for(const wall of walls) Composite.remove(engine.world,wall);
@@ -31,13 +46,15 @@
     }
 
     function addBall(x,y,r) {
-      const style=styles[sequence++%styles.length];
+      const style=takeFromBag(styleBag,styles);
+      const expression=takeFromBag(expressionBag,expressions);
+      sequence++;
       const body=Bodies.circle(x,y,r,{
         restitution:style==='clay'?.08:style==='bubble'?.38:.24,
         friction:.38,frictionStatic:.7,frictionAir:.014,
         density:.001,slop:.04,sleepThreshold:80,label:style
       },32);
-      const ball={body,r,style,phase:Math.random()*6.28};
+      const ball={body,r,style,expression,phase:Math.random()*6.28};
       body.plugin.startBall=ball;
       balls.push(ball);area+=Math.PI*r*r;
       Composite.add(engine.world,body);
@@ -157,9 +174,9 @@
       rebuildWalls();sprites.clear();
     }
 
-    function sprite(style,face) {
-      const key=style+'/'+face;
-      if(!sprites.has(key)) sprites.set(key,makeSprite(style,face));
+    function sprite(style,face,blinkOn) {
+      const key=style+'/'+face+'/'+Number(blinkOn);
+      if(!sprites.has(key)) sprites.set(key,makeSprite(style,face,blinkOn));
       return sprites.get(key);
     }
     function render() {
@@ -168,8 +185,9 @@
         const {x,y}=b.body.position;
         if(y+b.r*1.3<0 || y-b.r*1.3>height) continue;
         const held=Array.from(grabs.values()).some(g=>g.ball===b);
-        const face=held?'wide':Math.sin(elapsed*1.4+b.phase)>.992?'blink':'open';
-        const image=sprite(b.style,face);
+        const face=held?'wide':b.expression;
+        const blinkOn=!held && (face==='joy'||face==='wide'||face==='focus') && Math.sin(elapsed*1.4+b.phase)>.992;
+        const image=sprite(b.style,face,blinkOn);
         context.save();context.translate(x,y);context.rotate(b.body.angle);
         context.drawImage(image,-b.r*1.4,-b.r*1.4,b.r*2.8,b.r*2.8);
         context.restore();

@@ -39,7 +39,7 @@ async function open(browser,options={}){
     Object.defineProperty(window,'createDahroojStart',{get:()=>start,set(value){
       start=options=>{
         const make=options.makeSprite;
-        options.makeSprite=(style,face)=>{window.__styleSprites.push(style);return make(style,face);};
+        options.makeSprite=(...args)=>{window.__styleSprites.push(args[0]);return make(...args);};
         return value(options);
       };
     }});

@@ -1990,7 +1990,7 @@ for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode))
 
 resize();
 // Reuse the exact five game renderers. Cache their output for the many-ball intro.
-function makeStartBallSprite(style,face){
+function makeStartBallSprite(style,face,blinkOn=false){
   const previousStyle=ballStyle, radius=64;
   const sprite=document.createElement('canvas');
   sprite.width=sprite.height=Math.ceil(radius*2.8*dpr);
@@ -2002,7 +2002,7 @@ function makeStartBallSprite(style,face){
   });
   try{
     ballStyle=style;
-    paintBlob(g,points,0,0,radius,1,1,face==='blink'?'open':face,0,0,0,face==='blink');
+    paintBlob(g,points,0,0,radius,1,1,face,0,0,0,blinkOn);
   }finally{ballStyle=previousStyle;}
   return sprite;
 }
