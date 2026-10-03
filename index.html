@@ -108,6 +108,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 @media (prefers-reduced-motion:reduce){#title{transition:opacity .3s}}
 .modes{
   position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:calc(58px + env(safe-area-inset-bottom,0px));
+  width:max-content;max-width:calc(100vw - 20px);
   display:flex;gap:6px;padding:5px;
   background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;
   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
@@ -177,6 +178,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button data-mode="cans" aria-pressed="false" aria-label="Cans" title="Cans">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="13" width="5" height="7" rx="1"/><rect x="9.5" y="13" width="5" height="7" rx="1"/><rect x="15.5" y="13" width="5" height="7" rx="1"/><rect x="6.5" y="5" width="5" height="7" rx="1"/><rect x="12.5" y="5" width="5" height="7" rx="1"/></svg>
   </button>
+  <button data-mode="opponent" aria-pressed="false" aria-label="منافس" title="منافس">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M9 10v2m6-2v2m-5.5 3a4 4 0 0 0 5 0"/></svg>
+  </button>
 </div>
 <p class="credit">Aboden Games<small>© 2026</small></p>
 </div>
@@ -217,7 +221,7 @@ let shake=0, dizzy=0, hitT=0, blink=0, nextBlink=2, idle=0, time=0;
 let audio=null;
 let G3=null, played=false;
 const elCount=document.getElementById('count');
-const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0};
+const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0,opponent:0};
 function showCount(){ elCount.textContent=counts[mode]; }
 function addCount(m,reset){
   const before=counts[m];
@@ -555,7 +559,7 @@ function paintBall(c,x,y,Rr,d,a,face,lx,ly,blushK,blinkOn){
 
 // A jelly skin for the 3D modes: radial offsets on a ring, coupled to neighbours, dented by hits.
 // Gameplay physics stays a rigid sphere; only the look is jelly.
-const skin=(()=>{
+function createSkin(){
   const N=28, u=new Float32Array(N), w=new Float32Array(N);
   function step(dt){
     const sub=4, h=dt/sub;
@@ -590,7 +594,8 @@ const skin=(()=>{
   }
   function reset(){ u.fill(0); w.fill(0); }
   return {step,dent,points,reset};
-})();
+}
+const skin=createSkin();
 
 // ---- ball styles: jelly (glossy, with a band-aid) and fabric (matte felt, stitched seam, X stitch) ----
 let ballStyle='jelly';
@@ -657,17 +662,17 @@ function drawFace(c,Rr,face,lx,ly,blushK,blinkOn){
 function paintJelly(c,face,lx,ly,blushK,blinkOn){ paintBlob(c,J.p,J.cx,J.cy,R,J.sx,J.sy,face,lx,ly,blushK,blinkOn); }
 // soap-bubble pop: the body vanishes into droplets, then grows back
 const bub={t:0,parts:[]};
-function bubblePop(x,y,r){
-  if(bub.t>0) return;
-  bub.t=0.95; bub.parts=[];
-  for(let i=0;i<16;i++){ const a=i/16*Math.PI*2+Math.random()*0.3, v=r*(5+Math.random()*5); bub.parts.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:Math.max(1,r*(0.05+Math.random()*0.06))}); }
+function bubblePop(x,y,r,state=bub){
+  if(state.t>0) return;
+  state.t=0.95; state.parts=[];
+  for(let i=0;i<16;i++){ const a=i/16*Math.PI*2+Math.random()*0.3, v=r*(5+Math.random()*5); state.parts.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:Math.max(1,r*(0.05+Math.random()*0.06))}); }
   if(audio){ const t=audio.currentTime,n=Math.floor(audio.sampleRate*0.08),buf=audio.createBuffer(1,n,audio.sampleRate),d=buf.getChannelData(0);
     for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);
     const src=audio.createBufferSource(),f=audio.createBiquadFilter(),g=audio.createGain(); src.buffer=buf; f.type='highpass'; f.frequency.value=2500; g.gain.value=0.25;
     src.connect(f).connect(g).connect(audio.destination); src.start(t); }
 }
-function tickStyle(dt){
-  if(bub.t>0){ bub.t=Math.max(0,bub.t-dt); for(const p of bub.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=Math.pow(0.05,dt); p.vy=p.vy*Math.pow(0.05,dt)+300*dt; } }
+function tickStyle(dt,state=bub){
+  if(state.t>0){ state.t=Math.max(0,state.t-dt); for(const p of state.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=Math.pow(0.05,dt); p.vy=p.vy*Math.pow(0.05,dt)+300*dt; } }
 }
 const clayNoise=i=>1+0.035*Math.sin(i*2.3+1)+0.022*Math.sin(i*5.1+0.4);
 
@@ -803,17 +808,17 @@ function drawBow(c,x,y,R,lagx,lagy){
   c.restore();
 }
 
-function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
+function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn,state=bub){
   if(ballStyle==='fur'){ paintFur(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn); return; }
   const st=ballStyle, n=P.length;
   // bubble pop: droplets, then the bubble grows back
-  if(st==='bubble' && bub.t>0){
+  if(st==='bubble' && state.t>0){
     c.save(); c.fillStyle='rgba(255,255,255,.75)'; c.strokeStyle='rgba(150,200,230,.6)'; c.lineWidth=1;
-    const a=Math.min(1,bub.t/0.6);
-    for(const p of bub.parts){ c.globalAlpha=a; c.beginPath(); c.arc(p.x,p.y,p.r,0,Math.PI*2); c.fill(); c.stroke(); }
+    const a=Math.min(1,state.t/0.6);
+    for(const p of state.parts){ c.globalAlpha=a; c.beginPath(); c.arc(p.x,p.y,p.r,0,Math.PI*2); c.fill(); c.stroke(); }
     c.restore();
-    if(bub.t>0.38) return;
-    const k=1-bub.t/0.38, e=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);   // ease out back
+    if(state.t>0.38) return;
+    const k=1-state.t/0.38, e=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);   // ease out back
     P=P.map(q=>({x:cx+(q.x-cx)*e,y:cy+(q.y-cy)*e})); sx*=e; sy*=e;
   }
   if(st==='clay') P=P.map((q,i)=>({x:cx+(q.x-cx)*clayNoise(i),y:cy+(q.y-cy)*clayNoise(i)}));
@@ -1493,6 +1498,114 @@ function make3D(){
     };
   }
 
+  /* ---------- stage: the cans shot, with Dahrooj as the target ---------- */
+  function buildOpponent(){
+    const grp=new T.Group(); scene.add(grp);
+    // Keep the cans' distance and flight time. The target fills the old stack's footprint.
+    const OZ=-20, OR=0.96, LIMIT=1.1;
+    const body=new T.Mesh(new T.SphereGeometry(OR,32,24),bmesh.material);
+    body.castShadow=true; grp.add(body);
+    const skinAI=createSkin(), bubbleAI={t:0,parts:[]};
+    const O={pos:V(0,OR,OZ),vel:V(0,0,0),axis:V(0,1,0),d:0,dv:0,
+      grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0};
+    const n=V(0,0,0), relative=V(0,0,0), tangent=V(0,0,0);
+    function resetOpponent(){
+      O.pos.set(0,OR,OZ); O.vel.set(0,0,0); O.axis.copy(UP);
+      Object.assign(O,{d:0,dv:0,grounded:true,touched:false,planned:false,targetX:0,blink:0,nextBlink:2,hitT:0,lastHit:0});
+      skinAI.reset(); bubbleAI.t=0; bubbleAI.parts=[]; body.position.copy(O.pos); body.scale.set(1,1,1);
+    }
+    function impact(normal,speed,contact){
+      const s=Math.min(1,speed/14); if(s<0.05) return;
+      O.axis.copy(normal); if(O.d<0) O.d*=0.3; O.dv+=4+s*16; O.lastHit=time;
+      if(s>0.55) O.hitT=0.28;
+      const p=toScreen(O.pos), c=toScreen(contact);
+      skinAI.dent(Math.atan2(c.y-p.y,c.x-p.x),s);
+      if(ballStyle==='bubble' && s>0.8){
+        const edge=toScreen(O.pos.clone().addScaledVector(camera.up,OR));
+        bubblePop(p.x,p.y,Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y)),bubbleAI);
+      }
+    }
+    function paintOpponent(c){
+      const p=toScreen(O.pos), edge=toScreen(O.pos.clone().addScaledVector(camera.up,OR));
+      const rs=Math.max(4,Math.hypot(edge.x-p.x,edge.y-p.y));
+      const ax=toScreen(O.pos.clone().addScaledVector(O.axis,OR));
+      const face=O.hitT>0?'closed':O.touched?'wide':S.shot?'focus':'open';
+      const sk=skinAI.points(p.x,p.y,rs,O.d,Math.atan2(ax.y-p.y,ax.x-p.x),false);
+      let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+      for(const q of sk.P){mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y);}
+      const player=toScreen(S.pos), ahead=toScreen(O.pos.clone().addScaledVector(O.vel,0.1));
+      const oldX=furVel.x, oldY=furVel.y; furVel.x=(ahead.x-p.x)*10; furVel.y=(ahead.y-p.y)*10;
+      paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),
+        face,Math.max(-1,Math.min(1,(player.x-p.x)/(rs*3))),Math.max(-1,Math.min(1,(player.y-p.y)/(rs*3))),0,O.blink>0,bubbleAI);
+      furVel.x=oldX; furVel.y=oldY;
+    }
+    return {
+      grp,aimZ:OZ,
+      ft:sp=>Math.max(0.8,Math.min(1.6,1.75-sp/2400)),
+      behind:()=>false,
+      onRespawn:resetOpponent,
+      touched:()=>O.touched,
+      collide(){
+        n.subVectors(S.pos,O.pos); const distance=n.length(), overlap=BR+OR-distance;
+        if(overlap>0){
+          if(distance>1e-5) n.divideScalar(distance); else n.set(0,0,1);
+          const correction=Math.max(0,overlap-0.002)*0.4;
+          S.pos.addScaledVector(n,correction); O.pos.addScaledVector(n,-correction);
+          relative.subVectors(S.vel,O.vel); const vn=relative.dot(n);
+          if(vn<0){
+            // Same restitution and friction as ball/can contact; both characters have equal mass.
+            const impulse=-(1+(vn>-0.6?0:0.35))*vn/2;
+            S.vel.addScaledVector(n,impulse); O.vel.addScaledVector(n,-impulse);
+            tangent.copy(relative).addScaledVector(n,-vn); const vt=tangent.length();
+            if(vt>1e-5){tangent.divideScalar(vt);const friction=Math.min(vt/2,0.3*impulse);S.vel.addScaledVector(tangent,-friction);O.vel.addScaledVector(tangent,friction);}
+            const contact=O.pos.clone().addScaledVector(n,OR);
+            hit(n,-vn*0.7,contact); impact(n.clone().negate(),-vn*0.7,contact);
+            if(O.vel.y>0) O.grounded=false;
+            if(S.shot && !O.touched){O.touched=true;addCount('opponent');success();}
+          }
+        }
+        if(S.shot && !O.touched && S.pos.z<O.pos.z-OR-BR) miss();
+      },
+      update(dt){
+        // Read the ball only after release; react once, without following the pointer.
+        if(S.shot && !O.planned && !O.touched && S.shotT>0.22 && S.vel.z<-0.5){
+          O.planned=true;
+          const t=Math.max(0,(O.pos.z-S.pos.z)/S.vel.z);
+          const x=S.pos.x+S.vel.x*t+0.5*S.side.x*t*t;
+          const y=S.pos.y+S.vel.y*t-0.5*GRAV*t*t;
+          if(t<1.6 && Math.abs(x-O.pos.x)<OR+BR+0.2 && y<OR*2+BR){
+            const direction=Math.abs(O.pos.x-x)>0.1?Math.sign(O.pos.x-x):(Math.random()<0.5?-1:1);
+            O.targetX=Math.max(-LIMIT,Math.min(LIMIT,O.pos.x+direction*0.9));
+          }
+        }
+        if(!O.touched){
+          const desired=Math.max(-0.9,Math.min(0.9,(O.targetX-O.pos.x)*4));
+          O.vel.x+=Math.max(-3*dt,Math.min(3*dt,desired-O.vel.x));
+        }
+        // The same gravity, air drag, floor bounce and ground friction as the player's ball.
+        if(!O.grounded) O.vel.y-=GRAV*dt;
+        O.vel.multiplyScalar(Math.pow(0.9,dt)); O.pos.addScaledVector(O.vel,dt);
+        if(O.pos.y<OR){
+          O.pos.y=OR;
+          if(O.vel.y<-1.4){impact(UP,-O.vel.y,V(O.pos.x,0,O.pos.z));O.vel.y=-O.vel.y*0.55;O.vel.x*=0.85;O.vel.z*=0.85;}
+          else {O.vel.y=0;O.grounded=true;}
+        }else if(O.grounded && O.pos.y>OR+0.01) O.grounded=false;
+        if(O.grounded){O.vel.x*=Math.pow(0.35,dt);O.vel.z*=Math.pow(0.35,dt);}
+        let target=0;
+        if(!O.grounded && O.vel.length()>2 && time-O.lastHit>0.12){if(Math.abs(O.d)<0.12) O.axis.copy(O.vel).normalize();target=-Math.min(0.22,O.vel.length()/90);}
+        else if(O.grounded){O.axis.copy(UP);target=0.018*Math.sin(time*2.4);}
+        O.dv+=((target-O.d)*420-O.dv*13)*dt;O.d=Math.max(-0.3,Math.min(0.5,O.d+O.dv*dt));
+        O.nextBlink-=dt;if(O.nextBlink<=0){O.blink=0.14;O.nextBlink=2+Math.random()*3.5;}
+        O.blink=Math.max(0,O.blink-dt);O.hitT=Math.max(0,O.hitT-dt);
+        skinAI.step(dt);tickStyle(dt,bubbleAI);
+        body.position.copy(O.pos).addScaledVector(O.axis,-Math.max(0,OR*O.d));
+        body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(1+O.d*0.75,1-O.d,1+O.d*0.75);
+      },
+      paintBehind(c){if(S.pos.z>=O.pos.z) paintOpponent(c);},
+      paint(c){if(S.pos.z<O.pos.z) paintOpponent(c);}
+    };
+  }
+
   /* ---------- stage: padel rally against the glass ---------- */
   function buildPadel(){
     const grp=new T.Group(); scene.add(grp);
@@ -1694,7 +1807,7 @@ function make3D(){
     };
   }
 
-  const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow};
+  const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow,opponent:buildOpponent};
   const stages={}; let stage=null, stageName='';
   function setStage(name){
     if(!stages[name]) stages[name]=builders[name]();
@@ -1817,6 +1930,7 @@ function make3D(){
     bmesh.scale.set(1+d*0.75,1-d,1+d*0.75);
     renderer.render(scene,camera);
     fx.setTransform(dpr,0,0,dpr,0,0); fx.clearRect(0,0,W,H); fx.lineCap='round';
+    if(stage.paintBehind) stage.paintBehind(fx);
     const bs=toScreen(S.pos), rs=screenRadius();
     const ax=toScreen(S.pos.clone().addScaledVector(S.axis,BR));
     const ang=Math.atan2(ax.y-bs.y,ax.x-bs.x);
