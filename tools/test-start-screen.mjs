@@ -7,7 +7,7 @@ import {resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
-const mime={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'application/javascript','.woff2':'font/woff2','.mp3':'audio/mpeg'};
+const mime={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'application/javascript','.woff2':'font/woff2','.mp3':'audio/mpeg','.jpg':'image/jpeg'};
 const server=createServer(async(req,res)=>{
   try{
     const pathname=new URL(req.url,'http://localhost').pathname;

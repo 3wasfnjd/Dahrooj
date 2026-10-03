@@ -57,7 +57,7 @@
   });
   document.querySelector('.side')?.appendChild(button);
   const panel = document.getElementById('chpanel');
-  if (panel) panel.style.top = 'calc(144px + env(safe-area-inset-top,0px))';
+  if (panel) panel.style.top = 'calc(182px + env(safe-area-inset-top,0px))';
 
   function gesture(event) {
     if (event.isTrusted && !event.target?.closest?.('#btn-music')) play(true);

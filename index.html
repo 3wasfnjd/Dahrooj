@@ -57,18 +57,18 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;
   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
 }
-.side button{
+.side button,.side a{
   min-width:34px;height:34px;border-radius:999px;border:0;background:transparent;color:var(--ink);
-  display:grid;place-items:center;cursor:pointer;padding:0 4px;transition:background .2s ease,color .2s ease,transform .2s ease;
+  display:grid;place-items:center;cursor:pointer;padding:0 4px;text-decoration:none;transition:background .2s ease,color .2s ease,transform .2s ease;
   font:800 12px/1 "Grandstander","Trebuchet MS",sans-serif;font-variant-numeric:tabular-nums;
 }
-.side button svg{width:20px;height:20px}
+.side button svg,.side a svg{width:20px;height:20px}
 .side button[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
-.side button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+.side button:focus-visible,.side a:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
 .side button.ping{animation:ping .9s cubic-bezier(.2,.9,.3,1)}
 @keyframes ping{0%{transform:scale(1)}25%{transform:scale(1.35) rotate(-8deg)}50%{transform:scale(.95) rotate(4deg)}100%{transform:none}}
 #chpanel{
-  position:fixed;z-index:5;right:calc(14px + env(safe-area-inset-right,0px));top:calc(104px + env(safe-area-inset-top,0px));
+  position:fixed;z-index:5;right:calc(14px + env(safe-area-inset-right,0px));top:calc(142px + env(safe-area-inset-top,0px));
   width:min(290px,calc(100vw - 32px));padding:12px 14px;border-radius:18px;
   background:rgba(255,252,246,.94);border:1.5px solid rgba(44,45,61,.14);box-shadow:0 10px 30px rgba(44,45,61,.12);
   font:600 15px/1.35 "Baloo Bhaijaan 2","Grandstander",Tahoma,sans-serif;color:var(--ink);direction:rtl;
@@ -145,11 +145,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><rect x="7.6" y="7.6" width="3.6" height="2.8" rx=".6" fill="currentColor" stroke="none" transform="rotate(-25 9.4 9)"/><circle cx="15.6" cy="15.4" r=".9" fill="currentColor" stroke="none"/></svg>
   </button>
 </div>
-<div class="side" role="group" aria-label="التحديات والزيارات">
+<div class="side" role="group" aria-label="التحديات والزيارات وعالم عبودين">
   <button id="btn-ch" aria-label="التحديات" title="التحديات" aria-expanded="false" aria-controls="chpanel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v3M9 20h6M10 16h4v4h-4z"/></svg>
   </button>
   <button id="btn-visits" aria-label="الزيارات" title="الزيارات">…</button>
+  <a id="btn-aboden-fun" href="https://3wasfnjd.github.io/Aboden-fun/" target="_blank" rel="noopener noreferrer" aria-label="عالم عبودين" title="عالم عبودين">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+  </a>
 </div>
 <div id="chpanel" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -178,12 +181,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <p class="credit">Aboden Games<small>© 2026</small></p>
 </div>
 
-<section id="start-screen" aria-labelledby="start-name" aria-describedby="start-hint">
+<section id="start-screen" aria-label="شاشة بداية دحروج">
+  <img class="start-backdrop" src="./assets/start/start-poster.jpg" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
   <canvas id="start-balls" aria-label="كور دحروج المتساقطة؛ اسحب أي كرة بإصبعك وارمها"></canvas>
-  <header class="start-heading">
-    <h1 id="start-name">دحروج</h1>
-    <p id="start-hint">اسحب الكور… وخلّها تدحروج!</p>
-  </header>
   <div class="start-actions">
     <button id="start-play" type="button" hidden disabled>
       <span>بدء اللعبة</span>
@@ -1895,7 +1895,13 @@ function renderPanel(){
     CHALLENGES.map(c=>{ const v=chState[c.id]||0, ok=v>=c.goal;
       return `<div class="ch-row${ok?' ok':''}"><span class="ch-dot">${ok?'✓':''}</span><span class="ch-t">${c.title}</span><span class="ch-v">${ar(Math.min(v,c.goal))} من ${ar(c.goal)}</span><span class="ch-bar"><i style="width:${Math.min(100,v/c.goal*100)}%"></i></span></div>`; }).join('');
 }
-btnCh.addEventListener('click',e=>{ e.stopPropagation(); elPanel.hidden=!elPanel.hidden; btnCh.setAttribute('aria-expanded',!elPanel.hidden); if(!elPanel.hidden) renderPanel(); });
+btnCh.addEventListener('click',e=>{
+  e.stopPropagation();elPanel.hidden=!elPanel.hidden;btnCh.setAttribute('aria-expanded',!elPanel.hidden);
+  if(!elPanel.hidden){
+    elPanel.style.top=`${Math.ceil(document.querySelector('.side').getBoundingClientRect().bottom)+12}px`;
+    renderPanel();
+  }
+});
 document.addEventListener('pointerdown',e=>{ if(!elPanel.hidden && !elPanel.contains(e.target) && e.target!==btnCh && !btnCh.contains(e.target)){ elPanel.hidden=true; btnCh.setAttribute('aria-expanded','false'); } });
 function noteStyle(v){ if(!stylesUsed.includes(v)){ stylesUsed.push(v); try{ localStorage.setItem('dahrooj-styles',JSON.stringify(stylesUsed)); }catch(_){} } chProgress('styles5',stylesUsed.length); }
 
