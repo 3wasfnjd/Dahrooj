@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#173d35">
+  <meta name="description" content="دحروج: الغابة المسحورة — مغامرة صغيرة بثلاث خامات، وثلاث قدرات.">
+  <title>دحروج · الغابة المسحورة</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='27' fill='%23626a6c'/%3E%3Cellipse cx='23' cy='28' rx='6' ry='8' fill='%23fffaf2'/%3E%3Cellipse cx='41' cy='28' rx='6' ry='8' fill='%23fffaf2'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%232c2d3d'/%3E%3Ccircle cx='43' cy='29' r='3' fill='%232c2d3d'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../vendor/fonts/fonts.css">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="../vendor/three/three-r128.min.js"></script>
+  <script defer src="vendor/GLTFLoader.js"></script>
+  <script defer src="character.js"></script>
+  <script defer src="game.js"></script>
+</head>
+<body>
+  <main id="game" aria-label="لعبة دحروج: الغابة المسحورة">
+    <div id="world" role="img" aria-label="غابة ثلاثية الأبعاد، ومسار دحروج بين الصخور والأشجار"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <header id="hud" class="hud" hidden>
+      <div class="chapter"><span class="eyebrow">الغابة المسحورة</span><strong id="chapter-name">معبر النهر</strong><div class="steps" aria-label="تقدم المرحلة"><i class="active"></i><i></i><i></i></div></div>
+      <div class="hud-actions"><span class="seed-counter" aria-label="بذور النور"><span class="seed-icon">✦</span><b id="seed-count">0</b><span class="seed-total">/ 3</span></span><button id="pause" class="icon-button" aria-label="إيقاف مؤقت">Ⅱ</button></div>
+    </header>
+    <div id="hint" class="hint" hidden><span id="hint-glyph" class="hint-glyph">↗</span><div><strong id="hint-title">خفيف… وقفزته عالية</strong><span id="hint-copy">بالهلام، اقفز بين الصخور واعبر النهر.</span></div></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="controls" class="controls" hidden>
+      <div class="style-picker" aria-label="اختر خامة دحروج">
+        <button class="style-button active" data-style="jelly" aria-pressed="true"><canvas width="90" height="90" aria-hidden="true"></canvas><span>هلام</span><small>قفزة عالية</small><kbd>1</kbd></button>
+        <button class="style-button" data-style="clay" aria-pressed="false"><canvas width="90" height="90" aria-hidden="true"></canvas><span>طين</span><small>يدفع الأثقال</small><kbd>2</kbd></button>
+        <button class="style-button" data-style="bubble" aria-pressed="false"><canvas width="90" height="90" aria-hidden="true"></canvas><span>فقاعة</span><small>يركب الهواء</small><kbd>3</kbd></button>
+      </div>
+      <div class="movement"><button id="left" class="move-button" aria-label="تحرك يسارًا">‹</button><button id="right" class="move-button" aria-label="تحرك يمينًا">›</button></div>
+      <button id="jump" class="jump-button" aria-label="اقفز"><span id="jump-glyph">↑</span><small id="jump-label">اقفز</small></button>
+      <div class="keyboard-hint">الأسهم للحركة · مسافة للقفز · 1 / 2 / 3 للتحوّل</div>
+    </div>
+    <section id="welcome" class="overlay welcome" aria-labelledby="game-title">
+      <div class="welcome-content">
+        <div class="wordmark">ABODEN <span>GAMES</span></div>
+        <span class="chapter-tag">مغامرة دحروج الأولى</span>
+        <h1 id="game-title">دحروج<span>الغابة المسحورة</span></h1>
+        <p class="intro">نفس دحروج… مغامرة جديدة.<br>بدّل خامتك، واكتشف الطريق إلى بذرة النور.</p>
+        <div class="hero-characters" aria-hidden="true"><canvas data-hero="clay" width="256" height="256"></canvas><canvas data-hero="jelly" width="256" height="256"></canvas><canvas data-hero="bubble" width="256" height="256"></canvas></div>
+        <button id="start" class="primary" disabled><span id="start-label">نجهّز الغابة…</span><span aria-hidden="true">←</span></button>
+        <div id="loading" class="loading"><div><i id="loading-fill"></i></div><span id="loading-copy">تحميل الأشجار والصخور</span></div>
+        <div id="ready-copy" class="ready-copy" hidden>مرحلة قصيرة · ثلاث خامات · خذ راحتك</div>
+      </div>
+      <footer class="welcome-footer"><span>الفصل 01 <i></i> بذرة النور</span><button id="credits-open" class="text-button">صُنعت بحب، وبمساعدة…</button></footer>
+    </section>
+    <section id="pause-screen" class="overlay dialog-overlay" hidden aria-label="إيقاف مؤقت">
+      <div class="dialog"><span class="dialog-symbol">☾</span><span class="eyebrow">خذ نفسًا</span><h2>الغابة تنتظرك</h2><p>رحلتك محفوظة هنا إلى أن تكمل.</p><button id="resume" class="primary">نكمل المغامرة <span>←</span></button><div class="dialog-row"><button id="sound" class="secondary" aria-pressed="false">الصوت: شغّال</button><button id="restart" class="secondary">من البداية</button></div><p class="small-copy">الأسهم أو A / D للحركة<br>مسافة للقفز · 1 / 2 / 3 للتحوّل</p></div>
+    </section>
+    <section id="win-screen" class="overlay dialog-overlay" hidden aria-label="اكتملت المرحلة">
+      <div class="dialog win-dialog"><span class="eyebrow">الفصل الأول · اكتمل</span><div class="win-seeds" aria-hidden="true">✦ <b>✦</b> ✦</div><h2>رجع النور للغابة!</h2><p>قفزت، ودفعت، وطرت.<br>كل خامة فتحت لك طريقًا.</p><div class="win-stats"><div><strong id="final-seeds">3 / 3</strong><span>بذور جمعتها</span></div><div><strong id="final-time">0:00</strong><span>وقت الرحلة</span></div></div><button id="play-again" class="primary">نجرّبها مرّة ثانية <span>↶</span></button><p class="small-copy">هذه نهاية المرحلة التجريبية الأولى.</p></div>
+    </section>
+    <section id="credits" class="overlay dialog-overlay" hidden aria-label="أصحاب العمل">
+      <div class="dialog credits-dialog"><span class="eyebrow">أصحاب اللمسة</span><h2>عالم صغير، صنعناه معًا</h2><p>شخصية دحروج ورسومه الأصلية<br><a href="https://github.com/3wasfnjd/Dahrooj" target="_blank" rel="noopener"><strong>Aboden Games</strong></a></p><p>موديلات الطبيعة والأغراض<br><a href="https://quaternius.com" target="_blank" rel="noopener">Quaternius</a> · ترخيص CC0</p><p class="small-copy">Stylized Nature Megakit / Fantasy Props Megakit<br>النسختان المجانيتان Standard<br>العرض ثلاثي الأبعاد: Three.js · MIT</p><button id="credits-close" class="primary">رجوع <span>←</span></button></div>
+    </section>
+    <div id="fade" class="fade" aria-hidden="true"></div>
+    <noscript>شغّل JavaScript في المتصفح حتى تبدأ المغامرة.</noscript>
+  </main>
+</body>
+</html>

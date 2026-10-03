@@ -1,0 +1,212 @@
+{
+  "checks": [
+    {
+      "name": "15 real models loaded",
+      "ok": true
+    },
+    {
+      "name": "jelly crosses first river gap",
+      "ok": true
+    },
+    {
+      "name": "river checkpoint reached",
+      "ok": true,
+      "details": {
+        "mode": "playing",
+        "player": {
+          "x": 23.135336880362743,
+          "y": 0.64,
+          "vx": 1.0473696360619877,
+          "vy": 0,
+          "style": "jelly",
+          "grounded": true,
+          "coyote": 0.1,
+          "jumpBuffer": 0,
+          "impact": 0.24848522482756644,
+          "look": 1
+        },
+        "crate": {
+          "x": 25.5,
+          "y": 0,
+          "w": 1.55,
+          "h": 1.55,
+          "latched": false
+        },
+        "gateOpen": false,
+        "checkpointIndex": 1,
+        "seedCount": 1,
+        "elapsed": 4.900000000000033,
+        "stage": 1,
+        "models": 15,
+        "renderer": {
+          "calls": 63,
+          "triangles": 35394,
+          "textures": 22
+        },
+        "frameMs": 114.13037974683543,
+        "frames": 98
+      }
+    },
+    {
+      "name": "jelly cannot push crate",
+      "ok": true
+    },
+    {
+      "name": "clay moves crate and opens gate",
+      "ok": true
+    },
+    {
+      "name": "gate checkpoint reached",
+      "ok": true
+    },
+    {
+      "name": "bubble rides updraft",
+      "ok": true
+    },
+    {
+      "name": "level completed via actual inputs",
+      "ok": true,
+      "details": {
+        "mode": "won",
+        "player": {
+          "x": 57.754140505729715,
+          "y": 6.34,
+          "vx": 0.004599340001886724,
+          "vy": 0,
+          "style": "bubble",
+          "grounded": true,
+          "coyote": 0.1,
+          "jumpBuffer": 0,
+          "impact": 9.521777992309305e-40,
+          "look": 1
+        },
+        "crate": {
+          "x": 30.2,
+          "y": 0,
+          "w": 1.55,
+          "h": 1.55,
+          "latched": true
+        },
+        "gateOpen": true,
+        "checkpointIndex": 3,
+        "seedCount": 3,
+        "elapsed": 21.566666666666084,
+        "stage": 2,
+        "models": 15,
+        "renderer": {
+          "calls": 56,
+          "triangles": 35122,
+          "textures": 29
+        },
+        "frameMs": 151.9379166666666,
+        "frames": 432
+      }
+    },
+    {
+      "name": "restart resets puzzle",
+      "ok": true
+    },
+    {
+      "name": "pause freezes physics",
+      "ok": true
+    },
+    {
+      "name": "two-finger movement and jump",
+      "ok": true,
+      "details": {
+        "mode": "playing",
+        "player": {
+          "x": 2.8987012191339026,
+          "y": 1.8275,
+          "vx": 3.9910151651836587,
+          "vy": 6.500000000000003,
+          "style": "jelly",
+          "grounded": false,
+          "coyote": 0,
+          "jumpBuffer": 0,
+          "impact": -0.1685061694198294,
+          "look": 1
+        },
+        "crate": {
+          "x": 25.5,
+          "y": 0,
+          "w": 1.55,
+          "h": 1.55,
+          "latched": false
+        },
+        "gateOpen": false,
+        "checkpointIndex": 0,
+        "seedCount": 0,
+        "elapsed": 1.6999999999999964,
+        "stage": 0,
+        "models": 15,
+        "renderer": {
+          "calls": 56,
+          "triangles": 33521,
+          "textures": 29
+        },
+        "frameMs": 158.32666666666663,
+        "frames": 466
+      }
+    },
+    {
+      "name": "touch cancel releases movement",
+      "ok": true
+    },
+    {
+      "name": "river fall respawns at checkpoint",
+      "ok": true
+    },
+    {
+      "name": "landscape has no document overflow",
+      "ok": true
+    },
+    {
+      "name": "no page errors",
+      "ok": true,
+      "details": []
+    },
+    {
+      "name": "no missing assets",
+      "ok": true,
+      "details": []
+    }
+  ],
+  "errors": [],
+  "failed": [],
+  "final": {
+    "mode": "playing",
+    "player": {
+      "x": 2.5,
+      "y": 0.64,
+      "vx": 0,
+      "vy": 0,
+      "style": "jelly",
+      "grounded": true,
+      "coyote": 0.1,
+      "jumpBuffer": 0,
+      "impact": 0,
+      "look": 1
+    },
+    "crate": {
+      "x": 25.5,
+      "y": 0,
+      "w": 1.55,
+      "h": 1.55,
+      "latched": false
+    },
+    "gateOpen": false,
+    "checkpointIndex": 0,
+    "seedCount": 0,
+    "elapsed": 3.6999999999999895,
+    "stage": 0,
+    "models": 15,
+    "renderer": {
+      "calls": 95,
+      "triangles": 55298,
+      "textures": 29
+    },
+    "frameMs": 136.59166666666658,
+    "frames": 560
+  }
+}
