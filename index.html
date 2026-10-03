@@ -2009,6 +2009,7 @@ function setMode(m){
   for(const b of modeBtns) b.setAttribute('aria-pressed',b.dataset.mode===m);
   gcv.hidden = fxc.hidden = m==='free'||m==='duel';
   document.getElementById('game-ui').inert=m==='duel';
+  document.getElementById('game-ui').hidden=m==='duel';
   if(m!=='duel') showCount();
   const btn=modeBtns.find(b=>b.dataset.mode===m); if(btn) showTitle(btn.getAttribute('aria-label'));
 }
@@ -2069,7 +2070,7 @@ function startPopSound(){
   o.connect(g).connect(audio.destination);o.start(t);o.stop(t+.11);
 }
 let last=performance.now();
-if(window.Matter && window.createDahroojStart){
+if(window.Matter && window.createDahroojStart && !new URL(location.href).searchParams.has('duel')){
   cv.setAttribute('aria-hidden','true');
   intro=window.createDahroojStart({root:document.getElementById('start-screen'),canvas:document.getElementById('start-balls'),makeSprite:makeStartBallSprite,onStart:enterGame,reducedMotion:reduce,onInteract:ensureAudio,onPop:startPopSound});
 }else{
