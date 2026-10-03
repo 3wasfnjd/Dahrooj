@@ -1,0 +1,92 @@
+[
+  {
+    "id": "CommonTree_1",
+    "pack": "nature",
+    "triangles": 6265,
+    "path": "assets/models/nature/CommonTree_1.gltf"
+  },
+  {
+    "id": "CommonTree_5",
+    "pack": "nature",
+    "triangles": 3182,
+    "path": "assets/models/nature/CommonTree_5.gltf"
+  },
+  {
+    "id": "Pine_2",
+    "pack": "nature",
+    "triangles": 3648,
+    "path": "assets/models/nature/Pine_2.gltf"
+  },
+  {
+    "id": "Rock_Medium_1",
+    "pack": "nature",
+    "triangles": 342,
+    "path": "assets/models/nature/Rock_Medium_1.gltf"
+  },
+  {
+    "id": "Rock_Medium_3",
+    "pack": "nature",
+    "triangles": 522,
+    "path": "assets/models/nature/Rock_Medium_3.gltf"
+  },
+  {
+    "id": "Bush_Common",
+    "pack": "nature",
+    "triangles": 900,
+    "path": "assets/models/nature/Bush_Common.gltf"
+  },
+  {
+    "id": "Fern_1",
+    "pack": "nature",
+    "triangles": 288,
+    "path": "assets/models/nature/Fern_1.gltf"
+  },
+  {
+    "id": "Flower_3_Group",
+    "pack": "nature",
+    "triangles": 755,
+    "path": "assets/models/nature/Flower_3_Group.gltf"
+  },
+  {
+    "id": "Grass_Common_Short",
+    "pack": "nature",
+    "triangles": 155,
+    "path": "assets/models/nature/Grass_Common_Short.gltf"
+  },
+  {
+    "id": "Mushroom_Common",
+    "pack": "nature",
+    "triangles": 880,
+    "path": "assets/models/nature/Mushroom_Common.gltf"
+  },
+  {
+    "id": "Crate_Wooden",
+    "pack": "props",
+    "triangles": 1576,
+    "path": "assets/models/props/Crate_Wooden.gltf"
+  },
+  {
+    "id": "Barrel",
+    "pack": "props",
+    "triangles": 824,
+    "path": "assets/models/props/Barrel.gltf"
+  },
+  {
+    "id": "Chest_Wood",
+    "pack": "props",
+    "triangles": 2546,
+    "path": "assets/models/props/Chest_Wood.gltf"
+  },
+  {
+    "id": "Book_Stack_1",
+    "pack": "props",
+    "triangles": 208,
+    "path": "assets/models/props/Book_Stack_1.gltf"
+  },
+  {
+    "id": "Key_Gold",
+    "pack": "props",
+    "triangles": 1366,
+    "path": "assets/models/props/Key_Gold.gltf"
+  }
+]
