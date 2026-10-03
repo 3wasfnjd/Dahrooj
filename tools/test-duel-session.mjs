@@ -27,15 +27,15 @@ class Element {
   getContext(){return new Proxy({},{get:()=>()=>{}});}
 }
 function player(){
-  let root;const document={body:new Element(),head:new Element(),createElement:tag=>{const e=new Element();if(tag==='section')root=e;return e;}};
-  const context=vm.createContext({document,Peer,Image:Element,crypto:webcrypto,URL,location:{href:'https://example.test/index.html'},navigator:{clipboard:{writeText:async()=>{}}},innerWidth:390,innerHeight:844,devicePixelRatio:1,performance:{now:()=>clock},Date:{now:()=>clock},addEventListener(){},setTimeout(fn,ms){const id=++serial;timers.set(id,{fn,at:clock+ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>++serial,clearInterval(){}});
+  let root,clipboard='';const document={body:new Element(),head:new Element(),createElement:tag=>{const e=new Element();if(tag==='section')root=e;return e;}};
+  const context=vm.createContext({document,Peer,Image:Element,crypto:webcrypto,URL,location:{href:'https://example.test/index.html'},navigator:{clipboard:{writeText:async value=>{clipboard=value;}}},innerWidth:390,innerHeight:844,devicePixelRatio:1,performance:{now:()=>clock},Date:{now:()=>clock},addEventListener(){},setTimeout(fn,ms){const id=++serial;timers.set(id,{fn,at:clock+ms});return id;},clearTimeout:id=>timers.delete(id),setInterval:()=>++serial,clearInterval(){}});
   context.window=context;context.createDahroojArena=()=>({canvas:document.createElement('canvas'),resize(){},render(){},clear(){},shotFromGesture:points=>points[0].y-points.at(-1).y>30?{x:8,y:5,ft:.8,curve:0}:null});vm.runInContext(shot,context);vm.runInContext(rules,context);vm.runInContext(controller,context);
   let input;context.createDahroojArena=()=>({canvas:input=new Element(),resize(){},render(){},clear(){},shotFromGesture:points=>points[0].y-points.at(-1).y>30?{x:8,y:5,ft:.8,curve:0}:null});
   const duel=context.createDahroojDuel({sprite:()=>({toDataURL:()=>''}),pop(){},exit(){duel.close();}});duel.open('fur');
-  return {$:s=>root.querySelector(s),duel,input};
+  return {$:s=>root.querySelector(s),duel,input,clipboard:()=>clipboard};
 }
 const host=player(),guest=player();host.$('#duel-create').onclick();await flush();
-const room=host.$('#duel-room').textContent;assert.match(room,/^[A-HJ-NP-Z2-9]{8}$/);
+const room=host.$('#duel-room').textContent;assert.match(room,/^[A-HJ-NP-Z2-9]{8}$/);await host.$('#duel-room').onclick();assert.equal(host.clipboard(),room);assert.equal(host.$('#duel-room').textContent,'✓');await advance(1001);assert.equal(host.$('#duel-room').textContent,room);
 guest.$('#duel-code').value=room;guest.$('#duel-join-row').hidden=false;guest.$('#duel-enter').onclick();await flush();
 assert.equal(host.$('#duel-turn').textContent,'دورك');assert.equal(guest.$('#duel-turn').textContent,'دور المنافس');
 // A third player cannot displace the active pair.
@@ -51,7 +51,7 @@ for(let i=0;i<12;i++){
   player.input.onkeydown({key:' ',preventDefault(){}});await flush();await advance(2201);
 
 }
-assert.equal(host.$('h1').textContent,'تعادل');assert.equal(guest.$('h1').textContent,'تعادل');
+assert.equal(host.$('h1').textContent,'تعادل');assert.equal(guest.$('h1').textContent,'تعادل');assert.equal(host.$('#duel-score').textContent,'٠ — ٠');
 guest.$('#duel-rematch').onclick();await flush();assert.equal(host.$('h1').textContent,'تعادل');
 host.$('#duel-rematch').onclick();await flush();assert.equal(host.$('#duel-turn').textContent,'دورك');assert.equal(guest.$('#duel-round').attributes['aria-label'],'الجولة 1 من ٦');
 host.duel.render(clock);guest.duel.render(clock);
