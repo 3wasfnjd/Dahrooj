@@ -1999,7 +1999,7 @@ function setMode(m){
   if(intro) return;
   if(mode==='duel'&&m!=='duel') duel?.close();
   if(m==='duel'){
-    if(!duel) duel=window.createDahroojDuel({sprite:makeStartBallSprite,actor:createDuelActor,pop:startPopSound,sound:thump,exit:()=>setMode('free')});
+    if(!duel) duel=window.createDahroojDuel({sprite:makeStartBallSprite,actor:createDuelActor,style:setStyle,interact:ensureAudio,pop:startPopSound,sound:thump,exit:()=>setMode('free')});
     duel.open(ballStyle);
   }else if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }

@@ -21,7 +21,7 @@ window.createDahroojDuel=function(bridge){
   let timer=null,flightTimer=null,botTimer=null,heartbeat=null,lastSeen=0,ready=false,localAgain=false,remoteAgain=false,drag=null,aimValue=0,powerValue=.457,pending=false;
   const names={jelly:'جيلي',fabric:'قماش',clay:'طين',fur:'فرو',bubble:'فقاعة'};
   for(const style of R.STYLES){const b=document.createElement('button');b.dataset.style=style;b.setAttribute('aria-label',names[style]);b.title=names[style];const img=new Image();img.src=bridge.sprite(style,'open').toDataURL();img.alt='';b.appendChild(img);b.onclick=()=>choose(style);$('#duel-styles').appendChild(b);}
-  function choose(s){selected=R.STYLES.includes(s)?s:'jelly';for(const b of $('#duel-styles').children)b.setAttribute('aria-pressed',b.dataset.style===selected);}
+  function choose(s){selected=R.STYLES.includes(s)?s:'jelly';bridge.style?.(selected);for(const b of $('#duel-styles').children)b.setAttribute('aria-pressed',b.dataset.style===selected);}
   function send(msg){if(conn?.open){try{conn.send(msg);return true;}catch(_){fail('انقطع الاتصال');}}return false;}
   function cleanup(){
     generation++;clearTimeout(timer);clearTimeout(flightTimer);clearTimeout(botTimer);clearInterval(heartbeat);
@@ -41,7 +41,7 @@ window.createDahroojDuel=function(bridge){
     localAgain=remoteAgain=false;const opponent=bot?R.STYLES[(R.STYLES.indexOf(selected)+1+random()%4)%5]:conn.metadata.style;
     apply(R.create(id(),[selected,opponent],random()));broadcast();
   }
-  function startBot(){cleanup();bot=host=true;me=0;newMatch();}
+  function startBot(){bridge.interact?.();cleanup();bot=host=true;me=0;newMatch();}
   function broadcast(){if(!bot)send({type:'state',state});}
   function scheduleBot(){
     clearTimeout(botTimer);if(!bot||state?.phase!=='aim'||state.turn%2!==1)return;
@@ -96,6 +96,7 @@ window.createDahroojDuel=function(bridge){
   }
   async function loadPeer(){if(window.Peer)return;await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='./vendor/peerjs/peerjs-1.5.5.min.js';script.onload=resolve;script.onerror=reject;document.head.appendChild(script);});if(!window.Peer)throw Error('Peer unavailable');}
   async function connect(create){
+    bridge.interact?.();
     const typed=$('#duel-code').value.trim().toUpperCase();if(!create&&!/^[A-HJ-NP-Z2-9]{8}$/.test(typed)){status.textContent='رمز الغرفة: ٨ أحرف وأرقام';return;}
     cleanup();host=create;me=create?0:1;room=create?code():typed;const token=generation;
     $('#duel-create').disabled=$('#duel-join').disabled=true;status.textContent='…';
@@ -121,7 +122,7 @@ window.createDahroojDuel=function(bridge){
   $('.duel-exit').onclick=()=>bridge.exit();
   canvas.onpointerdown=e=>{
     if(!ready||!state||state.phase!=='aim'||state.turn%2!==me||pending||drag||e.clientY<innerHeight*.42)return;
-    drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus();canvas.style.cursor='grabbing';
+    bridge.interact?.();drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.focus();canvas.style.cursor='grabbing';
   };
   function aim(e){if(!drag||drag.id!==e.pointerId)return;aimValue=Math.max(-1,Math.min(1,(e.clientX-drag.x)/(innerWidth*.4)));powerValue=Math.max(0,Math.min(1,(drag.y-e.clientY)/(innerHeight*.42)));}
   canvas.onpointermove=aim;canvas.onpointerup=e=>{if(!drag||drag.id!==e.pointerId)return;const distance=drag.y-e.clientY;aim(e);drag=null;if(distance>18)fire();else canvas.style.cursor='grab';};canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
