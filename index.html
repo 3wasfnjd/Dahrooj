@@ -149,7 +149,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button id="btn-ch" aria-label="التحديات" title="التحديات" aria-expanded="false" aria-controls="chpanel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v3M9 20h6M10 16h4v4h-4z"/></svg>
   </button>
-  <button id="btn-visits" aria-label="الزيارات" title="الزيارات">…</button>
+  <button id="btn-visits" dir="ltr" aria-label="الزيارات" title="الزيارات">…</button>
   <a id="btn-aboden-fun" href="https://3wasfnjd.github.io/Aboden-fun/" target="_blank" rel="noopener noreferrer" aria-label="عالم عبودين" title="عالم عبودين">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
   </a>
@@ -182,7 +182,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 </div>
 
 <section id="start-screen" aria-label="شاشة بداية دحروج">
-  <img class="start-backdrop" src="./assets/start/start-poster.jpg" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
+  <img class="start-backdrop" src="./assets/start/start-poster-colors.png" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
   <canvas id="start-balls" aria-label="كور دحروج المتساقطة؛ اسحب الكرة وارمها، أو اضغط مطولًا لتفقعها"></canvas>
   <div class="start-actions">
     <button id="start-play" type="button" hidden disabled>
@@ -195,7 +195,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 </section>
 
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
-<script src="./assets/start/start-screen.js?v=hold-pop-1"></script>
+<script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
 <script>
 (() => {
@@ -849,8 +849,8 @@ function paintBlob(c,P,cx,cy,R,sx,sy,face,lx,ly,blushK,blinkOn){
   }
 
   const g=c.createRadialGradient(cx-R*0.35*sx,cy-R*0.42*sy,R*0.1,cx,cy,R*1.1*Math.max(sx,sy));
-  if(st==='fabric'){ g.addColorStop(0,'#6d7079'); g.addColorStop(0.6,'#4e5159'); g.addColorStop(1,'#383a40'); }
-  else if(st==='clay'){ g.addColorStop(0,'#74716e'); g.addColorStop(0.6,'#55524f'); g.addColorStop(1,'#3d3b39'); }
+  if(st==='fabric'){ g.addColorStop(0,'#a55267'); g.addColorStop(0.6,'#7c2941'); g.addColorStop(1,'#50172c'); }
+  else if(st==='clay'){ g.addColorStop(0,'#ad805c'); g.addColorStop(0.6,'#825637'); g.addColorStop(1,'#55331f'); }
   else { g.addColorStop(0,COL.ballLight); g.addColorStop(0.55,COL.ball); g.addColorStop(1,COL.ballDark); }
   if(st==='fabric'){ c.save(); c.shadowColor='rgba(20,20,25,.35)'; c.shadowBlur=Math.max(1.5,R*0.08); path(); c.fillStyle=g; c.fill(); c.restore(); }
   else { path(); c.fillStyle=g; c.fill(); }
@@ -1911,10 +1911,10 @@ const FIREBASE_CONFIG={
   storageBucket:'motri-4ed44.firebasestorage.app', messagingSenderId:'241178340893', appId:'1:241178340893:web:8a01dbbf985a074e52e0f4'
 };
 let visits=null;
-const arN=n=>Number(n).toLocaleString('ar-EG');
-const fmt=n=>n==null?'…':n>=10000?arN(Math.round(n/100)/10)+' ألف':arN(n);
-function setVisits(n){ visits=n; btnVisits.textContent=fmt(n); btnVisits.setAttribute('aria-label',n==null?'الزيارات':`${arN(n)} زيارة`); }
-btnVisits.addEventListener('click',()=>toast(visits==null?'الزيارات تنحسب لما تكون اللعبة أونلاين':`${arN(visits)} زيارة`));
+const visitNumber=n=>Number(n).toLocaleString('en-US');
+const fmt=n=>n==null?'…':n>=10000?visitNumber(Math.round(n/100)/10)+'K':visitNumber(n);
+function setVisits(n){ visits=n; btnVisits.textContent=fmt(n); btnVisits.setAttribute('aria-label',n==null?'الزيارات':`${visitNumber(n)} زيارة`); }
+btnVisits.addEventListener('click',()=>toast(visits==null?'الزيارات تنحسب لما تكون اللعبة أونلاين':`${visitNumber(visits)} زيارة`));
 function loadScript(src){
   return new Promise((resolve,reject)=>{
     const s=document.createElement('script');

@@ -23,8 +23,8 @@
     let sequence=0;
     const STEP=1000/60, MAX_BALLS=180;
     const HOLD_SECONDS=.65, DRAG_DISTANCE=10;
-    const burstColors={fabric:['#4e5159','#efe6d2'],jelly:['#8a8e97','#fffaf2'],
-      clay:['#55524f','#aaa29a'],fur:['#f3eee6','#966640'],bubble:['#fffaf2','#b9e8fa','#f4b5db']};
+    const burstColors={fabric:['#7c2941','#efe6d2'],jelly:['#8a8e97','#fffaf2'],
+      clay:['#825637','#ad805c'],fur:['#f3eee6','#966640'],bubble:['#fffaf2','#b9e8fa','#f4b5db']};
 
     function takeFromBag(bag,choices) {
       if(!bag.length){
