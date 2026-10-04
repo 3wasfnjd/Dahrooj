@@ -173,21 +173,22 @@ test('health persists across turns; three Dahrooj hits pop once and restore full
   assert.equal(t.messages.get('a').flatMap(x=>x.events||[]).filter(e=>e.type==='pop').length,1);
 });
 
-test('every distraction uses half the ball damage, requires a real hit and scores only on zero health',()=>{
-  for(const kind of ['ball']){
-    const t=setup();for(const key of ['a','b','c','d'])t.add(key);t.advance(2);
-    const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state,other=t.engine.matches.get(t.engine.clients.get('c').match).state;
-    const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind,target:[0,.35,-20],match:id,generation:m.balls[1].generation,damage:999}));
-    for(let i=0;i<5;i++){
-      send();t.advance(.6);assert.equal(m.health[0],100-i*20,'No damage before contact');
-      t.advance(.5);assert.equal(m.health[0],Math.max(0,100-(i+1)*20));
-      assert.equal(m.balls[0].popped,i===4);assert.deepEqual(other.health,[100,100]);
-      assert.equal(m.scores[1],i===4?1:0);
-    }
-    const hits=t.messages.get('a').flatMap(x=>x.events||[]).filter(e=>e.type==='hit');
-    assert.equal(hits.length,5);assert(hits.every(e=>e.amount===P.BALL_DAMAGE/2));
-    t.advance(3);assert.deepEqual(m.health,[100,100]);assert.deepEqual(m.scores,[0,1]);assert.equal(m.turn,1);
+test('every distraction uses half the ball damage, requires a real hit and is capped per turn',()=>{
+  const t=setup();for(const key of ['a','b','c','d'])t.add(key);t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state,other=t.engine.matches.get(t.engine.clients.get('c').match).state;
+  const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'ball',target:[0,.35,-20],match:id,generation:m.balls[1].generation,damage:999}));
+  for(let i=0;i<5;i++){
+    const expected=100-Math.min(i,P.MAX_DISTRACTION_HITS)*20;
+    send();t.advance(.6);assert.equal(m.health[0],expected,'No damage before contact');
+    t.advance(.5);assert.equal(m.health[0],100-Math.min(i+1,P.MAX_DISTRACTION_HITS)*20,'Hits beyond the per-turn cap do no damage');
+    assert.equal(m.balls[0].popped,false);assert.deepEqual(other.health,[100,100]);assert.deepEqual(m.scores,[0,0]);
   }
+  const hits=t.messages.get('a').flatMap(x=>x.events||[]).filter(e=>e.type==='hit');
+  assert.equal(hits.length,P.MAX_DISTRACTION_HITS);assert(hits.every(e=>e.amount===P.BALL_DAMAGE/2));
+  // A new turn restores the allowance; a weakened player can then be popped by small balls.
+  m.health[0]=20;P.endTurn(m,1);m.turn=0;t.advance(2);
+  send();t.advance(1.1);assert.equal(m.health[0],0);assert.equal(m.balls[0].popped,true);assert.deepEqual(m.scores,[0,1]);
+  t.advance(3);assert.deepEqual(m.health,[100,100]);assert.equal(m.turn,1);assert.equal(m.distractionHits,0);
 });
 
 test('missed or already counted distractions cannot drain health; hibernation preserves damage',()=>{

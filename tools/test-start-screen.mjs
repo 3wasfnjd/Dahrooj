@@ -93,8 +93,9 @@ async function touchDrag(context,page){
   for(let i=1;i<=10;i++){
     await send('touchMove',b.x+i*3,b.y-i*10);await page.waitForTimeout(20);
   }
-  const y=await page.evaluate(id=>window.__introEngine.world.bodies.find(b=>b.id===id).position.y,b.id);
-  assert(y<b.y-35,'Trusted touch moves the physics body');
+  // Physics follows the touch over a few frames; wait for it instead of sampling once.
+  const moved=await page.waitForFunction(([id,y])=>window.__introEngine.world.bodies.find(b=>b.id===id).position.y<y-35,[b.id,b.y],{timeout:2000}).then(()=>true,()=>false);
+  assert(moved,'Trusted touch moves the physics body');
   await send('touchCancel');
   assert.equal(await page.evaluate(()=>window.__introEngine.world.constraints.length),0,'Cancelled touch releases the ball');
   await session.detach();

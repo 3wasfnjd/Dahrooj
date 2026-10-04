@@ -30,8 +30,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 }
 #count.show{animation:countPop 1.5s cubic-bezier(.2,.9,.3,1) both}
 #count.duel{opacity:1;animation:none;transform:none;direction:ltr;font-size:24px;left:64px;right:64px;line-height:1.3}
-#count.duel small{display:block;width:18px;height:18px;margin:5px auto 0;color:#000}
-#count.duel small svg{display:block;width:100%;height:100%}
+#count.duel .duel-icons{display:flex;justify-content:center;align-items:center;gap:7px;margin-top:5px}
+#count.duel small,#count.duel .duel-ai{display:block;width:18px;height:18px;margin:0;color:#000}
+#count.duel .duel-ai{opacity:.5}
+#count.duel small svg,#count.duel .duel-ai svg{display:block;width:100%;height:100%}
 #count.duel .duel-health{display:flex;justify-content:center;gap:8px;margin:8px auto 0;direction:ltr}
 #count.duel .duel-health span{display:block;width:34px;height:3px;border-radius:3px;background:rgba(44,45,61,.18);overflow:hidden}
 #count.duel .duel-health i{display:block;width:100%;height:100%;border-radius:3px;background:#2C2D3D;transform-origin:left center}
@@ -127,6 +129,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .modes button svg{width:22px;height:22px}
 .modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .modes button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+/* Seven modes: keep round buttons inside narrow phones. */
+@media (max-width:380px){.modes{gap:3px;padding:4px}.modes button{width:38px;height:38px;flex:none}.modes button svg{width:20px;height:20px}}
 </style>
 <style>[hidden]{display:none!important}*{box-sizing:border-box}</style>
 <script defer src="./assets/audio/background-music.js"></script>
@@ -193,7 +197,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 </div>
 
 <section id="start-screen" aria-label="شاشة بداية دحروج">
-  <img class="start-backdrop" src="./assets/start/start-poster-colors.png" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
+  <img class="start-backdrop" src="./assets/start/start-poster-colors.jpg" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
   <canvas id="start-balls" aria-label="كور دحروج المتساقطة؛ اسحب الكرة وارمها، أو اضغط مطولًا لتفقعها"></canvas>
   <div class="start-actions">
     <button id="start-play" type="button" hidden disabled>
@@ -208,7 +212,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/matter/matter-0.20.0.min.js"></script>
 <script src="./assets/start/start-screen.js?v=burgundy-brown-1"></script>
 <script src="./vendor/three/three-r128.min.js"></script>
-<script src="./assets/duel-online/physics.js"></script>
+<script src="./assets/duel-online/physics.js?v=hit-cap-1"></script>
 <script src="./assets/duel-online/client.js?v=pages-duel-1"></script>
 <script src="./assets/duel-online/distractions.js"></script>
 <script>
@@ -1113,14 +1117,14 @@ function make3D(){
   function screenRadius(){ const a=toScreen(S.pos); const b=toScreen(S.pos.clone().addScaledVector(camera.up,BR)); return Math.max(4,Math.hypot(a.x-b.x,a.y-b.y)); }
 
   // Reuse a conservative body bound so a partially visible ball is not reset.
+  // The top edge is ignored: a high arc leaves it briefly and falls back into view.
   const returnFrustum=new T.Frustum(), returnMatrix=new T.Matrix4();
-  const returnBounds=new T.Sphere(V(0,0,0),BR*2);
+  const RETURN_PLANES=[0,1,2,4,5], RETURN_RADIUS=BR*2;
   function outsideView(){
     camera.updateMatrixWorld();
     returnMatrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
     returnFrustum.setFromProjectionMatrix(returnMatrix);
-    returnBounds.center.copy(S.pos);
-    return !returnFrustum.intersectsSphere(returnBounds);
+    return RETURN_PLANES.some(i=>returnFrustum.planes[i].distanceToPoint(S.pos)<-RETURN_RADIUS);
   }
 
   function hit(n,speed,contact){
@@ -1558,16 +1562,25 @@ function make3D(){
       elCount.classList.toggle('duel-waiting',!client.state);
       const text=client.state?`${client.state.scores[client.slot]} — ${client.state.scores[1-client.slot]}`:(labels[client.status]||'جارٍ الاتصال…');
       const turn=client.state?(client.state.turn===client.slot?'Your turn':'Opponent’s turn'):'';
-      if(elCount.textContent!==text||elCount.dataset.turn!==turn){
+      const ai=client.state?.bot===1;
+      if(elCount.textContent!==text||elCount.dataset.turn!==turn||elCount.dataset.ai!==String(ai)){
         elCount.textContent=text;healthBars=[];
-        elCount.dataset.turn=turn;
+        elCount.dataset.turn=turn;elCount.dataset.ai=String(ai);
         if(turn){
+          const icons=document.createElement('div');icons.className='duel-icons';
           const label=document.createElement('small');label.setAttribute('role','img');label.setAttribute('aria-label',turn);
           const shape=client.state.turn===client.slot
             ?'<circle cx="12" cy="12" r="7"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>'
             :'<path d="M6 3h12M6 21h12M7 3v3c0 3 3 4 5 6-2 2-5 3-5 6v3m10-18v3c0 3-3 4-5 6 2 2 5 3 5 6v3"/>';
           label.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+shape+'</svg>';
-          elCount.append(label);
+          icons.append(label);
+          if(ai){
+            // Small robot badge: the current opponent is the automatic one, not a person.
+            const badge=document.createElement('span');badge.className='duel-ai';badge.setAttribute('role','img');badge.setAttribute('aria-label','خصم آلي');
+            badge.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4.5M2 13v3M22 13v3"/><circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="13.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="13.5" r="1.2" fill="currentColor" stroke="none"/></svg>';
+            icons.append(badge);
+          }
+          elCount.append(icons);
           const bars=document.createElement('div');bars.className='duel-health';
           for(const [slot,name] of [[client.slot,'حياتك'],[1-client.slot,'حياة المنافس']]){
             const bar=document.createElement('span'),fill=document.createElement('i');
@@ -1649,7 +1662,7 @@ function make3D(){
       grp,aimZ:OZ,networked:true,
       ft:sp=>Math.max(.8,Math.min(1.6,1.75-sp/2400)),behind:()=>false,
       enter(){lastGeneration=[-1,-1];bursts=[];client.enter(ballStyle);},
-      leave(){client.leave();movePointer=null;throwPointer=null;distractions.clear();cancelAim();visible=false;body.visible=false;localPopped=false;elCount.removeAttribute('title');delete elCount.dataset.opponent;},
+      leave(){client.leave();movePointer=null;throwPointer=null;distractions.clear();cancelAim();visible=false;body.visible=false;localPopped=false;elCount.removeAttribute('title');delete elCount.dataset.opponent;delete elCount.dataset.ai;},
       canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
       submitShot:command=>client.shoot(command),
       startMove(p,id){
@@ -2307,7 +2320,7 @@ function frame(now){
   const dt=Math.max(.001,Math.min(0.033,elapsed));
   const steps=3;
   if(intro){
-    drawPaper();intro.tick(Math.min(.067,elapsed));
+    intro.tick(Math.min(.067,elapsed));
   }else if(mode==='free'){
     for(let i=0;i<8;i++) update(dt/8);
     render();

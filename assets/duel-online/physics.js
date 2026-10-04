@@ -4,6 +4,8 @@
   const R=.24, GRAV=13, DISTANCE=20, STEP=1/180;
   const MOVE_LIMIT=1.25, MOVE_SPEED=4.5, SMALL_R=.085, SMALL_THROW_INTERVAL=.15;
   const MAX_HEALTH=100, BALL_DAMAGE=40, DISTRACTION_DAMAGE=BALL_DAMAGE/2;
+  // Small balls stay rapid, but cannot pop a full-health player within one turn.
+  const MAX_DISTRACTION_HITS=3;
   const STYLES=['jelly','fabric','clay','fur','bubble'];
   const length=v=>Math.hypot(...v);
   function ball(slot,generation=0){
@@ -16,7 +18,7 @@
     match.balls[slot].seq=old.seq;match.balls[slot].moveSeq=old.moveSeq||0;
   }
   function endTurn(match,slot){
-    reset(match,slot);match.projectiles=[];match.turn=1-slot;
+    reset(match,slot);match.projectiles=[];match.turn=1-slot;match.distractionHits=0;
     for(const b of match.balls){b.moveTarget=null;if(!b.shot)b.v[0]=0;}
   }
   function canMove(m,slot){const b=m.balls[slot];return !m.handoff&&!m.resetT&&b.grounded&&!b.shot&&!b.popped;}
@@ -87,9 +89,10 @@
     if(!m.health)m.health=[MAX_HEALTH,MAX_HEALTH];
     if(!m.projectiles)m.projectiles=[];
     if(m.roundOver===undefined)m.roundOver=m.balls.some(b=>b.popped);
+    if(!Number.isInteger(m.distractionHits))m.distractionHits=0;
     return m;
   }
-  function createMatch(id){return {id,turn:0,balls:[ball(0),ball(1)],health:[MAX_HEALTH,MAX_HEALTH],projectiles:[],roundOver:false,scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
+  function createMatch(id){return {id,turn:0,balls:[ball(0),ball(1)],health:[MAX_HEALTH,MAX_HEALTH],projectiles:[],distractionHits:0,roundOver:false,scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
   function damage(m,target,source,amount,events){
     if(m.balls[target].popped||m.resetT>0)return;
     m.health[target]=Math.max(0,m.health[target]-amount);
@@ -111,7 +114,9 @@
       const start=[...item.body.p];stepBall(item.body,dt);item.t+=dt;
       const target=1-item.slot;
       if(!item.hit&&!m.balls[target].popped&&sweptHit(start,item.body.p,previous[target],m.balls[target].p,R+(item.body.radius??SMALL_R))){
-        item.hit=true;damage(m,target,item.slot,DISTRACTION_DAMAGE,events);
+        item.hit=true;
+        if(m.distractionHits>=MAX_DISTRACTION_HITS)continue;
+        m.distractionHits++;damage(m,target,item.slot,DISTRACTION_DAMAGE,events);
         if(m.resetT>0)return;
       }
     }
@@ -123,7 +128,7 @@
     if(m.resetT>0){
       for(const b of m.balls)stepBall(b,dt);
       m.resetT-=dt;
-      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);m.projectiles=[];if(m.roundOver)m.health=[MAX_HEALTH,MAX_HEALTH];m.roundOver=false;m.turn=1-m.turn;events.push({type:'reset',id:++m.event});}
+      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);m.projectiles=[];m.distractionHits=0;if(m.roundOver)m.health=[MAX_HEALTH,MAX_HEALTH];m.roundOver=false;m.turn=1-m.turn;events.push({type:'reset',id:++m.event});}
       return events;
     }
     const previous=m.balls.map(b=>[...b.p]);
@@ -157,5 +162,5 @@
   }
   function active(m){return m.resetT>0||m.projectiles?.length>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||Number.isFinite(b.moveTarget)||length(b.v)>.001));}
   function snapshot(m){return JSON.parse(JSON.stringify(m));}
-  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MOVE_LIMIT,MOVE_SPEED,SMALL_R,SMALL_THROW_INTERVAL,canMove,canDistract,move,stepPlayer,validDistractionTarget,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
+  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MOVE_LIMIT,MOVE_SPEED,SMALL_R,SMALL_THROW_INTERVAL,canMove,canDistract,move,stepPlayer,validDistractionTarget,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,MAX_DISTRACTION_HITS,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
 })();
