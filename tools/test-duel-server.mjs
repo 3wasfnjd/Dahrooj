@@ -239,6 +239,22 @@ test('small balls follow the tap target, never home, and reject old objects or m
   send({target:[.2,1,-5]});assert.equal(m.projectiles.length,count+1,'A tap can aim at an approaching opponent');
 });
 
+test('rapid taps launch overlapping balls before the first hit; each hit still counts once',()=>{
+  const t=setup();t.add('a');t.add('b');t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'ball',target:[0,.35,-20],match:id,generation:0}));
+  for(let i=0;i<3;i++){
+    send();send();
+    assert.equal(m.projectiles.length,i+1,'Immediate duplicate is ignored; the next tap does not wait for impact');
+    assert.equal(m.health[0],100,'All three throws launch before the first one hits');
+    t.advance(.16);
+  }
+  assert.equal(m.projectiles.length,3);
+  for(const key of ['a','b'])assert.equal(t.messages.get(key).filter(e=>e.type==='distraction').length,3);
+  t.advance(1);assert.deepEqual(m.health,[40,100]);assert.deepEqual(m.scores,[0,0]);
+  t.advance(2);assert.deepEqual(m.health,[40,100]);
+});
+
 test('AI starts immediately, shares style and physics, takes turns and resumes after a human leaves',()=>{
   const t=setup();t.add('a','fabric');
   let room=t.engine.matches.get(t.engine.clients.get('a').match);

@@ -11,13 +11,13 @@
       if(!this.enabled||this.cooldown>0)return false;
       const target=this.targetAt(point);
       if(!P.validDistractionTarget(target)||!this.send('ball',target))return false;
-      this.cooldown=1;return true;
+      this.cooldown=P.SMALL_THROW_INTERVAL;return true;
     }
     launch(event){
       const body=P.distraction(event.slot,event.kind,event.position,event.target);
       if(!body)return;
       this.items.push({kind:'ball',t:0,body,slot:event.slot,incoming:event.slot!==this.localSlot(),accumulator:0});
-      if(this.items.length>4)this.items.shift();
+      if(this.items.length>Math.ceil(1.8/P.SMALL_THROW_INTERVAL)*2)this.items.shift();
     }
     update(dt,waiting){
       this.enabled=waiting;this.cooldown=Math.max(0,this.cooldown-dt);

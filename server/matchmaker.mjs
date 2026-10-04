@@ -45,7 +45,7 @@ export class Matchmaker {
         m.generation!==ball.generation||now<(c.nextDistraction||0))return;
       const target=m.target;
       if(!P.validDistractionTarget(target))return;
-      c.nextDistraction=now+1000;
+      c.nextDistraction=now+P.SMALL_THROW_INTERVAL*1000;
       this.throwSmall(room,c.slot,target);
       this.changed();return;
     }

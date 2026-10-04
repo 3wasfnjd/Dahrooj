@@ -100,7 +100,7 @@
     distract(kind,target){
       if(!this.canDistract()||Date.now()<(this.nextDistraction||0))return false;
       const sent=this.send({type:'distraction',match:this.state.id,generation:this.state.balls[this.slot].generation,kind,...(target?{target}: {})});
-      if(sent)this.nextDistraction=Date.now()+1000;return sent;
+      if(sent)this.nextDistraction=Date.now()+P.SMALL_THROW_INTERVAL*1000;return sent;
     }
     shoot(command){
       if(!this.canShoot())return false;

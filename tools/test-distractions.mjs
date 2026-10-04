@@ -39,14 +39,15 @@ try{
  assert.equal(await b.evaluate(()=>window.__game.stage.testDistractions.items.length),0);
  for(let hit=1;hit<=3;hit++){
    await touchB('touchStart',target);await touchB('touchEnd');
-   await a.waitForFunction(()=>window.__game.stage.testDistractions.items.some(i=>i.incoming&&i.kind==='ball'));
-   if(hit===1)await a.screenshot({path:'test-results/duel-small-ball.png'});
-   await a.waitForFunction(expected=>window.__game.stage.testClient.state.health[0]===expected,100-hit*20);
-   await b.waitForFunction(expected=>window.__game.stage.testClient.state.health[0]===expected,100-hit*20);
-   assert.equal(await b.evaluate(()=>window.__game.aim.down),false);
-   assert.equal(await a.evaluate(()=>window.__game.stage.testClient.canShoot()),true);
-   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0&&window.__game.stage.testDistractions.items.length===0);
+   await a.waitForFunction(count=>window.__game.stage.testDistractions.items.filter(i=>i.incoming&&i.kind==='ball').length>=count,hit);
+   // A new touch is available while the previous balls are still travelling.
+   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0);
  }
+ await a.screenshot({path:'test-results/duel-small-ball.png'});
+ for(const p of [a,b])await p.waitForFunction(()=>window.__game.stage.testClient.state.health[0]===40);
+ assert.equal(await b.evaluate(()=>window.__game.aim.down),false);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.canShoot()),true);
+ await b.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
  await b.screenshot({path:'test-results/duel-touch-controls.png'});
  // A different touch location produces a miss instead of following the opponent.
  const miss=await b.evaluate(()=>window.__game.toScreen(new THREE.Vector3(2,.35,-20)));

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const R=.24, GRAV=13, DISTANCE=20, STEP=1/180;
-  const MOVE_LIMIT=1.25, MOVE_SPEED=4.5, SMALL_R=.085;
+  const MOVE_LIMIT=1.25, MOVE_SPEED=4.5, SMALL_R=.085, SMALL_THROW_INTERVAL=.15;
   const MAX_HEALTH=100, BALL_DAMAGE=40, DISTRACTION_DAMAGE=BALL_DAMAGE/2;
   const STYLES=['jelly','fabric','clay','fur','bubble'];
   const length=v=>Math.hypot(...v);
@@ -157,5 +157,5 @@
   }
   function active(m){return m.resetT>0||m.projectiles?.length>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||Number.isFinite(b.moveTarget)||length(b.v)>.001));}
   function snapshot(m){return JSON.parse(JSON.stringify(m));}
-  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MOVE_LIMIT,MOVE_SPEED,SMALL_R,canMove,canDistract,move,stepPlayer,validDistractionTarget,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
+  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MOVE_LIMIT,MOVE_SPEED,SMALL_R,SMALL_THROW_INTERVAL,canMove,canDistract,move,stepPlayer,validDistractionTarget,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
 })();
