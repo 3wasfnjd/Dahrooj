@@ -6,7 +6,7 @@
     bottle:'M10 2H14V7L17 11V20Q17 22 15 22H9Q7 22 7 20V11L10 7ZM10 5H14',
     balloon:'M12 2C2 2 2 15 12 19C22 15 22 2 12 2ZM12 19L10 22H14Z'
   };
-  const fills={can:'#92969b',bottle:'#a0b5ab',balloon:'#87b8cf'};
+  const fills={can:'#000',bottle:'#000',balloon:'#000'};
   class Distractions {
     constructor({send,project,position,localSlot}){
       Object.assign(this,{send,project,position,localSlot});this.items=[];this.cooldown=0;
@@ -17,7 +17,7 @@
       for(const kind of Object.keys(shapes)){
         const button=document.createElement('button');button.type='button';button.dataset.distraction=kind;
         button.setAttribute('aria-label',labels[kind]);
-        button.innerHTML=`<svg viewBox="0 0 24 24" fill="#000" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shapes[kind]}"/></svg>`;
+        button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shapes[kind]}"/></svg>`;
         button.addEventListener('pointerdown',e=>e.stopPropagation());
         button.addEventListener('click',e=>{e.stopPropagation();if(this.send(kind)){this.cooldown=1;this.setDisabled(true);}});
         this.bar.append(button);
@@ -77,7 +77,7 @@
         c.translate(x,y);
         c.rotate(item.kind==='balloon'?Math.sin(item.t/1.1*6)*.15:item.t/1.1*Math.PI*2*(item.kind==='can'?1:-1));
         c.scale(size/12,size/12);c.translate(-12,-12);
-        c.fillStyle=fills[item.kind];c.strokeStyle='#2c2d3d';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
+        c.fillStyle=fills[item.kind];c.strokeStyle='#000';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
         c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);
         c.restore();
       }
