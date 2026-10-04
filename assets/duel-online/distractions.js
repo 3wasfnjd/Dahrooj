@@ -6,6 +6,7 @@
     bottle:'M10 2H14V7L17 11V20Q17 22 15 22H9Q7 22 7 20V11L10 7ZM10 5H14',
     balloon:'M12 2C2 2 2 15 12 19C22 15 22 2 12 2ZM12 19L10 22H14Z'
   };
+  const P=globalThis.DahroojDuelPhysics;
   const fills={can:'#000',bottle:'#000',balloon:'#000'};
   class Distractions {
     constructor({send,project,position,localSlot}){
@@ -28,60 +29,62 @@
     clear(){this.items=[];this.cooldown=0;this.bar.hidden=true;this.setDisabled(false);}
     launch(event){
       if(!this.paths[event.kind])return;
-      this.items.push({kind:event.kind,t:0,from:this.position(event.position),incoming:event.slot!==this.localSlot()});
+      const body=P.ball(event.slot);body.p=[...event.position];body.grounded=true;
+      // Use Dahrooj's fastest existing throw and its exact launch solver.
+      P.launch(body,event.slot,{seq:1,target:[{can:-.45,bottle:.45,balloon:0}[event.kind],.9,-P.DISTANCE],flight:.8,curve:0});
+      this.items.push({kind:event.kind,t:0,body,slot:event.slot,incoming:event.slot!==this.localSlot(),accumulator:0,drops:null,splashT:0});
       if(this.items.length>4)this.items.shift();
     }
     update(dt,waiting){
       this.bar.hidden=!waiting;this.cooldown=Math.max(0,this.cooldown-dt);this.setDisabled(this.cooldown>0);
-      for(const item of this.items)item.t+=dt;
-      this.items=this.items.filter(item=>item.t<2.6);
+      for(const item of this.items){
+        item.t+=dt;item.accumulator+=Math.min(.1,dt);
+        while(item.accumulator>=P.STEP){
+          item.accumulator-=P.STEP;
+          if(item.drops){
+            item.splashT+=P.STEP;
+            for(const drop of item.drops)P.stepBall(drop,P.STEP);
+          }else{
+            P.stepBall(item.body,P.STEP);
+            // Open the water balloon only once it has travelled beyond the opponent.
+            if(item.kind==='balloon'&&P.position(item.body.p,item.slot)[2]<-P.DISTANCE-.6){
+              item.drops=[[-1.5,1.7],[-.9,2.4],[-.4,1.3],[.2,2.1],[.7,1.5],[1.2,2.3],[1.7,1.1]].map(([x,y])=>{
+                const drop=P.ball(item.slot);drop.p=[...item.body.p];
+                drop.v=[item.body.v[0]*.2+x,y,item.body.v[2]*.25];return drop;
+              });
+            }
+          }
+        }
+      }
+      this.items=this.items.filter(item=>item.t<1.8&&(!item.drops||item.splashT<.4));
+    }
+    projected(body,radius){
+      const p=this.position(body.p);
+      // Cull before crossing behind the camera; no screen collision or end-of-flight pause.
+      if(p[2]>2.5)return null;
+      const center=this.project(p),edge=this.project([p[0],p[1]+radius,p[2]]);
+      return {x:center.x,y:center.y,size:Math.max(1,Math.hypot(edge.x-center.x,edge.y-center.y))};
     }
     paint(c,w,h){
       for(const item of this.items){
-        const t=Math.min(1,item.t/1.1),incoming=item.incoming;
-        const start=this.project(item.from),far=this.project([0,.5,-20]);
-        const offset={can:-.13,bottle:.12,balloon:0}[item.kind];
-        const end=incoming?{x:w*(.5+offset),y:h*.57}:far;
-        let x=start.x+(end.x-start.x)*t,y=start.y+(end.y-start.y)*t-Math.sin(t*Math.PI)*h*.23;
-        const size=incoming?8+Math.pow(t,2)*Math.min(68,w*.17):25*(1-t)+6;
-        // Preserve the launch, then carry the same velocity beyond the viewport.
-        // Props pass through: no screen collision, landing or bounce.
-        const after=Math.max(0,item.t-1.1);
-        if(after>0){
-          const vx=(end.x-start.x)/1.1,vy=(end.y-start.y+Math.PI*h*.23)/1.1;
-          x=end.x+vx*after;
-          y=end.y+vy*after+.5*h*.9*after*after;
-        }
-        // Water only opens after passing the opponent, never on the screen plane.
-        if(item.kind==='balloon'){
-          const opponent=this.project(incoming?[0,.24,0]:[0,.24,-20]);
-          const beyond=Math.max(end.y,opponent.y)+size*1.3;
-          const vy=(end.y-start.y+Math.PI*h*.23)/1.1,gravity=h*.9;
-          const passTime=(Math.sqrt(vy*vy+2*gravity*(beyond-end.y))-vy)/gravity;
-          const splashTime=after-passTime;
-          if(splashTime>=0){
-            if(splashTime<.45){
-              const px=end.x+(end.x-start.x)/1.1*passTime;
-              c.save();c.globalAlpha=1-splashTime/.45;c.fillStyle=fills.balloon;
-              for(const [dx,dy] of [[-1.5,-1.7],[-.9,-2.4],[-.4,-1.3],[.2,-2.1],[.7,-1.5],[1.2,-2.3],[1.7,-1.1]]){
-                const r=size*(.035+.012*Math.abs(dx));
-                c.beginPath();c.ellipse(px+dx*size*splashTime*3,beyond+dy*size*splashTime*3+size*9*splashTime*splashTime,r,r*1.5,-dx*.25,0,Math.PI*2);c.fill();
-              }
-              c.restore();
-            }
-            continue;
+        if(item.drops){
+          c.save();c.fillStyle='#000';c.globalAlpha=Math.max(0,1-item.splashT/.4);
+          for(const drop of item.drops){
+            const p=this.projected(drop,.025);if(!p)continue;
+            c.beginPath();c.ellipse(p.x,p.y,p.size,p.size*1.4,0,0,Math.PI*2);c.fill();
           }
+          c.restore();continue;
         }
-        if(y-size*1.5>h)continue;
-        c.save();
-        c.translate(x,y);
-        c.rotate(item.kind==='balloon'?Math.sin(item.t/1.1*6)*.15:item.t/1.1*Math.PI*2*(item.kind==='can'?1:-1));
-        c.scale(size/12,size/12);c.translate(-12,-12);
+        const p=this.projected(item.body,.2);if(!p)continue;
+        if(p.x+p.size<0||p.x-p.size>w||p.y-p.size>h||p.y+p.size<0)continue;
+        c.save();c.translate(p.x,p.y);
+        c.rotate(item.kind==='balloon'?Math.sin(item.t*8)*.12:item.t*8*(item.kind==='can'?1:-1));
+        c.scale(p.size/12,p.size/12);c.translate(-12,-12);
         c.fillStyle=fills[item.kind];c.strokeStyle='#000';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
-        c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);
-        c.restore();
+        c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);c.restore();
       }
     }
   }
+
   globalThis.DahroojDuelDistractions=Distractions;
 })();
