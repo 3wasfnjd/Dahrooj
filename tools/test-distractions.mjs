@@ -1,5 +1,6 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 import {startLocal} from '../server/local.mjs';
 const app=await startLocal({port:0,transformHTML:s=>s
   .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testDistractions:distractions,testOpponent:O,')
@@ -53,6 +54,26 @@ try{
  const miss=await b.evaluate(()=>window.__game.toScreen(new THREE.Vector3(2,.35,-20)));
  await touchB('touchStart',miss);await touchB('touchEnd');
  await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length>0);
+ await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.health[0]),40);
+ // The projectile uses the sender's original artwork in both views, for every style.
+ for(const style of ['fabric','fur','clay','bubble','jelly']){
+   await b.locator(`[data-style="${style}"]`).tap();
+   await a.waitForFunction(style=>window.__game.stage.testClient.state.styles[1]===style,style);
+   await touchB('touchStart',miss);await touchB('touchEnd');
+   for(const p of [a,b])await p.waitForFunction(style=>window.__game.stage.testDistractions.items.some(i=>i.style===style),style);
+   assert.equal(await b.locator(`[data-style="${style}"]`).getAttribute('aria-pressed'),'true','Rendering the projectile preserves the selected player style');
+   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0);
+ }
+ const preview=await a.evaluate(()=>{
+   const d=window.__game.stage.testDistractions,c=document.createElement('canvas');c.width=360;c.height=480;
+   const g=c.getContext('2d');g.fillStyle='#e9e3d5';g.fillRect(0,0,c.width,c.height);g.font='14px sans-serif';
+   ['jelly','fabric','clay','fur','bubble'].forEach((style,i)=>{
+     const y=48+i*94,sprite=d.sprite(style);g.fillStyle='#2C2D3D';g.fillText(style,16,y+5);
+     for(const [x,r] of [[170,28],[286,10]])g.drawImage(sprite,x-r*1.4,y-r*1.4,r*2.8,r*2.8);
+   });return c.toDataURL('image/png').split(',')[1];
+ });
+ await writeFile('test-results/duel-projectile-styles.png',Buffer.from(preview,'base64'));
  await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
  assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.health[0]),40);
  // Vertical swipe still throws the main character after moving sideways.

@@ -255,12 +255,28 @@ test('rapid taps launch overlapping balls before the first hit; each hit still c
   t.advance(2);assert.deepEqual(m.health,[40,100]);
 });
 
-test('AI starts immediately, shares style and physics, takes turns and resumes after a human leaves',()=>{
+test('small balls keep the thrower style at launch on both clients, including AI',()=>{
+  const t=setup();t.add('a','jelly');t.add('b','fabric');t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  for(const style of P.STYLES){
+    t.engine.receive('b',JSON.stringify({type:'style',style}));
+    t.engine.receive('b',JSON.stringify({type:'distraction',kind:'ball',style:'forged',target:[4,.35,-20],match:id,generation:0}));
+    for(const key of ['a','b'])assert.equal(t.messages.get(key).filter(e=>e.type==='distraction').at(-1).style,style);
+    t.advance(.16);
+  }
+  assert.deepEqual(m.projectiles.map(p=>p.style),P.STYLES,'Changing styles does not repaint already flying balls');
+  t.engine.receive('b',JSON.stringify({type:'style',style:'fabric'}));assert.equal(m.projectiles.at(-1).style,'bubble');
+  const solo=setup();solo.add('player','fur');solo.advance(3.1);
+  const aiStyle=solo.engine.matches.get(solo.engine.clients.get('player').match).state.styles[1];
+  assert.notEqual(aiStyle,'fur');assert.equal(solo.messages.get('player').find(e=>e.type==='distraction').style,aiStyle,'AI projectiles use the AI style');
+});
+
+test('AI starts immediately with a different style, shares physics, takes turns and resumes after a human leaves',()=>{
   const t=setup();t.add('a','fabric');
   let room=t.engine.matches.get(t.engine.clients.get('a').match);
-  assert.equal(room.state.bot,1);assert.deepEqual(room.state.styles,['fabric','fabric']);assert.equal(t.engine.clients.size,1);
+  assert.equal(room.state.bot,1);assert.equal(room.state.styles[0],'fabric');assert.notEqual(room.state.styles[1],'fabric');assert.equal(t.engine.clients.size,1);
   t.advance(2);assert(P.canShoot(room.state,0));
-  t.engine.receive('a',JSON.stringify({type:'style',style:'fur'}));assert.deepEqual(room.state.styles,['fur','fur']);
+  for(const style of P.STYLES){t.engine.receive('a',JSON.stringify({type:'style',style}));assert.equal(room.state.styles[0],style);assert.notEqual(room.state.styles[1],style);}
   const id=room.state.id;
   t.engine.receive('a',JSON.stringify({...shot,match:id,target:[9,6,-20]}));t.advance(.5);
   assert(room.state.balls[1].moveSeq>0,'AI reacts using normal movement');
@@ -272,7 +288,7 @@ test('AI starts immediately, shares style and physics, takes turns and resumes a
   t.engine.receive('a',JSON.stringify({...shot,match:id,generation:room.state.balls[0].generation,seq:before+1}));assert.equal(room.state.balls[0].seq,before);
   t.advance(8);assert.equal(t.engine.clients.get('a').match,t.engine.clients.get('b').match);
   room=t.engine.matches.get(t.engine.clients.get('a').match);assert.equal(room.state.bot,null);assert.deepEqual(room.state.scores,[0,0]);assert.deepEqual(room.state.health,[100,100]);
-  t.engine.disconnect('b');room=t.engine.matches.get(t.engine.clients.get('a').match);assert.equal(room.state.bot,1);assert.deepEqual(t.engine.queue,['a']);
+  t.engine.disconnect('b');room=t.engine.matches.get(t.engine.clients.get('a').match);assert.equal(room.state.bot,1);assert.notEqual(room.state.styles[0],room.state.styles[1]);assert.deepEqual(t.engine.queue,['a']);
 });
 
 test('AI practice restores health and timers; cancelled handoff returns to AI without a stuck room',()=>{
@@ -280,7 +296,10 @@ test('AI practice restores health and timers; cancelled handoff returns to AI wi
   const id=t.engine.clients.get('a').match,room=t.engine.matches.get(id);
   assert.equal(room.state.health[0],80,'AI small ball applies the same 20 damage');
   assert.equal(t.engine.active(),false,'Quiet solo play can hibernate after the AI action');
-  const fresh=setup();fresh.engine.restore([['a',JSON.parse(JSON.stringify(t.engine.attachment('a')))]]);
+  const saved=JSON.parse(JSON.stringify(t.engine.attachment('a')));saved.state.styles[1]=saved.state.styles[0];
+  const fresh=setup();fresh.engine.restore([['a',saved]]);
+  assert.notEqual(fresh.engine.matches.get(id).state.styles[0],fresh.engine.matches.get(id).state.styles[1],'Old matching AI styles are repaired on restore');
+  assert(fresh.messages.get('a').some(e=>e.type==='state'&&e.state.styles[0]!==e.state.styles[1]),'Existing clients receive the distinct AI style');
   assert.equal(fresh.engine.matches.get(id).state.health[0],80);assert.equal(fresh.engine.active(),false);
   fresh.engine.receive('a',JSON.stringify({...shot,match:id,target:[9,6,-20]}));fresh.advance(.3);fresh.add('b');
   assert.equal(fresh.engine.matches.get(id).state.handoff,true);

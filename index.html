@@ -1531,7 +1531,9 @@ function make3D(){
       return ray.z<-.01?camera.position.clone().addScaledVector(ray,(z-camera.position.z)/ray.z):V(0,.35,z);
     }
     const distractions=new window.DahroojDuelDistractions({
-      send:(kind,target)=>client.distract(kind,target),project:p=>toScreen(V(...p)),
+      send:(kind,target)=>{client.setStyle(ballStyle);return client.distract(kind,target);},project:p=>toScreen(V(...p)),
+      makeSprite:style=>makeStartBallSprite(style,'open',false,{t:0,parts:[]}),
+      styleAt:slot=>client.state?.styles[slot]??ballStyle,
       targetAt:p=>{const z=Math.max(OZ,Math.min(-1,O.pos.z)),v=planePoint(p,z);return [Math.max(-9,Math.min(9,v.x)),Math.max(.35,Math.min(6,v.y)),z];},
       position:p=>physics.position(p,client.slot),localSlot:()=>client.slot
     });
@@ -2243,7 +2245,7 @@ for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode))
 
 resize();
 // Reuse the exact five game renderers. Cache their output for the many-ball intro.
-function makeStartBallSprite(style,face,blinkOn=false){
+function makeStartBallSprite(style,face,blinkOn=false,state=bub){
   const previousStyle=ballStyle, radius=64;
   const sprite=document.createElement('canvas');
   sprite.width=sprite.height=Math.ceil(radius*2.8*dpr);
@@ -2255,7 +2257,7 @@ function makeStartBallSprite(style,face,blinkOn=false){
   });
   try{
     ballStyle=style;
-    paintBlob(g,points,0,0,radius,1,1,face,0,0,0,blinkOn);
+    paintBlob(g,points,0,0,radius,1,1,face,0,0,0,blinkOn,state);
   }finally{ballStyle=previousStyle;}
   return sprite;
 }

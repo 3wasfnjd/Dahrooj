@@ -31,7 +31,7 @@ export class Matchmaker {
     if(m.type==='style'&&P.STYLES.includes(m.style)){
       c.style=m.style;
       const room=this.matches.get(c.match);
-      if(room){room.state.styles[c.slot]=c.style;if(room.state.bot===1)room.state.styles[1]=c.style;this.broadcast(room);}
+      if(room){room.state.styles[c.slot]=c.style;if(room.state.bot===1)room.state.styles[1]=this.botStyle(c.style,room.state.styles[1]);this.broadcast(room);}
       this.changed();return;
     }
     const room=this.matches.get(c.match);
@@ -62,9 +62,15 @@ export class Matchmaker {
   throwSmall(room,slot,target){
     const position=room.state.balls[slot].p,body=P.distraction(slot,'ball',position,target);
     if(!body)return;
-    room.state.projectiles.push({slot,kind:'ball',body,t:0,hit:false});
-    const event={type:'distraction',match:room.state.id,slot,kind:'ball',target:[...target],position:[...position]};
+    const style=room.state.styles[slot];
+    room.state.projectiles.push({slot,kind:'ball',style,body,t:0,hit:false});
+    const event={type:'distraction',match:room.state.id,slot,kind:'ball',style,target:[...target],position:[...position]};
     for(const peer of room.players)this.emit(peer,event);
+  }
+  botStyle(playerStyle,current){
+    if(P.STYLES.includes(current)&&current!==playerStyle)return current;
+    const choices=P.STYLES.filter(style=>style!==playerStyle);
+    return choices[Math.floor(this.random()*choices.length)];
   }
   createRoom(players,bot=null){
     const id=this.id(),state=P.createMatch(id),room={players,state};state.bot=bot;state.handoff=false;
@@ -73,7 +79,7 @@ export class Matchmaker {
       if(key==null)return;
       const c=this.clients.get(key);c.match=id;c.slot=slot;c.nextDistraction=0;state.styles[slot]=c.style;
     });
-    if(bot===1)state.styles[1]=state.styles[0];
+    if(bot===1)state.styles[1]=this.botStyle(state.styles[0]);
     players.forEach((key,slot)=>this.emit(key,{type:'matched',slot,state:P.snapshot(state)}));
     return room;
   }
@@ -157,7 +163,11 @@ export class Matchmaker {
       const c=this.clients.get(key),peers=[...this.clients.values()].filter(p=>p.match&&p.match===c.match);
       if(!c.joined)continue;
       if(peers.length===1&&data?.state?.id===c.match&&data.state.bot===1){
-        this.matches.set(c.match,{players:[key,null],state:P.prepareMatch(data.state),brain:data.brain});
+        const previousStyle=data.state.styles[1];
+        data.state.styles[1]=this.botStyle(data.state.styles[0],data.state.styles[1]);
+        const room={players:[key,null],state:P.prepareMatch(data.state),brain:data.brain};
+        this.matches.set(c.match,room);
+        if(previousStyle!==room.state.styles[1])this.broadcast(room);
         c.slot=0;this.queue.push(key);
       }else if(peers.length===2&&data?.state?.id===c.match){
         if(!this.matches.has(c.match)){

@@ -45,6 +45,13 @@ try{
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),true);
   assert.equal(await a.evaluate(()=>window.__game.stage.testBody.visible),true,'A playable AI appears without another visitor');
   assert.equal(await a.locator('.duel-distractions').count(),0);
+  const aiStyle=await a.evaluate(()=>window.__game.stage.testClient.state.styles[1]);
+  assert.notEqual(aiStyle,await a.evaluate(()=>window.__game.stage.testClient.state.styles[0]));
+  await a.locator(`[data-style="${aiStyle}"]`).tap();
+  await a.waitForFunction(style=>{const s=window.__game.stage.testClient.state.styles;return s[0]===style&&s[1]!==style;},aiStyle);
+  await a.locator('[data-style="jelly"]').tap();
+  await a.waitForFunction(()=>{const s=window.__game.stage.testClient.state.styles;return s[0]==='jelly'&&s[1]!=='jelly';});
+  checks.push('AI always uses a different style, including when the player selects its current style.');
   await a.screenshot({path:resolve(root,'test-results/duel-ai.png')});
   await fire(a);
   await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[1].seq>0,null,{timeout:20000});
