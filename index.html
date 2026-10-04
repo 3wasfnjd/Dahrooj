@@ -1522,7 +1522,12 @@ function make3D(){
     const O={pos:V(0,OR,OZ),vel:V(0,0,0),axis:V(0,1,0),d:0,dv:0,
       grounded:true,touched:false,blink:0,nextBlink:2,hitT:0,lastHit:0};
     let bursts=[],localPopped=false,visible=false,opponentStyle=ballStyle,lastMatch='',lastGeneration=[-1,-1];
-    const desired=V(0,0,0);
+    const desired=V(0,0,0),cameraPoint=V(0,0,0);
+    function inFrontOfCamera(pos){
+      camera.updateMatrixWorld();
+      // Canvas projection mirrors points behind the camera; stop drawing before crossing it.
+      return cameraPoint.copy(pos).applyMatrix4(camera.matrixWorldInverse).z < -camera.near-OR;
+    }
     const distractions=new window.DahroojDuelDistractions({
       send:kind=>client.distract(kind),project:p=>toScreen(V(...p)),
       position:p=>physics.position(p,client.slot),localSlot:()=>client.slot
@@ -1586,7 +1591,7 @@ function make3D(){
       }
     }
     function paintOpponent(c){
-      if(!visible||O.touched)return;
+      if(!visible||O.touched||!inFrontOfCamera(O.pos))return;
       const p=toScreen(O.pos),rs=radiusOnScreen(O.pos,OR);
       const ax=toScreen(O.pos.clone().addScaledVector(O.axis,OR));
       const face=O.hitT>0?'closed':O.vel.length()>9?'wide':S.shot?'focus':'open';
@@ -1622,7 +1627,7 @@ function make3D(){
       leave(){client.leave();distractions.clear();aim.down=false;visible=false;body.visible=false;localPopped=false;},
       canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
       submitShot:command=>client.shoot(command),
-      playerVisible:()=>!localPopped,
+      playerVisible:()=>!localPopped&&inFrontOfCamera(S.pos),
       update(dt){
         client.setStyle(ballStyle);client.step(dt);displayScore();
         distractions.update(dt,client.canDistract());
@@ -1633,7 +1638,7 @@ function make3D(){
         if(syncBall(O,other,1-client.slot,dt)){opponentSkin.reset();opponentBubble.t=0;opponentBubble.parts=[];}
         lastMatch=client.state.id;
         S.side.fromArray(physics.vector(own.side,client.slot));S.shot=own.shot;S.shotT=own.shotT;
-        localPopped=own.popped;O.touched=other.popped;visible=true;body.visible=!O.touched;
+        localPopped=own.popped;O.touched=other.popped;visible=true;body.visible=!O.touched&&inFrontOfCamera(O.pos);
         opponentStyle=client.state.styles[1-client.slot];
         if(!localPopped&&S.shot&&!client.state.resetT&&outsideView())client.returnBall();
         let target=0;
@@ -1984,6 +1989,7 @@ function make3D(){
     renderer.render(scene,camera);
     fx.setTransform(dpr,0,0,dpr,0,0); fx.clearRect(0,0,W,H); fx.lineCap='round';
     if(stage.paintBehind) stage.paintBehind(fx);
+    if(ballRoot.visible){
     const bs=toScreen(S.pos), rs=screenRadius();
     const ax=toScreen(S.pos.clone().addScaledVector(S.axis,BR));
     const ang=Math.atan2(ax.y-bs.y,ax.x-bs.x);
@@ -2007,6 +2013,7 @@ function make3D(){
     const sk=skin.points(bs.x,bs.y,rs,S.d,ang,face==='laugh');
     let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; for(const q of sk.P){ mnx=Math.min(mnx,q.x);mxx=Math.max(mxx,q.x);mny=Math.min(mny,q.y);mxy=Math.max(mxy,q.y); }
     if(ballRoot.visible)paintBlob(c,sk.P,sk.cx,sk.cy,rs,Math.max(0.6,Math.min(1.6,(mxx-mnx)/(2*rs))),Math.max(0.55,Math.min(1.6,(mxy-mny)/(2*rs))),face,lx2,ly2,blushK,S.blink>0);
+    }
     if(stage.paint) stage.paint(fx);
     for(const s of fxDash){
       const k=s.life/s.max, t=1-Math.pow(1-k,3);
