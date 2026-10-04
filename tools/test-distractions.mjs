@@ -1,0 +1,132 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
+import {startLocal} from '../server/local.mjs';
+const app=await startLocal({port:0,transformHTML:s=>s
+  .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testDistractions:distractions,testOpponent:O,')
+  .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage};','window.__game={S,aim,toScreen,makeStartBallSprite,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage};')
+  .replace('function drawEye(c,ex,ey,er,lx,ly,face,blinkOn){','function drawEye(c,ex,ey,er,lx,ly,face,blinkOn){window.__eyeCount=(window.__eyeCount||0)+1;')
+  .replace('distraction:e=>distractions.launch(e)','distraction:e=>{window.__smallCount=(window.__smallCount||0)+1;distractions.launch(e);}')
+  .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')});
+const browser=await chromium.launch({headless:true,...(process.env.DAHROOJ_CHROMIUM?{executablePath:process.env.DAHROOJ_CHROMIUM}:{}),args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const errors=[],pages=[];
+async function open(){
+ const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+ await context.route('**/*',r=>r.request().url().startsWith(app.url+'/')?r.continue():r.abort());
+ await context.addInitScript(()=>Object.defineProperty(navigator,'onLine',{get:()=>false}));
+ const p=await context.newPage();pages.push(p);p.on('pageerror',e=>errors.push(String(e)));
+ await p.goto(app.url);await p.locator('#start-play').tap();await p.locator('[data-mode="opponent"]').tap();return p;
+}
+const ready=async p=>p.waitForFunction(()=>{const c=window.__game.stage.testClient;return c.state?.bot===null&&c.state.balls.every(b=>b.grounded&&!b.shot)&&!c.state.resetT;},null,{timeout:15000});
+const points=(p,x)=>p.evaluate(x=>{const g=window.__game;return [g.toScreen(g.S.pos),g.toScreen(g.S.pos.clone().add(new THREE.Vector3(x,0,0)))];},x);
+async function touchFor(p){const session=await p.context().newCDPSession(p);return (type,point,id=1)=>session.send('Input.dispatchTouchEvent',{type,touchPoints:point?[{x:point.x,y:point.y,id,radiusX:6,radiusY:6,force:1}]:[]});}
+try{
+ const a=await open(),b=await open();await ready(a);await ready(b);
+ const touchA=await touchFor(a),touchB=await touchFor(b);
+ for(const p of [a,b]){
+   assert.equal(await p.locator('.duel-distractions,[data-distraction]').count(),0,'No projectile buttons or icons');
+   assert.equal(await p.locator('.duel-health [role="progressbar"]').count(),2);
+   assert(await p.evaluate(()=>document.querySelector('.duel-health').getBoundingClientRect().top>document.querySelector('#count small').getBoundingClientRect().bottom));
+ }
+ // Both the shooter and defender can move using a horizontal touch on their body.
+ let move=await points(a,.65);await touchA('touchStart',move[0]);await touchA('touchMove',move[1]);await touchA('touchEnd');
+ await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].p[0]>.55);
+ await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].p[0]>.55);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.balls[0].shot),false);
+ assert.equal(await a.evaluate(()=>window.__game.aim.down),false);
+ move=await points(b,.9);await touchB('touchStart',move[0]);await touchB('touchMove',move[1]);await touchB('touchEnd');
+ await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[1].p[0]<-.8);
+ // One tap on the opponent throws one small ball; holding does not fire repeatedly.
+ const target=await b.evaluate(()=>window.__game.toScreen(window.__game.stage.testOpponent.pos));
+ await touchB('touchStart',target);await touchB('touchCancel');
+ assert.equal(await b.evaluate(()=>window.__game.stage.testDistractions.items.length),0);
+ for(let hit=1;hit<=3;hit++){
+   await touchB('touchStart',target);await touchB('touchEnd');
+   await a.waitForFunction(count=>window.__game.stage.testDistractions.items.filter(i=>i.incoming&&i.kind==='ball').length>=count,hit);
+   // A new touch is available while the previous balls are still travelling.
+   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0);
+ }
+ await a.screenshot({path:'test-results/duel-small-ball.png'});
+ for(const p of [a,b])await p.waitForFunction(()=>window.__game.stage.testClient.state.health[0]===40);
+ assert.equal(await b.evaluate(()=>window.__game.aim.down),false);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.canShoot()),true);
+ await b.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+ await b.screenshot({path:'test-results/duel-touch-controls.png'});
+ // A different touch location produces a miss instead of following the opponent.
+ const miss=await b.evaluate(()=>window.__game.toScreen(new THREE.Vector3(2,.35,-20)));
+ await touchB('touchStart',miss);await touchB('touchEnd');
+ await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length>0);
+ await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.health[0]),40);
+ // The projectile uses the sender's original artwork in both views, for every style.
+ for(const style of ['fabric','fur','clay','bubble','jelly']){
+   await b.locator(`[data-style="${style}"]`).tap();
+   await a.waitForFunction(style=>window.__game.stage.testClient.state.styles[1]===style,style);
+   await touchB('touchStart',miss);await touchB('touchEnd');
+   for(const p of [a,b])await p.waitForFunction(style=>window.__game.stage.testDistractions.items.some(i=>i.style===style),style);
+   assert.equal(await b.locator(`[data-style="${style}"]`).getAttribute('aria-pressed'),'true','Rendering the projectile preserves the selected player style');
+   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0);
+ }
+ const preview=await a.evaluate(()=>{
+   const d=window.__game.stage.testDistractions,c=document.createElement('canvas');c.width=360;c.height=480;
+   const g=c.getContext('2d');g.fillStyle='#e9e3d5';g.fillRect(0,0,c.width,c.height);g.font='14px sans-serif';
+   const eyes=[];
+   ['jelly','fabric','clay','fur','bubble'].forEach((style,i)=>{
+     d.sprites.delete(style);const before=window.__eyeCount,sprite=d.sprite(style),after=window.__eyeCount;
+     const original=window.__game.makeStartBallSprite(style,'open',false,{t:0,parts:[]});
+     eyes.push({style,small:after-before,character:window.__eyeCount-after});
+     const y=48+i*94;g.fillStyle='#2C2D3D';g.fillText(style,16,y+5);
+     for(const [x,r,art] of [[170,28,original],[286,10,sprite]])g.drawImage(art,x-r*1.4,y-r*1.4,r*2.8,r*2.8);
+   });return {png:c.toDataURL('image/png').split(',')[1],eyes};
+ });
+ for(const row of preview.eyes){assert.equal(row.small,0,`${row.style} projectile has no eyes`);assert.equal(row.character,2,`${row.style} character keeps its eyes`);}
+ await writeFile('test-results/duel-projectile-styles.png',Buffer.from(preview.png,'base64'));
+ await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.health[0]),40);
+ // Keep a movement finger down while a second finger throws repeatedly.
+ let smallCount=await a.evaluate(()=>window.__smallCount);
+ move=await points(b,-.15);await touchB('touchStart',move[0]);await touchB('touchMove',move[1]);
+ for(let i=0;i<2;i++){
+   await touchB('touchStart',miss,2);await touchB('touchMove',move[i%2]);await touchB('touchEnd',miss,2);
+   await a.waitForFunction(count=>window.__smallCount===count,++smallCount);
+   await b.waitForFunction(()=>window.__game.stage.testDistractions.cooldown===0);
+ }
+ await touchB('touchMove',move[0]);await touchB('touchEnd',move[0]);
+ await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[1].p[0]<-.8);
+ // The reverse order also works, including releasing movement before the tap.
+ await touchB('touchStart',miss,2);move=await points(b,-.15);
+ await touchB('touchStart',move[0]);await touchB('touchMove',move[1]);await touchB('touchEnd',move[1]);
+ assert.equal(await a.evaluate(()=>window.__smallCount),smallCount);
+ await touchB('touchEnd',miss,2);await a.waitForFunction(count=>window.__smallCount===count,++smallCount);
+ await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.health[0]),40);
+ // Main swipe and movement use separate fingers. Releasing movement cannot launch the shot.
+ move=await points(a,.2);await touchA('touchStart',move[0]);await touchA('touchMove',move[1]);
+ await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].p[0]>.75);
+ const shot=await a.evaluate(()=>{const g=window.__game;return [g.toScreen(g.S.pos),g.toScreen(new THREE.Vector3(0,.35,-20))];});
+ await touchA('touchStart',shot[0],2);await touchA('touchMove',shot[1],2);
+ const swipe=await a.evaluate(()=>window.__game.aim.pts);
+ await touchA('touchMove',move[0]);await touchA('touchEnd',move[0]);
+ assert.equal(await a.evaluate(()=>window.__game.aim.down),true);
+ assert.deepEqual(await a.evaluate(()=>window.__game.aim.pts),swipe,'Movement finger never changes the shot path');
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.balls[0].seq),0);
+ await a.screenshot({path:'test-results/duel-two-finger-aim.png'});
+ await touchA('touchEnd',shot[1],2);
+ await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].seq>0);
+ await ready(a);await ready(b);
+ assert.equal(await b.evaluate(()=>window.__game.stage.testClient.state.health[1]),100,'Moved defender dodges the center swipe');
+ assert.equal(await a.evaluate(()=>window.__game.stage.testClient.canDistract()),true);
+ assert.equal(await b.evaluate(()=>window.__game.stage.testClient.canDistract()),false);
+ for(const [width,height] of [[320,568],[844,390]]){
+   await b.setViewportSize({width,height});
+   assert(await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ }
+ await a.locator('[data-mode="cans"]').tap();
+ await b.waitForFunction(()=>window.__game.stage.testClient.state?.bot===1);
+ assert.equal(await a.locator('.duel-health').count(),0);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: no projectile UI; eyeless balls in all five styles; independent two-finger movement and repeated throws in either order; main swipe ownership, direct target taps, misses, half damage, cancellation, AI fallback and mobile layouts.');
+}catch(error){
+ for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:`test-results/duel-touch-failure-${i}.png`}).catch(()=>{});
+ throw error;
+}finally{await browser.close();await app.close();}
