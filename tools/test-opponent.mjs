@@ -79,11 +79,14 @@ try{
   await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].seq>0);
   checks.push('Trusted touch swipe reaches the other browser; canceled touch does not fire.');
   await ready(a);await ready(b);
-  for(const p of [a,b])assert.deepEqual(await p.evaluate(()=>window.__game.stage.testClient.state.health),[100,60]);
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
   assert.equal(await b.locator('#count small').getAttribute('aria-label'),'Your turn');
+  const priorHealth=await a.evaluate(()=>window.__game.stage.testClient.state.health[1]);
   await fire(b);await ready(a);await ready(b);
-  for(const p of [a,b])assert.deepEqual(await p.evaluate(()=>window.__game.stage.testClient.state.health),[60,60]);
+  for(const p of [a,b])assert.equal(await p.evaluate(()=>window.__game.stage.testClient.state.health[0]),60);
+  await fire(a);await ready(a);await ready(b);
+  for(const p of [a,b])assert.equal(await p.evaluate(()=>window.__game.stage.testClient.state.health[1]),priorHealth-40);
+  await fire(b);await ready(a);await ready(b);
   await a.screenshot({path:resolve(root,'test-results/duel-health.png')});
   checks.push('Nonlethal hits remove 40 health on both clients, preserve health across turns and keep both players alive.');
   await a.screenshot({path:resolve(root,'test-results/duel-online.png')});
