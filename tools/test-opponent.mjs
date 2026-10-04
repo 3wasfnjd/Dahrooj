@@ -80,7 +80,7 @@ try{
   checks.push('Trusted touch swipe reaches the other browser; canceled touch does not fire.');
   await ready(a);await ready(b);
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
-  assert.equal(await b.locator('#count small').textContent(),'Your turn');
+  assert.equal(await b.locator('#count small').getAttribute('aria-label'),'Your turn');
   await fire(b);await ready(a);await ready(b);
   await a.screenshot({path:resolve(root,'test-results/duel-online.png')});
   for(const style of ['jelly','fabric','clay','fur','bubble']){
@@ -100,7 +100,7 @@ try{
     assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
     assert.equal(await b.evaluate(()=>window.__game.stage.canAim()),true);
     await fire(b);await ready(a);await ready(b);
-    assert.equal(await a.locator('#count small').textContent(),'Your turn');
+    assert.equal(await a.locator('#count small').getAttribute('aria-label'),'Your turn');
   }
   checks.push('All five styles sync; hits pop the correct player on both screens without a white ring; scores and respawns agree; second room stays unchanged.');
   checks.push('Turns alternate after each shot; only the current player can aim; both cameras show the correct turn and both players can score.');

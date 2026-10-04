@@ -8,7 +8,7 @@ Branch: `feature/cans-ai-opponent`. The six original modes retain their local ga
 - Gravity, launch velocity, curve, drag, and flight integration match the existing cans mode numerically. Both characters retain radius `0.24` with normal camera perspective.
 - Five separate Chromium contexts: players 1+2 and 3+4 pair independently; player 5 waits and is automatically paired with a remaining player after a departure.
 - Trusted touch swipe reaches the other browser; a canceled gesture does not shoot.
-- Turns alternate after a hit, miss, or off-screen return; the server rejects the waiting player’s shots. A small label below the score identifies the turn.
+- Turns alternate after a hit, miss, or off-screen return; the server rejects the waiting player’s shots. A small black outline icon below the score identifies the turn: ball with an upward arrow for the local turn, hourglass for the opponent. Accessible labels remain available to screen readers.
 - Both camera orientations can hit and score. All five original styles synchronize, with pop particles and sound, no pop outline, and synchronized reset/score.
 - Dropped connections reconnect and rematch; leaving Duel closes the connection. Other modes never join matchmaking.
 - Layout and projected radius verified at 320×568, 390×844, 844×390, and 1280×800. No browser script errors.
