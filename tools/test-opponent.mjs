@@ -25,10 +25,11 @@ async function open(width=390,height=844){
   clients.push({page,context});return page;
 }
 const select=(p,mode)=>p.locator(`[data-mode="${mode}"]`).tap();
-const ready=p=>p.waitForFunction(()=>window.__game.stage.testClient?.canShoot(),null,{timeout:12000});
+const ready=p=>p.waitForFunction(()=>{const m=window.__game.stage.testClient?.state;return m&&!m.resetT&&m.balls.every(b=>b.grounded&&!b.shot&&!b.popped);},null,{timeout:12000});
 const state=p=>p.evaluate(()=>{const c=window.__game.stage.testClient;return {status:c?.status,slot:c?.slot,match:c?.state?.id,scores:c?.state?.scores,balls:c?.state?.balls};});
 async function fire(page){
   await ready(page);
+  await page.waitForFunction(()=>window.__game.stage.testClient.canShoot());
   await page.evaluate(()=>{
     const g=window.__game,a=g.toScreen(g.S.pos),b=g.toScreen(new THREE.Vector3(0,.35,-20));
     g.aim.down=true;g.aim.pts=[{x:a.x,y:a.y,t:0},{x:b.x,y:b.y,t:.04}];g.aim.x=b.x;g.aim.y=b.y;g.shoot();
@@ -63,17 +64,24 @@ try{
     assert.equal(layout.radius,layout.player);assert.equal(layout.projected,layout.sameDepth);assert(layout.projected<layout.near);
   }
   await a.setViewportSize({width:390,height:844});checks.push('Same character radius and natural perspective at 320/390/844/1280 px; existing mode picker fits.');
+  await a.waitForFunction(()=>window.__game.camera.aspect===innerWidth/innerHeight);
+  assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),true);
   // The actual touch event handlers must send an upward swipe, and cancel must not shoot.
   const session=await clients[0].context.newCDPSession(a);
   const touch=(type,x,y)=>session.send('Input.dispatchTouchEvent',{type,touchPoints:['touchEnd','touchCancel'].includes(type)?[]:[{x,y,id:1,radiusX:6,radiusY:6,force:1}]});
   let points=await a.evaluate(()=>{const g=window.__game;return [g.toScreen(g.S.pos),g.toScreen(new THREE.Vector3(0,.35,-20))];});
-  await touch('touchStart',points[0].x,points[0].y);await touch('touchMove',points[1].x,points[1].y);await touch('touchCancel');
+  await touch('touchStart',points[0].x,points[0].y);
+  assert.equal(await a.evaluate(()=>window.__game.aim.down),true,'Touch begins on the resized game canvas');
+  await touch('touchMove',points[1].x,points[1].y);await touch('touchCancel');
   assert.equal((await state(a)).balls[0].shot,false);
   await touch('touchStart',points[0].x,points[0].y);await touch('touchMove',points[1].x,points[1].y);await touch('touchEnd');
   await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].seq>0);
   await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].seq>0);
   checks.push('Trusted touch swipe reaches the other browser; canceled touch does not fire.');
   await ready(a);await ready(b);
+  assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
+  assert.equal(await b.locator('#count small').textContent(),'Your turn');
+  await fire(b);await ready(a);await ready(b);
   await a.screenshot({path:resolve(root,'test-results/duel-online.png')});
   for(const style of ['jelly','fabric','clay','fur','bubble']){
     await b.locator(`[data-style="${style}"]`).tap();
@@ -89,11 +97,13 @@ try{
     if(style==='jelly')await b.screenshot({path:resolve(root,'test-results/duel-pop.png')});
     assert.deepEqual((await state(c)).scores,[0,0]);assert.deepEqual((await state(d)).scores,[0,0]);
     await ready(a);await ready(b);
+    assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
+    assert.equal(await b.evaluate(()=>window.__game.stage.canAim()),true);
+    await fire(b);await ready(a);await ready(b);
+    assert.equal(await a.locator('#count small').textContent(),'Your turn');
   }
   checks.push('All five styles sync; hits pop the correct player on both screens without a white ring; scores and respawns agree; second room stays unchanged.');
-  const beforeB=(await state(b)).scores[1];await fire(b);
-  await a.waitForFunction(before=>window.__game.stage.testClient.state.scores[1]===before+1,beforeB,{timeout:7000});
-  checks.push('Second player can shoot and score from the mirrored camera.');
+  checks.push('Turns alternate after each shot; only the current player can aim; both cameras show the correct turn and both players can score.');
   // Fifth entrant waits; leaving automatically pairs the waiting entrant with the survivor.
   const e=await open();await select(e,'opponent');await e.waitForFunction(()=>window.__game.stage.testClient.status==='waiting');
   await select(a,'free');await ready(b);await ready(e);
@@ -116,6 +126,7 @@ try{
   console.log(JSON.stringify({ok:true,checks},null,2));
 }catch(error){
   console.error(error);console.error('Browser errors:',errors);console.error('Checks completed:',checks);
+  for(const c of clients)console.error(await c.page.evaluate(()=>{const g=window.__game,n=g?.stage.testClient;return {status:n?.status,slot:n?.slot,pending:n?.pending,state:n?.state,aim:g?.aim};}).catch(()=>null));
   for(let i=0;i<clients.length;i++)await clients[i].page.screenshot({path:resolve(root,`test-results/duel-failure-${i}.png`)}).catch(()=>{});
   process.exitCode=1;
 }finally{await browser.close();await app.close();}

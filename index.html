@@ -30,6 +30,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 }
 #count.show{animation:countPop 1.5s cubic-bezier(.2,.9,.3,1) both}
 #count.duel{opacity:1;animation:none;transform:none;direction:ltr;font-size:24px;left:64px;right:64px;line-height:1.3}
+#count.duel small{display:block;font-size:13px;font-weight:600;margin-top:5px}
 @keyframes countPop{
   0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-8deg)}
   16%{opacity:1;transform:translateY(0) scale(1.18) rotate(4deg)}
@@ -1525,7 +1526,11 @@ function make3D(){
     function displayScore(){
       const labels={connecting:'Connecting…',waiting:'Waiting for player…',reconnecting:'Reconnecting…',version:'Refresh to play'};
       const text=client.state?`${client.state.scores[client.slot]} — ${client.state.scores[1-client.slot]}`:(labels[client.status]||'Connecting…');
-      if(elCount.textContent!==text)elCount.textContent=text;
+      const turn=client.state?(client.state.turn===client.slot?'Your turn':'Opponent’s turn'):'';
+      if(elCount.textContent!==text+turn){
+        elCount.textContent=text;
+        if(turn){const label=document.createElement('small');label.textContent=turn;elCount.append(label);}
+      }
     }
     function radiusOnScreen(pos,r){
       const p=toScreen(pos),edge=toScreen(pos.clone().addScaledVector(camera.up,r));
@@ -1895,7 +1900,7 @@ function make3D(){
     S.shot=true; S.shotT=0; S.grounded=false; S.prevZ=S.pos.z; S.prevY=S.pos.y;
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp2/3000)*8;
     whoosh(Math.min(1,sp2/3000));
-    if(stage.submitShot)stage.submitShot({target:target.toArray(),flight:ft,curve});
+    if(stage.submitShot)stage.submitShot({target:[target.x,target.y,stage.aimZ],flight:ft,curve});
     if(stage.onHit) stage.onHit(sp2);
   }
   gcv.addEventListener('pointerup',shoot);

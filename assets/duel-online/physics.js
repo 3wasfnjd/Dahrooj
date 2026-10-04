@@ -13,6 +13,8 @@
     match.balls[slot]=ball(slot,old.generation+1);
     match.balls[slot].seq=old.seq;
   }
+  function endTurn(match,slot){reset(match,slot);match.turn=1-slot;}
+  function canShoot(match,slot){return match.turn===slot&&!match.resetT&&match.balls.every(b=>b.grounded&&!b.shot&&!b.popped);}
   // The second player sees the same camera, rotated through 180 degrees.
   function position(p,slot){return slot?[-p[0],p[1],-DISTANCE-p[2]]:[...p];}
   function vector(v,slot){return slot?[-v[0],v[1],-v[2]]:[...v];}
@@ -49,13 +51,13 @@
     if(b.shot){b.shotT+=dt;b.restT=b.grounded&&length(v)<.35?b.restT+dt:0;}
     return impact;
   }
-  function createMatch(id){return {id,balls:[ball(0),ball(1)],scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
+  function createMatch(id){return {id,turn:0,balls:[ball(0),ball(1)],scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
   function stepMatch(m,dt){
     const events=[];
     if(m.resetT>0){
       for(const b of m.balls)stepBall(b,dt);
       m.resetT-=dt;
-      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);events.push({type:'reset',id:++m.event});}
+      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);m.turn=1-m.turn;events.push({type:'reset',id:++m.event});}
       return events;
     }
     for(const b of m.balls)stepBall(b,dt);
@@ -81,12 +83,12 @@
     for(let slot=0;slot<2;slot++){
       const b=m.balls[slot];if(!b.shot)continue;
       const p=position(b.p,slot);
-      if(b.missT>0){b.missT-=dt;if(b.missT<=0)reset(m,slot);}
+      if(b.missT>0){b.missT-=dt;if(b.missT<=0)endTurn(m,slot);}
       else if(b.restT>.5||b.shotT>5||Math.abs(p[0])>16||p[2]<-34||p[2]>6)b.missT=1.7;
     }
     return events;
   }
   function active(m){return m.resetT>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||length(b.v)>.001));}
   function snapshot(m){return JSON.parse(JSON.stringify(m));}
-  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,STYLES,ball,reset,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
+  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,STYLES,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
 })();

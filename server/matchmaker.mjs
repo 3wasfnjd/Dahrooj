@@ -34,13 +34,16 @@ export class Matchmaker {
       this.changed();return;
     }
     const room=this.matches.get(c.match);
-    if(!room||m.match!==c.match||room.state.resetT>0)return;
+    if(!room||m.match!==c.match)return;
     const ball=room.state.balls[c.slot];
-    if(m.type==='shot'&&m.generation===ball.generation&&P.launch(ball,c.slot,m)){
+    if(m.type==='shot'){
+      if(!P.canShoot(room.state,c.slot)||m.generation!==ball.generation||!P.launch(ball,c.slot,m)){
+        this.emit(key,{type:'rejected',seq:m.seq,state:P.snapshot(room.state)});return;
+      }
       this.broadcast(room);this.changed();
-    }else if(m.type==='return'&&m.generation===ball.generation&&ball.shot&&ball.shotT>.15){
+    }else if(m.type==='return'&&!room.state.resetT&&m.generation===ball.generation&&ball.shot&&ball.shotT>.15){
       // Existing immediate return when the player's own ball leaves their camera.
-      P.reset(room.state,c.slot);this.broadcast(room);this.changed();
+      P.endTurn(room.state,c.slot);this.broadcast(room);this.changed();
     }
   }
   pair(){
@@ -115,6 +118,9 @@ export class Matchmaker {
       if(peers.length===2&&data?.state?.id===c.match){
         if(!this.matches.has(c.match)){
           peers.sort((a,b)=>a.slot-b.slot);
+          if(data.state.turn!==0&&data.state.turn!==1){
+            data.state.turn=0;data.state.resetT=0;P.reset(data.state,0);P.reset(data.state,1);
+          }
           this.matches.set(c.match,{players:peers.map(p=>p.key),state:data.state});
         }
       }else {delete c.match;delete c.slot;this.queue.push(key);}

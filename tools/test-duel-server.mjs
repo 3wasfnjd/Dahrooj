@@ -43,13 +43,16 @@ test('authoritative shot pops the opponent once, syncs scores, preserves other r
   t.engine.receive('b',JSON.stringify({...shot,match:id,generation:1}));t.advance(1.3);
   assert.deepEqual(match.scores,[1,1],'second player has the same throw in the mirrored camera');
 });
-test('both simultaneous throws can collide; the server owns the outcome',()=>{
+test('only the current player can shoot; simultaneous requests cannot bypass turns',()=>{
   const t=setup();t.add('a');t.add('b');t.advance(2);
-  const id=t.engine.clients.get('a').match;
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  t.engine.receive('b',JSON.stringify({...shot,match:id}));
+  assert.equal(m.balls[1].shot,false);assert.equal(m.turn,0);
   for(const key of ['a','b'])t.engine.receive(key,JSON.stringify({...shot,match:id}));
-  t.advance(.7);
-  const m=t.engine.matches.get(id).state;
-  assert.deepEqual(m.scores,[1,1]);assert(m.balls.every(b=>b.popped));
+  assert.equal(m.balls[0].shot,true);assert.equal(m.balls[1].shot,false);
+  t.advance(1.3);assert.deepEqual(m.scores,[1,0]);assert.equal(m.turn,0);
+  t.engine.receive('b',JSON.stringify({...shot,match:id}));assert.equal(m.balls[1].shot,false);
+  t.advance(3);assert.equal(m.turn,1);assert.equal(P.canShoot(m,0),false);assert.equal(P.canShoot(m,1),true);
 });
 test('forged rooms, scores, bad inputs, replays and stale generations cannot change gameplay',()=>{
   const t=setup();for(const key of ['a','b','c','d'])t.add(key);t.advance(2);
@@ -62,7 +65,9 @@ test('forged rooms, scores, bad inputs, replays and stale generations cannot cha
   t.engine.receive('a',JSON.stringify({...shot,match:id}));
   assert.equal(m.balls[0].shot,false);assert.deepEqual(m.scores,[1,0]);
   t.engine.receive('a',JSON.stringify({...shot,match:id,generation:1}));assert.equal(m.balls[0].shot,false);
-  t.engine.receive('a',JSON.stringify({...shot,seq:2,match:id,generation:1}));assert.equal(m.balls[0].shot,true);
+  t.engine.receive('a',JSON.stringify({...shot,seq:2,match:id,generation:1}));assert.equal(m.balls[0].shot,false);
+  t.engine.receive('b',JSON.stringify({...shot,match:id,generation:1}));t.advance(4);
+  t.engine.receive('a',JSON.stringify({...shot,seq:2,match:id,generation:2}));assert.equal(m.balls[0].shot,true);
 });
 test('curve, velocity and every integration step match the existing cans physics',()=>{
   for(const curve of [-1,0,1])for(const flight of [.8,1.2,1.6]){
@@ -87,15 +92,21 @@ test('miss and off-screen return are restricted to the sender; styles stay playe
   t.engine.receive('a',JSON.stringify({...shot,match:id,target:[9,6,-20]}));t.advance(.3);
   t.engine.receive('a',JSON.stringify({type:'return',match:id,generation:0}));
   assert.equal(m.balls[0].generation,1);assert.equal(m.balls[1].generation,0);assert.deepEqual(m.scores,[0,0]);
-  t.advance(2);t.engine.receive('a',JSON.stringify({...shot,seq:2,generation:1,match:id,target:[9,6,-20]}));t.advance(8);
-  assert.equal(m.balls[0].shot,false);assert.equal(m.balls[0].generation,2);
+  assert.equal(m.turn,1);
+  t.advance(2);t.engine.receive('b',JSON.stringify({...shot,generation:0,match:id,target:[9,6,-20]}));t.advance(8);
+  assert.equal(m.balls[1].shot,false);assert.equal(m.balls[1].generation,1);assert.equal(m.turn,0);
 });
 test('hibernation restores idle pairs, pending joins and FIFO order without duplicate rooms',()=>{
   const t=setup();for(const k of ['a','b','c','d','e'])t.add(k);t.engine.connect('f');t.advance(2);
+  const match=t.engine.clients.get('a').match;
+  t.engine.receive('a',JSON.stringify({...shot,match,target:[9,6,-20]}));t.advance(.3);
+  t.engine.receive('a',JSON.stringify({type:'return',match,generation:0}));t.advance(2);
   const entries=[...t.engine.clients.keys()].map(k=>[k,JSON.parse(JSON.stringify(t.engine.attachment(k)))]);
   const fresh=setup();fresh.engine.restore(entries);
   assert.deepEqual([...fresh.engine.matches.values()].map(r=>r.players),[['a','b'],['c','d']]);
   assert.deepEqual(fresh.engine.queue,['e']);
+  assert.equal(fresh.engine.matches.get(match).state.turn,1,'Current turn survives hibernation');
+  assert.equal(P.canShoot(fresh.engine.matches.get(match).state,1),true);
   fresh.engine.receive('f',JSON.stringify({type:'join',protocol:1,style:'bubble'}));
   assert.deepEqual([...fresh.engine.matches.values()].at(-1).players,['e','f']);
   assert.equal(fresh.engine.matches.size,3);

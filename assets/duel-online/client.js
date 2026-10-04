@@ -39,6 +39,9 @@
           this.slot=m.slot;this.sequence=0;this.pending=null;this.lastEvent=m.state.event;
           this.state=m.state;this.setStatus('playing');return;
         }
+        if(m.type==='rejected'&&this.state?.id===m.state?.id&&this.pending?.seq===m.seq){
+          this.pending=null;this.state=m.state;return;
+        }
         if(m.type!=='state'||!this.state||m.state.id!==this.state.id)return;
         const old=this.state,own=m.state.balls[this.slot];
         // Keep an immediate local launch while a pre-launch server frame is in flight.
@@ -73,7 +76,7 @@
     send(data){if(this.socket?.readyState!==WebSocket.OPEN)return false;this.socket.send(JSON.stringify(data));return true;}
     ping(){this.send({type:'ping',t:Date.now()});}
     setStyle(style){if(this.style===style)return;this.style=style;this.send({type:'style',style});}
-    canShoot(){const b=this.state?.balls[this.slot];return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&b?.grounded&&!b.shot&&!b.popped&&!this.state.resetT&&!this.pending;}
+    canShoot(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canShoot(this.state,this.slot)&&!this.pending;}
     shoot(command){
       if(!this.canShoot())return false;
       const b=this.state.balls[this.slot],message={...command,type:'shot',seq:++this.sequence,match:this.state.id,generation:b.generation};
