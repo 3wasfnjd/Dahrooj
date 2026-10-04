@@ -1,4 +1,4 @@
-/* Duel-only, visual throws. They never change the ball, camera, score or aiming input. */
+/* Duel throw rendering; shared trajectories, with damage decided by the server. */
 (() => {
   'use strict';
   const shapes={
@@ -29,9 +29,7 @@
     clear(){this.items=[];this.cooldown=0;this.bar.hidden=true;this.setDisabled(false);}
     launch(event){
       if(!this.paths[event.kind])return;
-      const body=P.ball(event.slot);body.p=[...event.position];body.grounded=true;
-      // Use Dahrooj's fastest existing throw and its exact launch solver.
-      P.launch(body,event.slot,{seq:1,target:[{can:-.45,bottle:.45,balloon:0}[event.kind],.9,-P.DISTANCE],flight:.8,curve:0});
+      const body=P.distraction(event.slot,event.kind,event.position);
       this.items.push({kind:event.kind,t:0,body,slot:event.slot,incoming:event.slot!==this.localSlot(),accumulator:0,drops:null,splashT:0});
       if(this.items.length>4)this.items.shift();
     }

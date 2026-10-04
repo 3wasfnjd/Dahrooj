@@ -39,7 +39,7 @@ export class DuelLobby extends DurableObject {
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-    if(url.pathname==='/health')return Response.json({ok:true,mode:'duel',protocol:1});
+    if(url.pathname==='/health')return Response.json({ok:true,mode:'duel',protocol:2});
     if(url.pathname==='/ws'){
       if(request.method!=='GET'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('WebSocket required',{status:426});
       // The game and socket are served together; unrelated sites cannot join this lobby.

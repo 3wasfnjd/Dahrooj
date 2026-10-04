@@ -3,8 +3,8 @@
   'use strict';
   const P=globalThis.DahroojDuelPhysics;
   class DuelClient {
-    constructor({status=()=>{},pop=()=>{},distraction=()=>{}}={}){
-      this.onStatus=status;this.onPop=pop;this.onDistraction=distraction;this.active=false;this.state=null;this.slot=0;
+    constructor({status=()=>{},pop=()=>{},distraction=()=>{},hit=()=>{}}={}){
+      this.onStatus=status;this.onPop=pop;this.onDistraction=distraction;this.onHit=hit;this.active=false;this.state=null;this.slot=0;
       this.pending=null;this.sequence=0;this.attempt=0;this.rtt=0;this.lastEvent=0;this.generation=0;
       this.pageHide=()=>this.suspend();this.pageShow=()=>{if(this.active&&!this.socket)this.connect();};
     }
@@ -21,7 +21,7 @@
       const current=()=>this.active&&generation===this.generation;
       ws.onopen=()=>{
         if(!current())return;
-        this.attempt=0;this.send({type:'join',protocol:1,style:this.style});this.ping();
+        this.attempt=0;this.send({type:'join',protocol:2,style:this.style});this.ping();
         clearInterval(this.heartbeat);this.heartbeat=setInterval(()=>{
           if(Date.now()-this.lastMessage>25000){ws.close();return;}this.ping();
         },8000);
@@ -57,7 +57,7 @@
         }
         for(const event of m.events||[]){
           if(event.id<=this.lastEvent)continue;
-          this.lastEvent=event.id;if(event.type==='pop')this.onPop(event);
+          this.lastEvent=event.id;if(event.type==='pop')this.onPop(event);else if(event.type==='hit')this.onHit(event);
         }
       };
       ws.onclose=()=>{

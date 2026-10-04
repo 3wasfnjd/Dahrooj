@@ -27,6 +27,8 @@ try{
    assert.equal(await a.evaluate(()=>window.__game.stage.testClient.canShoot()),true);
    await a.waitForTimeout(850);await a.screenshot({path:`test-results/duel-distraction-${kind}.png`});
    await a.waitForFunction(()=>window.__game.stage.testDistractions.items.length===0);
+   const expected=100-20*(['can','bottle','balloon'].indexOf(kind)+1);
+   for(const p of [a,b])assert.equal(await p.evaluate(()=>window.__game.stage.testClient.state.health[0]),expected);
  }
  for(const [width,height] of [[320,568],[844,390]]){
   await b.setViewportSize({width,height});

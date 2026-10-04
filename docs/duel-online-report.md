@@ -4,7 +4,7 @@ Branch: `feature/cans-ai-opponent`. The six original modes retain their local ga
 
 ## Passed
 
-- Nine server tests: FIFO pairing, isolated scores and messages, odd-player waiting, leave/requeue, both players scoring, rejected out-of-turn and simultaneous requests, mirrored coordinates, malformed/stale/replayed input, style synchronization, miss/return, idle hibernation restoration, heartbeat expiry, rate limits, real WebSockets, and origin rejection.
+- Server tests: FIFO pairing, isolated scores and messages, odd-player waiting, leave/requeue, both players scoring, rejected out-of-turn and simultaneous requests, mirrored coordinates, malformed/stale/replayed input, style synchronization, miss/return, idle hibernation restoration, heartbeat expiry, rate limits, real WebSockets, and origin rejection.
 - Gravity, launch velocity, curve, drag, and flight integration match the existing cans mode numerically. Both characters retain radius `0.24` with normal camera perspective.
 - Five separate Chromium contexts: players 1+2 and 3+4 pair independently; player 5 waits and is automatically paired with a remaining player after a departure.
 - Trusted touch swipe reaches the other browser; a canceled gesture does not shoot.
@@ -17,3 +17,7 @@ Branch: `feature/cans-ai-opponent`. The six original modes retain their local ga
 Commands: `npm test`, `npm run test:browser`, `npx wrangler deploy --dry-run`.
 
 Browser evidence is generated in `test-results/duel-*`. Browser checks use the real local WebSocket server and Chromium mobile/desktop emulation. They do not establish performance on physical mobile devices or on a public network. A public online test requires the deployed Worker URL, not a static GitHub mirror.
+
+## Health and damage
+
+Both players start with 100 health. A character hit removes 40; any distraction hit removes 20. The server simulates shared projectile physics and checks swept contacts once per projectile. Misses do not cause damage. Health persists between turns; only zero health causes a pop and score. Full health returns after the defeated round resets. A small ink-colored line above each character shows health without visible text. Regression coverage includes half damage, misses, lethal hits, round resets, hibernation, room isolation and synchronized browser health.

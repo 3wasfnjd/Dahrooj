@@ -11,7 +11,7 @@ function setup(){
   const engine=new Matchmaker({now:()=>now,id:()=>`match-${++nextId}`,send:(key,data)=>{
     if(!messages.has(key))messages.set(key,[]);messages.get(key).push(JSON.parse(data));
   },close:(...args)=>closed.push(args)});
-  function add(key,style='jelly'){engine.connect(key);engine.receive(key,JSON.stringify({type:'join',protocol:1,style}));}
+  function add(key,style='jelly'){engine.connect(key);engine.receive(key,JSON.stringify({type:'join',protocol:2,style}));}
   function advance(seconds){for(let i=0;i<Math.ceil(seconds*180);i++){now+=1000/180;engine.tick(P.STEP);}}
   return {engine,messages,closed,add,advance,now:delta=>{now+=delta;}};
 }
@@ -30,6 +30,7 @@ test('authoritative shot pops the opponent once, syncs scores, preserves other r
   const t=setup();for(const key of ['a','b','c','d'])t.add(key);
   t.advance(2);
   const id=t.engine.clients.get('a').match,other=t.engine.clients.get('c').match;
+  t.engine.matches.get(id).state.health[1]=P.BALL_DAMAGE;
   t.engine.receive('a',JSON.stringify({...shot,match:id}));
   t.advance(1.3);
   const match=t.engine.matches.get(id).state;
@@ -40,6 +41,7 @@ test('authoritative shot pops the opponent once, syncs scores, preserves other r
   t.advance(3);
   assert(match.balls.every(b=>!b.popped&&b.grounded&&!b.shot&&b.generation===1));
   assert.deepEqual(match.scores,[1,0]);
+  match.health[0]=P.BALL_DAMAGE;
   t.engine.receive('b',JSON.stringify({...shot,match:id,generation:1}));t.advance(1.3);
   assert.deepEqual(match.scores,[1,1],'second player has the same throw in the mirrored camera');
 });
@@ -50,7 +52,7 @@ test('only the current player can shoot; simultaneous requests cannot bypass tur
   assert.equal(m.balls[1].shot,false);assert.equal(m.turn,0);
   for(const key of ['a','b'])t.engine.receive(key,JSON.stringify({...shot,match:id}));
   assert.equal(m.balls[0].shot,true);assert.equal(m.balls[1].shot,false);
-  t.advance(1.3);assert.deepEqual(m.scores,[1,0]);assert.equal(m.turn,0);
+  t.advance(1.3);assert.deepEqual(m.scores,[0,0]);assert.equal(m.health[1],60);assert.equal(m.turn,0);
   t.engine.receive('b',JSON.stringify({...shot,match:id}));assert.equal(m.balls[1].shot,false);
   t.advance(3);assert.equal(m.turn,1);assert.equal(P.canShoot(m,0),false);assert.equal(P.canShoot(m,1),true);
 });
@@ -63,7 +65,7 @@ test('forged rooms, scores, bad inputs, replays and stale generations cannot cha
   assert.equal(m.balls[0].shot,false);assert.deepEqual(m.scores,[0,0]);
   t.engine.receive('a',JSON.stringify({...shot,match:id}));t.advance(4);
   t.engine.receive('a',JSON.stringify({...shot,match:id}));
-  assert.equal(m.balls[0].shot,false);assert.deepEqual(m.scores,[1,0]);
+  assert.equal(m.balls[0].shot,false);assert.deepEqual(m.scores,[0,0]);assert.equal(m.health[1],60);
   t.engine.receive('a',JSON.stringify({...shot,match:id,generation:1}));assert.equal(m.balls[0].shot,false);
   t.engine.receive('a',JSON.stringify({...shot,seq:2,match:id,generation:1}));assert.equal(m.balls[0].shot,false);
   t.engine.receive('b',JSON.stringify({...shot,match:id,generation:1}));t.advance(4);
@@ -107,7 +109,7 @@ test('hibernation restores idle pairs, pending joins and FIFO order without dupl
   assert.deepEqual(fresh.engine.queue,['e']);
   assert.equal(fresh.engine.matches.get(match).state.turn,1,'Current turn survives hibernation');
   assert.equal(P.canShoot(fresh.engine.matches.get(match).state,1),true);
-  fresh.engine.receive('f',JSON.stringify({type:'join',protocol:1,style:'bubble'}));
+  fresh.engine.receive('f',JSON.stringify({type:'join',protocol:2,style:'bubble'}));
   assert.deepEqual([...fresh.engine.matches.values()].at(-1).players,['e','f']);
   assert.equal(fresh.engine.matches.size,3);
 });
@@ -125,7 +127,7 @@ test('real WebSockets pair four clients and reject a cross-origin connection',as
     for(let i=0;i<4;i++){
       const socket=new WebSocket(app.url.replace('http:','ws:')+'/ws',{origin:app.url});clients.push(socket);
       histories.push([]);socket.on('message',raw=>histories[i].push(JSON.parse(raw.toString())));
-      await once(socket,'open');socket.send(JSON.stringify({type:'join',protocol:1,style:'jelly'}));
+      await once(socket,'open');socket.send(JSON.stringify({type:'join',protocol:2,style:'jelly'}));
     }
     await waitUntil(()=>histories.every(h=>h.some(m=>m.type==='matched')));
     const ids=histories.map(h=>h.find(m=>m.type==='matched').state.id);
@@ -143,14 +145,60 @@ async function waitUntil(check){
 test('distractions only come from waiting opponent, stay in the room and never change physics',()=>{
   const t=setup();for(const key of ['a','b','c','d','e'])t.add(key);t.advance(2);
   const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
-  const before=JSON.stringify(m),send=(key,extra={})=>t.engine.receive(key,JSON.stringify({type:'distraction',kind:'can',match:id,generation:0,...extra}));
+  const before=JSON.stringify(m.balls),send=(key,extra={})=>t.engine.receive(key,JSON.stringify({type:'distraction',kind:'can',match:id,generation:0,...extra}));
   send('a');send('c');send('e');send('b',{kind:'unknown'});send('b',{generation:99});
   assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,0);
   for(const kind of ['can','bottle','balloon']){send('b',{kind});send('b',{kind});t.now(1001);}
   for(const key of ['a','b'])assert.deepEqual(t.messages.get(key).filter(x=>x.type==='distraction').map(x=>x.kind),['can','bottle','balloon']);
   for(const key of ['c','d','e'])assert.equal(t.messages.get(key).filter(x=>x.type==='distraction').length,0);
-  assert.equal(JSON.stringify(m),before);
+  assert.equal(JSON.stringify(m.balls),before);assert.equal(m.projectiles.length,3);
   m.turn=1;send('b');assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,3);
   send('a');assert.equal(t.messages.get('b').filter(x=>x.type==='distraction').length,4);
   m.resetT=1;t.now(1001);send('a');assert.equal(t.messages.get('b').filter(x=>x.type==='distraction').length,4);
+});
+
+test('health persists across turns; three Dahrooj hits pop once and restore full health for the next round',()=>{
+  const t=setup();t.add('a');t.add('b');t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  assert.deepEqual(m.health,[100,100]);
+  const fire=key=>{const slot=t.engine.clients.get(key).slot,b=m.balls[slot];t.engine.receive(key,JSON.stringify({...shot,match:id,seq:b.seq+1,generation:b.generation}));};
+  for(let round=0;round<3;round++){
+    fire('a');t.advance(1.1);
+    assert.equal(m.health[1],Math.max(0,100-40*(round+1)));
+    assert.equal(m.balls[1].popped,round===2);assert.equal(m.scores[0],round===2?1:0);
+    t.advance(3);
+    if(round<2){fire('b');t.advance(4);}
+  }
+  assert.deepEqual(m.health,[100,100]);assert.deepEqual(m.scores,[1,0]);
+  assert.equal(t.messages.get('a').flatMap(x=>x.events||[]).filter(e=>e.type==='pop').length,1);
+});
+
+test('every distraction uses half the ball damage, requires a real hit and scores only on zero health',()=>{
+  for(const kind of ['can','bottle','balloon']){
+    const t=setup();for(const key of ['a','b','c','d'])t.add(key);t.advance(2);
+    const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state,other=t.engine.matches.get(t.engine.clients.get('c').match).state;
+    const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind,match:id,generation:m.balls[1].generation,damage:999}));
+    for(let i=0;i<5;i++){
+      send();t.advance(.6);assert.equal(m.health[0],100-i*20,'No damage before contact');
+      t.advance(.5);assert.equal(m.health[0],Math.max(0,100-(i+1)*20));
+      assert.equal(m.balls[0].popped,i===4);assert.deepEqual(other.health,[100,100]);
+      assert.equal(m.scores[1],i===4?1:0);
+    }
+    const hits=t.messages.get('a').flatMap(x=>x.events||[]).filter(e=>e.type==='hit');
+    assert.equal(hits.length,5);assert(hits.every(e=>e.amount===P.BALL_DAMAGE/2));
+    t.advance(3);assert.deepEqual(m.health,[100,100]);assert.deepEqual(m.scores,[0,1]);assert.equal(m.turn,1);
+  }
+});
+
+test('missed or already counted distractions cannot drain health; hibernation preserves damage',()=>{
+  const t=setup();t.add('a');t.add('b');t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'can',match:id,generation:0}));
+  send();m.balls[0].p[0]=6;t.advance(2);assert.deepEqual(m.health,[100,100]);
+  m.balls[0].p[0]=0;send();t.advance(2);assert.deepEqual(m.health,[80,100]);
+  t.advance(3);assert.deepEqual(m.health,[80,100]);
+  const entries=[...t.engine.clients.keys()].map(k=>[k,JSON.parse(JSON.stringify(t.engine.attachment(k)))]);
+  const fresh=setup();fresh.engine.restore(entries);assert.deepEqual(fresh.engine.matches.get(id).state.health,[80,100]);
+  for(const [,entry] of entries){delete entry.state.health;delete entry.state.projectiles;}
+  const legacy=setup();legacy.engine.restore(entries);assert.deepEqual(legacy.engine.matches.get(id).state.health,[100,100]);
 });

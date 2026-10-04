@@ -27,6 +27,7 @@ jobs:
       - run: npm ci --prefix tools --no-audit --no-fund
       - run: npx --prefix tools playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: node tools/test-distractions.mjs
       - run: npx wrangler deploy --dry-run
       - name: Deploy the separate Duel Worker when credentials are configured
         env:

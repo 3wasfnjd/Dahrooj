@@ -1,6 +1,6 @@
 import '../assets/duel-online/physics.js';
 const P=globalThis.DahroojDuelPhysics;
-const PROTOCOL=1;
+const PROTOCOL=2;
 export class Matchmaker {
   constructor({send,close,id=()=>crypto.randomUUID(),now=()=>Date.now(),changed=()=>{}}){
     Object.assign(this,{send,close,id,now,changed});
@@ -40,9 +40,10 @@ export class Matchmaker {
       if(!['can','bottle','balloon'].includes(m.kind)||room.state.turn===c.slot||room.state.resetT||ball.popped||
         m.generation!==ball.generation||now<(c.nextDistraction||0))return;
       c.nextDistraction=now+1000;
+      room.state.projectiles.push({slot:c.slot,kind:m.kind,body:P.distraction(c.slot,m.kind,ball.p),t:0,hit:false});
       const event={type:'distraction',match:c.match,slot:c.slot,kind:m.kind,position:[...ball.p]};
       for(const peer of room.players)this.emit(peer,event);
-      return;
+      this.changed();return;
     }
     if(m.type==='shot'){
       if(!P.canShoot(room.state,c.slot)||m.generation!==ball.generation||!P.launch(ball,c.slot,m)){
@@ -129,7 +130,7 @@ export class Matchmaker {
           if(data.state.turn!==0&&data.state.turn!==1){
             data.state.turn=0;data.state.resetT=0;P.reset(data.state,0);P.reset(data.state,1);
           }
-          this.matches.set(c.match,{players:peers.map(p=>p.key),state:data.state});
+          this.matches.set(c.match,{players:peers.map(p=>p.key),state:P.prepareMatch(data.state)});
         }
       }else {delete c.match;delete c.slot;this.queue.push(key);}
     }

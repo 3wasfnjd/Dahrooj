@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {startLocal} from '../server/local.mjs';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const app=await startLocal({port:0,transformHTML:html=>html
-  .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testOpponent:O,testRadius:OR,testPaintPop:paintPop,testBody:body,testBursts:()=>bursts,')
+  .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testOpponent:O,testRadius:OR,testPaintPop:paintPop,testPaintHealth:paintHealth,testBody:body,testBursts:()=>bursts,')
   .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage};',
     'window.__game={S,BR,aim,shoot,toScreen,camera,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage};')
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')});
@@ -79,13 +79,20 @@ try{
   await b.waitForFunction(()=>window.__game.stage.testClient.state.balls[0].seq>0);
   checks.push('Trusted touch swipe reaches the other browser; canceled touch does not fire.');
   await ready(a);await ready(b);
+  for(const p of [a,b])assert.deepEqual(await p.evaluate(()=>window.__game.stage.testClient.state.health),[100,60]);
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
   assert.equal(await b.locator('#count small').getAttribute('aria-label'),'Your turn');
   await fire(b);await ready(a);await ready(b);
+  for(const p of [a,b])assert.deepEqual(await p.evaluate(()=>window.__game.stage.testClient.state.health),[60,60]);
+  await a.screenshot({path:resolve(root,'test-results/duel-health.png')});
+  checks.push('Nonlethal hits remove 40 health on both clients, preserve health across turns and keep both players alive.');
   await a.screenshot({path:resolve(root,'test-results/duel-online.png')});
   for(const style of ['jelly','fabric','clay','fur','bubble']){
     await b.locator(`[data-style="${style}"]`).tap();
     await a.waitForFunction(style=>window.__game.stage.testClient.state.styles[1]===style,style);
+    // Start this pop/style check one hit from defeat; normal full-health play is checked above.
+    const room=app.engine.matches.get((await state(a)).match);room.state.health[1]=40;app.engine.broadcast(room);
+    await a.waitForFunction(()=>window.__game.stage.testClient.state.health[1]===40);
     const before=(await state(a)).scores[0];await fire(a);
     await b.waitForFunction(before=>window.__game.stage.testClient.state.scores[0]===before+1,before,{timeout:7000});
     const popped=await Promise.all([a,b].map(p=>p.evaluate(()=>{const g=window.__game;return {

@@ -10,7 +10,7 @@ export async function startLocal({port=8787,host='127.0.0.1',transformHTML=html=
   const server=createServer(async(req,res)=>{
     try{
       const url=new URL(req.url,'http://localhost');
-      if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,mode:'duel',protocol:1}));return;}
+      if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,mode:'duel',protocol:2}));return;}
       const path=url.pathname==='/'?'/index.html':decodeURIComponent(url.pathname);
       if(!/^\/(index\.html|assets\/|vendor\/|LICENSE$)/.test(path))throw Error('Not a public asset');
       const file=resolve(root,'.'+path);

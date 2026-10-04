@@ -2,18 +2,19 @@
 (() => {
   'use strict';
   const R=.24, GRAV=13, DISTANCE=20, STEP=1/180;
+  const MAX_HEALTH=100, BALL_DAMAGE=40, DISTRACTION_DAMAGE=BALL_DAMAGE/2;
   const STYLES=['jelly','fabric','clay','fur','bubble'];
   const length=v=>Math.hypot(...v);
   function ball(slot,generation=0){
     return {p:[0,R+1,-slot*DISTANCE],v:[0,0,0],side:[0,0,0],grounded:false,
-      shot:false,shotT:0,restT:0,missT:0,popped:false,generation,seq:0};
+      shot:false,hit:false,shotT:0,restT:0,missT:0,popped:false,generation,seq:0};
   }
   function reset(match,slot){
     const old=match.balls[slot];
     match.balls[slot]=ball(slot,old.generation+1);
     match.balls[slot].seq=old.seq;
   }
-  function endTurn(match,slot){reset(match,slot);match.turn=1-slot;}
+  function endTurn(match,slot){reset(match,slot);match.projectiles=[];match.turn=1-slot;}
   function canShoot(match,slot){return match.turn===slot&&!match.resetT&&match.balls.every(b=>b.grounded&&!b.shot&&!b.popped);}
   // The second player sees the same camera, rotated through 180 degrees.
   function position(p,slot){return slot?[-p[0],p[1],-DISTANCE-p[2]]:[...p];}
@@ -31,7 +32,7 @@
     const norm=Math.hypot(dx,dz)||1;
     b.side=[-dz/norm*c.curve*9,0,dx/norm*c.curve*9];
     b.v=target.map((value,i)=>(value-b.p[i]-.5*(i===1?-GRAV:b.side[i])*c.flight*c.flight)/c.flight);
-    b.shot=true;b.shotT=0;b.restT=0;b.missT=0;b.grounded=false;b.seq=c.seq;
+    b.shot=true;b.hit=false;b.shotT=0;b.restT=0;b.missT=0;b.grounded=false;b.seq=c.seq;
     return true;
   }
   // Exact gravity, curve, drag, floor bounce and friction from update3().
@@ -51,15 +52,56 @@
     if(b.shot){b.shotT+=dt;b.restT=b.grounded&&length(v)<.35?b.restT+dt:0;}
     return impact;
   }
-  function createMatch(id){return {id,turn:0,balls:[ball(0),ball(1)],scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
+  function distraction(slot,kind,from){
+    if(!['can','bottle','balloon'].includes(kind))return null;
+    const body=ball(slot);body.p=[...from];body.grounded=true;
+    launch(body,slot,{seq:1,target:[{can:-.15,bottle:.15,balloon:0}[kind],.35,-DISTANCE],flight:.8,curve:0});
+    return body;
+  }
+  function prepareMatch(m){
+    if(!m.health)m.health=[MAX_HEALTH,MAX_HEALTH];
+    if(!m.projectiles)m.projectiles=[];
+    if(m.roundOver===undefined)m.roundOver=m.balls.some(b=>b.popped);
+    return m;
+  }
+  function createMatch(id){return {id,turn:0,balls:[ball(0),ball(1)],health:[MAX_HEALTH,MAX_HEALTH],projectiles:[],roundOver:false,scores:[0,0],styles:['jelly','jelly'],resetT:0,event:0};}
+  function damage(m,target,source,amount,events){
+    if(m.balls[target].popped||m.resetT>0)return;
+    m.health[target]=Math.max(0,m.health[target]-amount);
+    events.push({type:'hit',id:++m.event,slot:target,source,amount,health:m.health[target]});
+    if(m.health[target]===0){
+      m.balls[target].popped=true;m.scores[source]++;m.roundOver=true;m.resetT=1.7;m.projectiles=[];
+      events.push({type:'pop',id:++m.event,slots:[target],positions:m.balls.map(b=>[...b.p])});
+    }
+  }
+  // Sweep both moving bodies so fast throws cannot skip a hit between physics steps.
+  function sweptHit(start,end,otherStart,otherEnd,radius){
+    const p=start.map((v,i)=>v-otherStart[i]),d=end.map((v,i)=>v-otherEnd[i]-p[i]);
+    const l=d.reduce((sum,v)=>sum+v*v,0);
+    const t=l?Math.max(0,Math.min(1,-p.reduce((sum,v,i)=>sum+v*d[i],0)/l)):0;
+    return Math.hypot(...p.map((v,i)=>v+d[i]*t))<=radius;
+  }
+  function stepProjectiles(m,dt,previous,events){
+    for(const item of m.projectiles){
+      const start=[...item.body.p];stepBall(item.body,dt);item.t+=dt;
+      const target=1-item.slot;
+      if(!item.hit&&!m.balls[target].popped&&sweptHit(start,item.body.p,previous[target],m.balls[target].p,R+.2)){
+        item.hit=true;damage(m,target,item.slot,DISTRACTION_DAMAGE,events);
+        if(m.resetT>0)return;
+      }
+    }
+    m.projectiles=m.projectiles.filter(item=>item.t<1.8);
+  }
   function stepMatch(m,dt){
+    prepareMatch(m);
     const events=[];
     if(m.resetT>0){
       for(const b of m.balls)stepBall(b,dt);
       m.resetT-=dt;
-      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);m.turn=1-m.turn;events.push({type:'reset',id:++m.event});}
+      if(m.resetT<=0){m.resetT=0;reset(m,0);reset(m,1);m.projectiles=[];if(m.roundOver)m.health=[MAX_HEALTH,MAX_HEALTH];m.roundOver=false;m.turn=1-m.turn;events.push({type:'reset',id:++m.event});}
       return events;
     }
+    const previous=m.balls.map(b=>[...b.p]);
     for(const b of m.balls)stepBall(b,dt);
     const [a,b]=m.balls,n=a.p.map((v,i)=>v-b.p[i]),distance=length(n);
     if(!a.popped&&!b.popped&&distance<R*2&&(a.shot||b.shot)){
@@ -72,14 +114,14 @@
         const tangent=relative.map((v,i)=>v-vn*n[i]),vt=length(tangent);
         const friction=vt>1e-5?Math.min(vt/2,.3*impulse)/vt:0;
         for(let i=0;i<3;i++){a.v[i]+=n[i]*impulse-tangent[i]*friction;b.v[i]-=n[i]*impulse-tangent[i]*friction;}
-        const popped=[];
-        if(a.shot){b.popped=true;m.scores[0]++;popped.push(1);}
-        if(b.shot){a.popped=true;m.scores[1]++;popped.push(0);}
-        m.resetT=1.7;
-        events.push({type:'pop',id:++m.event,slots:popped,positions:m.balls.map(b=>[...b.p])});
+        if(a.shot&&!a.hit){a.hit=true;damage(m,1,0,BALL_DAMAGE,events);}
+        if(b.shot&&!b.hit){b.hit=true;damage(m,0,1,BALL_DAMAGE,events);}
+        m.resetT=1.7;m.projectiles=[];
         return events;
       }
     }
+    stepProjectiles(m,dt,previous,events);
+    if(m.resetT>0)return events;
     for(let slot=0;slot<2;slot++){
       const b=m.balls[slot];if(!b.shot)continue;
       const p=position(b.p,slot);
@@ -88,7 +130,7 @@
     }
     return events;
   }
-  function active(m){return m.resetT>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||length(b.v)>.001));}
+  function active(m){return m.resetT>0||m.projectiles?.length>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||length(b.v)>.001));}
   function snapshot(m){return JSON.parse(JSON.stringify(m));}
-  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,STYLES,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
+  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
 })();
