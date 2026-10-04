@@ -32,6 +32,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #count.duel{opacity:1;animation:none;transform:none;direction:ltr;font-size:24px;left:64px;right:64px;line-height:1.3}
 #count.duel small{display:block;width:18px;height:18px;margin:5px auto 0;color:#000}
 #count.duel small svg{display:block;width:100%;height:100%}
+.duel-distractions{position:fixed;z-index:4;left:calc(14px + env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;padding:4px;background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.duel-distractions[hidden]{display:none}
+.duel-distractions button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#000;cursor:pointer;touch-action:manipulation}
+.duel-distractions button svg{width:20px;height:20px}
+.duel-distractions button:disabled{opacity:.35;cursor:default}
+.duel-distractions button:active{background:rgba(44,45,61,.12)}
+.duel-distractions button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(max-height:500px){.duel-distractions{left:calc(64px + env(safe-area-inset-left,0px))}}
 @keyframes countPop{
   0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-8deg)}
   16%{opacity:1;transform:translateY(0) scale(1.18) rotate(4deg)}
@@ -206,6 +214,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./vendor/three/three-r128.min.js"></script>
 <script src="./assets/duel-online/physics.js"></script>
 <script src="./assets/duel-online/client.js"></script>
+<script src="./assets/duel-online/distractions.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -1514,11 +1523,15 @@ function make3D(){
       grounded:true,touched:false,blink:0,nextBlink:2,hitT:0,lastHit:0};
     let bursts=[],localPopped=false,visible=false,opponentStyle=ballStyle,lastMatch='',lastGeneration=[-1,-1];
     const desired=V(0,0,0);
-    const client=new window.DahroojDuelClient({status:networkStatus,pop:popPlayers});
+    const distractions=new window.DahroojDuelDistractions({
+      send:kind=>client.distract(kind),project:p=>toScreen(V(...p)),
+      position:p=>physics.position(p,client.slot),localSlot:()=>client.slot
+    });
+    const client=new window.DahroojDuelClient({status:networkStatus,pop:popPlayers,distraction:e=>distractions.launch(e)});
     function networkStatus(status){
       aim.down=false;
       if(status!=='playing'){
-        visible=false;body.visible=false;localPopped=false;bursts=[];lastMatch='';
+        distractions.clear();visible=false;body.visible=false;localPopped=false;bursts=[];lastMatch='';
         S.pos.set(0,BR,0);S.vel.set(0,0,0);S.side.set(0,0,0);S.shot=false;S.grounded=true;
         skin.reset();opponentSkin.reset();
       }
@@ -1606,12 +1619,13 @@ function make3D(){
       grp,aimZ:OZ,networked:true,
       ft:sp=>Math.max(.8,Math.min(1.6,1.75-sp/2400)),behind:()=>false,
       enter(){lastGeneration=[-1,-1];bursts=[];client.enter(ballStyle);},
-      leave(){client.leave();aim.down=false;visible=false;body.visible=false;localPopped=false;},
+      leave(){client.leave();distractions.clear();aim.down=false;visible=false;body.visible=false;localPopped=false;},
       canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
       submitShot:command=>client.shoot(command),
       playerVisible:()=>!localPopped,
       update(dt){
         client.setStyle(ballStyle);client.step(dt);displayScore();
+        distractions.update(dt,client.canDistract());
         for(const burst of bursts)burst.t+=dt;bursts=bursts.filter(b=>b.t<.5);
         if(!client.state)return;
         const own=client.state.balls[client.slot],other=client.state.balls[1-client.slot];
@@ -1634,7 +1648,7 @@ function make3D(){
         body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(OR*(1+O.d*.75),OR*(1-O.d),OR*(1+O.d*.75));
       },
       paintBehind(c){if(S.pos.z>=O.pos.z)paintOpponent(c);},
-      paint(c){if(S.pos.z<O.pos.z)paintOpponent(c);paintPop(c);}
+      paint(c){if(S.pos.z<O.pos.z)paintOpponent(c);paintPop(c);distractions.paint(c,W,H);}
     };
   }
 

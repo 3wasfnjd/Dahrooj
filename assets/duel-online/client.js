@@ -3,8 +3,8 @@
   'use strict';
   const P=globalThis.DahroojDuelPhysics;
   class DuelClient {
-    constructor({status=()=>{},pop=()=>{}}={}){
-      this.onStatus=status;this.onPop=pop;this.active=false;this.state=null;this.slot=0;
+    constructor({status=()=>{},pop=()=>{},distraction=()=>{}}={}){
+      this.onStatus=status;this.onPop=pop;this.onDistraction=distraction;this.active=false;this.state=null;this.slot=0;
       this.pending=null;this.sequence=0;this.attempt=0;this.rtt=0;this.lastEvent=0;this.generation=0;
       this.pageHide=()=>this.suspend();this.pageShow=()=>{if(this.active&&!this.socket)this.connect();};
     }
@@ -39,6 +39,7 @@
           this.slot=m.slot;this.sequence=0;this.pending=null;this.lastEvent=m.state.event;
           this.state=m.state;this.setStatus('playing');return;
         }
+        if(m.type==='distraction'&&this.state?.id===m.match){this.onDistraction(m);return;}
         if(m.type==='rejected'&&this.state?.id===m.state?.id&&this.pending?.seq===m.seq){
           this.pending=null;this.state=m.state;return;
         }
@@ -77,6 +78,12 @@
     ping(){this.send({type:'ping',t:Date.now()});}
     setStyle(style){if(this.style===style)return;this.style=style;this.send({type:'style',style});}
     canShoot(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canShoot(this.state,this.slot)&&!this.pending;}
+    canDistract(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&this.state.turn!==this.slot&&!this.state.resetT&&!this.state.balls[this.slot].popped;}
+    distract(kind){
+      if(!this.canDistract()||Date.now()<(this.nextDistraction||0))return false;
+      const sent=this.send({type:'distraction',match:this.state.id,generation:this.state.balls[this.slot].generation,kind});
+      if(sent)this.nextDistraction=Date.now()+1000;return sent;
+    }
     shoot(command){
       if(!this.canShoot())return false;
       const b=this.state.balls[this.slot],message={...command,type:'shot',seq:++this.sequence,match:this.state.id,generation:b.generation};

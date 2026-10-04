@@ -36,6 +36,14 @@ export class Matchmaker {
     const room=this.matches.get(c.match);
     if(!room||m.match!==c.match)return;
     const ball=room.state.balls[c.slot];
+    if(m.type==='distraction'){
+      if(!['can','bottle','balloon'].includes(m.kind)||room.state.turn===c.slot||room.state.resetT||ball.popped||
+        m.generation!==ball.generation||now<(c.nextDistraction||0))return;
+      c.nextDistraction=now+1000;
+      const event={type:'distraction',match:c.match,slot:c.slot,kind:m.kind,position:[...ball.p]};
+      for(const peer of room.players)this.emit(peer,event);
+      return;
+    }
     if(m.type==='shot'){
       if(!P.canShoot(room.state,c.slot)||m.generation!==ball.generation||!P.launch(ball,c.slot,m)){
         this.emit(key,{type:'rejected',seq:m.seq,state:P.snapshot(room.state)});return;

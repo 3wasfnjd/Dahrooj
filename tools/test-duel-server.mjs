@@ -139,3 +139,18 @@ async function waitUntil(check){
   const end=Date.now()+4000;
   while(!check()){if(Date.now()>end)throw Error('Timed out');await new Promise(ok=>setTimeout(ok,20));}
 }
+
+test('distractions only come from waiting opponent, stay in the room and never change physics',()=>{
+  const t=setup();for(const key of ['a','b','c','d','e'])t.add(key);t.advance(2);
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
+  const before=JSON.stringify(m),send=(key,extra={})=>t.engine.receive(key,JSON.stringify({type:'distraction',kind:'can',match:id,generation:0,...extra}));
+  send('a');send('c');send('e');send('b',{kind:'unknown'});send('b',{generation:99});
+  assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,0);
+  for(const kind of ['can','bottle','balloon']){send('b',{kind});send('b',{kind});t.now(1001);}
+  for(const key of ['a','b'])assert.deepEqual(t.messages.get(key).filter(x=>x.type==='distraction').map(x=>x.kind),['can','bottle','balloon']);
+  for(const key of ['c','d','e'])assert.equal(t.messages.get(key).filter(x=>x.type==='distraction').length,0);
+  assert.equal(JSON.stringify(m),before);
+  m.turn=1;send('b');assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,3);
+  send('a');assert.equal(t.messages.get('b').filter(x=>x.type==='distraction').length,4);
+  m.resetT=1;t.now(1001);send('a');assert.equal(t.messages.get('b').filter(x=>x.type==='distraction').length,4);
+});
