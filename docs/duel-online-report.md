@@ -1,6 +1,6 @@
 # Duel online verification
 
-Branch: `feature/cans-ai-opponent`. The six original modes retain their local game logic.
+Merged into `main`. The six original modes retain their local game logic.
 
 ## Passed
 
@@ -16,7 +16,11 @@ Branch: `feature/cans-ai-opponent`. The six original modes retain their local ga
 
 Commands: `npm test`, `npm run test:browser`, `npx wrangler deploy --dry-run`.
 
-Browser evidence is generated in `test-results/duel-*`. Browser checks use the real local WebSocket server and Chromium mobile/desktop emulation. They do not establish performance on physical mobile devices or on a public network. A public online test requires the deployed Worker URL, not a static GitHub mirror.
+Browser evidence is generated in `test-results/duel-*`. Browser checks use the real local WebSocket server and Chromium mobile/desktop emulation. They do not establish performance on physical mobile devices or on a public network.
+
+## Original public address
+
+The game remains at `https://3wasfnjd.github.io/Dahrooj/`. Only that Pages origin selects the existing Worker WebSocket endpoint; Worker-hosted and local copies retain same-origin connections. There is no redirect or visible UI change. The Worker accepts its own origin and the exact Pages origin, using the same Durable Object lobby. Missing, unrelated, lookalike and insecure Pages origins are rejected. Connection tests exercise the actual client URL selection without navigation, and real WebSocket clients from Pages and the local server share FIFO pairs. `Duel online` now runs on `main` as well as the feature branch; Cloudflare Builds remains responsible for production deployment.
 
 ## Health and damage
 

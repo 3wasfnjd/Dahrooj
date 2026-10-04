@@ -1,5 +1,6 @@
 import {DurableObject} from 'cloudflare:workers';
 import {Matchmaker} from './matchmaker.mjs';
+import {allowsDuelOrigin} from './origins.mjs';
 
 export class DuelLobby extends DurableObject {
   constructor(ctx,env){
@@ -42,8 +43,7 @@ export default {
     if(url.pathname==='/health')return Response.json({ok:true,mode:'duel',protocol:4});
     if(url.pathname==='/ws'){
       if(request.method!=='GET'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('WebSocket required',{status:426});
-      // The game and socket are served together; unrelated sites cannot join this lobby.
-      if(request.headers.get('Origin')!==url.origin)return new Response('Invalid origin',{status:403});
+      if(!allowsDuelOrigin(request.headers.get('Origin'),url.origin))return new Response('Invalid origin',{status:403});
       return env.DUEL_LOBBY.getByName('duel-v1').fetch(request);
     }
     return env.ASSETS.fetch(request);

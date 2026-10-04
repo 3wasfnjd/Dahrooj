@@ -15,7 +15,8 @@
     setStatus(value){this.status=value;this.moveInput=null;this.moveDirty=false;this.pendingMove=null;this.onStatus(value);}
     connect(){
       if(!this.active)return;
-      const generation=++this.generation,url=new URL('/ws',location.href);url.protocol=location.protocol==='https:'?'wss:':'ws:';
+      const base=location.origin==='https://3wasfnjd.github.io'?'https://dahrooj-duel.glory-noon.workers.dev':location.href;
+      const generation=++this.generation,url=new URL('/ws',base);url.protocol=url.protocol==='https:'?'wss:':'ws:';
       let ws;try{ws=new WebSocket(url);}catch{this.retry();return;}
       this.socket=ws;this.lastMessage=Date.now();
       const current=()=>this.active&&generation===this.generation;

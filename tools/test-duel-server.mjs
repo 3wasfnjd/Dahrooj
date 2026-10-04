@@ -120,12 +120,12 @@ test('expired and flooding sockets are removed without leaving phantom matches',
   for(let i=0;i<50;i++)t.engine.receive('b',JSON.stringify({type:'ping',t:i}));
   assert.equal(t.engine.clients.size,0);assert.equal(t.engine.matches.size,0);assert(t.closed.some(c=>c[1]===1008));
 });
-test('real WebSockets pair four clients and reject a cross-origin connection',async()=>{
+test('Pages and same-origin WebSockets share FIFO pairs and reject unrelated origins',async()=>{
   const app=await startLocal({port:0});const clients=[];
   try{
     const histories=[];
     for(let i=0;i<4;i++){
-      const socket=new WebSocket(app.url.replace('http:','ws:')+'/ws',{origin:app.url});clients.push(socket);
+      const socket=new WebSocket(app.url.replace('http:','ws:')+'/ws',{origin:i%2?'https://3wasfnjd.github.io':app.url});clients.push(socket);
       histories.push([]);socket.on('message',raw=>histories[i].push(JSON.parse(raw.toString())));
       await once(socket,'open');socket.send(JSON.stringify({type:'join',protocol:4,style:'jelly'}));
     }

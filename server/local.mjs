@@ -4,6 +4,7 @@ import {resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer} from 'ws';
 import {Matchmaker} from './matchmaker.mjs';
+import {allowsDuelOrigin} from './origins.mjs';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.mp3':'audio/mpeg'};
 export async function startLocal({port=8787,host='127.0.0.1',transformHTML=html=>html}={}){
@@ -24,7 +25,7 @@ export async function startLocal({port=8787,host='127.0.0.1',transformHTML=html=
   const engine=new Matchmaker({send:(s,data)=>s.send(data),close:(s,code,reason)=>s.close(code,reason)});
   server.on('upgrade',(req,socket,head)=>{
     const origin=req.headers.origin;
-    if(req.url!=='/ws'||origin!==`http://${req.headers.host}`){socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');return;}
+    if(req.url!=='/ws'||!allowsDuelOrigin(origin,`http://${req.headers.host}`)){socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');return;}
     sockets.handleUpgrade(req,socket,head,s=>{
       engine.connect(s);
       s.on('message',(raw,binary)=>engine.receive(s,binary?raw:raw.toString()));
