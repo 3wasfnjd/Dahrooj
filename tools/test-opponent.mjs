@@ -43,7 +43,8 @@ try{
   await ready(a);
   assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.bot),1);
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),true);
-  assert.equal(await a.evaluate(()=>window.__game.stage.testBody.visible),true,'A playable AI appears without another visitor');
+  // Visibility follows the next rendered frame after the match state arrives.
+  assert(await a.waitForFunction(()=>window.__game.stage.testBody.visible,null,{timeout:5000}).then(()=>true,()=>false),'A playable AI appears without another visitor');
   assert.equal(await a.locator('.duel-distractions').count(),0);
   const aiStyle=await a.evaluate(()=>window.__game.stage.testClient.state.styles[1]);
   assert.notEqual(aiStyle,await a.evaluate(()=>window.__game.stage.testClient.state.styles[0]));
@@ -132,7 +133,10 @@ try{
   assert.equal((await state(b)).match,(await state(e)).match);assert.notEqual((await state(b)).match,states[0].match);
   assert.equal((await state(c)).match,states[2].match);assert.equal(app.engine.matches.size,2);
   await select(e,'cans');await b.waitForFunction(()=>window.__game.stage.testClient.state?.bot===1);
-  await select(b,'free');assert.equal(app.engine.clients.size,2);
+  await select(b,'free');
+  // The server sees the closed socket asynchronously.
+  for(let i=0;i<50&&app.engine.clients.size!==2;i++)await new Promise(r=>setTimeout(r,100));
+  assert.equal(app.engine.clients.size,2);
   checks.push('Odd entrant plays AI; leaving Duel rematches the survivor or restores AI; mode switching leaves other matches intact.');
   // Interrupt the remaining match at transport level; clients must reconnect automatically.
   for(const socket of [...app.engine.clients.keys()])socket.terminate();
