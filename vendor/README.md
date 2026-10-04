@@ -7,4 +7,3 @@
 
 Keep this directory with `index.html` when deploying, including under a subpath such as `/Dahrooj/`. Keep `.nojekyll` for GitHub Pages. No CDN, Google Fonts service, npm install, or build step is needed by players. Firebase 10.12.2 remains remote and optional for the visit counter only.
 
-`python3 tools/vendor-startup.py` verifies the pinned files offline on subsequent runs; it does not silently update them. The source-font CSS in `tools/fixtures/` is solely a before/after test fixture and is not loaded by the game.

@@ -554,22 +554,6 @@ function drawEye(c,ex,ey,er,lx,ly,face,blinkOn){
   c.restore();
 }
 
-// One ball, drawn the same way in every mode: (x,y) center, Rr radius, d squash, a squash axis angle.
-function paintBall(c,x,y,Rr,d,a,face,lx,ly,blushK,blinkOn){
-  const nx=Math.cos(a), ny=Math.sin(a), off=d>0?Rr*d:0;
-  c.save();
-  c.translate(x-nx*off,y-ny*off);
-  if(face==='laugh'){ c.translate(0,-Math.abs(Math.sin(time*16))*Rr*0.08); c.rotate(Math.sin(time*26)*0.1); }
-  c.rotate(a); c.scale(1-d,1+d*0.75); c.rotate(-a);
-  const g=c.createRadialGradient(-Rr*0.35,-Rr*0.42,Rr*0.1,0,0,Rr*1.05);
-  g.addColorStop(0,COL.ballLight); g.addColorStop(0.55,COL.ball); g.addColorStop(1,COL.ballDark);
-  c.fillStyle=g;
-  c.beginPath(); c.arc(0,0,Rr,0,Math.PI*2); c.fill();
-  c.fillStyle='rgba(240,240,242,.8)';
-  c.beginPath(); c.ellipse(-Rr*0.42,-Rr*0.5,Rr*0.17,Rr*0.1,-0.6,0,Math.PI*2); c.fill();
-  drawFace(c,Rr,face,lx,ly,blushK,blinkOn);
-  c.restore();
-}
 
 // A jelly skin for the 3D modes: radial offsets on a ring, coupled to neighbours, dented by hits.
 // Gameplay physics stays a rigid sphere; only the look is jelly.
@@ -1205,7 +1189,6 @@ function make3D(){
       const h=new T.Mesh(new T.SphereGeometry(HR,18,12),gloveMat); h.castShadow=true; kRoot.add(h);
       return {h,sx};
     });
-    const KH=KR*2;
     const K={x:0,y:0,vy:0,ang:0,tx:0,tang:0,plan:false,wait:0,recover:0,saved:false};
     function keeperReset(){ Object.assign(K,{x:0,y:0,vy:0,ang:0,tx:0,tang:0,plan:false,wait:0,recover:0,saved:false}); }
     function keeperPlan(){
