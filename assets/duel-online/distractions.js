@@ -7,7 +7,7 @@
     balloon:'M12 2C2 2 2 15 12 19C22 15 22 2 12 2ZM12 19L10 22H14Z'
   };
   const P=globalThis.DahroojDuelPhysics;
-  const fills={can:'#000',bottle:'#000',balloon:'#000'};
+  const fills={can:'#2C2D3D',bottle:'#2C2D3D',balloon:'#2C2D3D'};
   class Distractions {
     constructor({send,project,position,localSlot}){
       Object.assign(this,{send,project,position,localSlot});this.items=[];this.cooldown=0;
@@ -68,7 +68,7 @@
     paint(c,w,h){
       for(const item of this.items){
         if(item.drops){
-          c.save();c.fillStyle='#000';c.globalAlpha=Math.max(0,1-item.splashT/.4);
+          c.save();c.fillStyle='#2C2D3D';c.globalAlpha=Math.max(0,1-item.splashT/.4);
           for(const drop of item.drops){
             const p=this.projected(drop,.025);if(!p)continue;
             c.beginPath();c.ellipse(p.x,p.y,p.size,p.size*1.4,0,0,Math.PI*2);c.fill();
@@ -80,7 +80,7 @@
         c.save();c.translate(p.x,p.y);
         c.rotate(item.kind==='balloon'?Math.sin(item.t*8)*.12:item.t*8*(item.kind==='can'?1:-1));
         c.scale(p.size/12,p.size/12);c.translate(-12,-12);
-        c.fillStyle=fills[item.kind];c.strokeStyle='#000';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
+        c.fillStyle=fills[item.kind];c.strokeStyle='#2C2D3D';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
         c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);c.restore();
       }
     }
