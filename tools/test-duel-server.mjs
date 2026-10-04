@@ -308,3 +308,17 @@ test('AI practice restores health and timers; cancelled handoff returns to AI wi
   fresh.advance(10);assert.equal(fresh.engine.clients.size,1);assert.equal(fresh.engine.matches.size,1);
   fresh.engine.disconnect('a');assert.equal(fresh.engine.active(),false);assert.equal(fresh.engine.matches.size,0);
 });
+
+test('a shot during the last landing bounces is accepted; one during the initial drop is not',()=>{
+  const t=setup();t.add('a');t.add('b');
+  const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state,ball=m.balls[0];
+  const fire=seq=>t.engine.receive('a',JSON.stringify({...shot,match:id,seq,generation:ball.generation}));
+  t.advance(.1);assert(ball.p[1]>P.R+.35&&!ball.grounded);
+  fire(1);assert.equal(ball.shot,false,'Still dropping from the spawn height');
+  assert.equal(t.messages.get('a').filter(e=>e.type==='rejected').length,1);
+  // Step to just after the first bounce, where the browser may already show the ball landed.
+  for(let i=0;i<400&&!(ball.v[1]>0&&!ball.grounded&&m.balls[1].v[1]>0);i++)t.advance(1/180);
+  assert(!ball.grounded&&ball.v[1]>0&&ball.p[1]<P.R+.35,'Ball is in its first landing bounce');
+  fire(2);assert.equal(ball.shot,true,'Server accepts the shot after the first bounce');
+  assert.equal(t.messages.get('a').filter(e=>e.type==='rejected').length,1);
+});

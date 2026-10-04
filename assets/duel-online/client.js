@@ -56,9 +56,14 @@
         if(this.moveDirty&&P.canMove(m.state,this.slot))own.moveTarget=this.slot?-this.moveInput:this.moveInput;
         this.state=m.state;
         {
-          const ahead=Math.min(.1,this.rtt/2000);
-          for(let elapsed=0;elapsed<ahead;elapsed+=P.STEP)
-            this.state.balls.forEach((b,i)=>{if(!(this.pending&&i===this.slot))P.stepPlayer(this.state,i,Math.min(P.STEP,ahead-elapsed));});
+          // Frames are half a round trip old. Our own shot also started half a round trip
+          // late on the server, so advance it by the full round trip to avoid a visible rewind.
+          const ahead=Math.min(.1,this.rtt/2000),ownShot=own.shot&&own.seq===this.sequence;
+          this.state.balls.forEach((b,i)=>{
+            if(this.pending&&i===this.slot)return;
+            const time=i===this.slot&&ownShot?Math.min(.2,this.rtt/1000):ahead;
+            for(let elapsed=0;elapsed<time;elapsed+=P.STEP)P.stepPlayer(this.state,i,Math.min(P.STEP,time-elapsed));
+          });
         }
         for(const event of m.events||[]){
           if(event.id<=this.lastEvent)continue;

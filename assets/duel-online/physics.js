@@ -38,7 +38,13 @@
     }else if(!canMove(m,slot))b.moveTarget=null;
     return stepBall(b,dt);
   }
-  function canShoot(match,slot){return !match.handoff&&match.turn===slot&&!match.resetT&&match.balls.every(b=>b.grounded&&!b.shot&&!b.popped);}
+  // Browser and server can disagree about the last landing bounces. The browser waits for the
+  // final small bounce; the server (loose) accepts any time after the first one, so a shot the
+  // browser allowed is never rejected. The initial drop is still excluded by the speed limit.
+  function settled(b,loose=false){
+    return b.grounded||(loose?b.p[1]<=R+.35&&Math.abs(b.v[1])<3:b.p[1]<=R+.1&&Math.abs(b.v[1])<1.6);
+  }
+  function canShoot(match,slot,loose=false){return !match.handoff&&match.turn===slot&&!match.resetT&&match.balls.every(b=>settled(b,loose)&&!b.shot&&!b.popped);}
   // The second player sees the same camera, rotated through 180 degrees.
   function position(p,slot){return slot?[-p[0],p[1],-DISTANCE-p[2]]:[...p];}
   function vector(v,slot){return slot?[-v[0],v[1],-v[2]]:[...v];}
@@ -49,8 +55,10 @@
       Number.isFinite(c.flight) && c.flight>=.8 && c.flight<=1.6 &&
       Number.isFinite(c.curve) && Math.abs(c.curve)<=1;
   }
-  function launch(b,slot,c){
-    if(!validShot(c)||b.shot||!b.grounded||b.popped||c.seq<=b.seq) return false;
+  function launch(b,slot,c,loose=false){
+    if(!validShot(c)||b.shot||!settled(b,loose)||b.popped||c.seq<=b.seq) return false;
+    // Launch from the ground, as the thrower saw it.
+    if(!b.grounded){b.p[1]=R;b.v[1]=0;b.grounded=true;}
     startFlight(b,slot,c);return true;
   }
   function startFlight(b,slot,c){

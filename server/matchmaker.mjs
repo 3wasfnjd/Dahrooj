@@ -50,7 +50,7 @@ export class Matchmaker {
       this.changed();return;
     }
     if(m.type==='shot'){
-      if(!P.canShoot(room.state,c.slot)||m.generation!==ball.generation||!P.launch(ball,c.slot,m)){
+      if(!P.canShoot(room.state,c.slot,true)||m.generation!==ball.generation||!P.launch(ball,c.slot,m,true)){
         this.emit(key,{type:'rejected',seq:m.seq,state:P.snapshot(room.state)});return;
       }
       this.broadcast(room);this.changed();
