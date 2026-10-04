@@ -36,14 +36,6 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #count.duel .duel-health span{display:block;width:34px;height:3px;border-radius:3px;background:rgba(44,45,61,.18);overflow:hidden}
 #count.duel .duel-health i{display:block;width:100%;height:100%;border-radius:3px;background:#2C2D3D;transform-origin:left center}
 #count.duel.duel-waiting{font-size:16px;direction:rtl}
-.duel-distractions{position:fixed;z-index:4;left:calc(14px + env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;padding:4px;background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.duel-distractions[hidden]{display:none}
-.duel-distractions button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#000;cursor:pointer;touch-action:none}
-.duel-distractions button svg{width:20px;height:20px}
-.duel-distractions button:disabled{opacity:.35;cursor:default}
-.duel-distractions button:active{background:rgba(44,45,61,.12)}
-.duel-distractions button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@media(max-height:500px){.duel-distractions{left:calc(64px + env(safe-area-inset-left,0px))}}
 @keyframes countPop{
   0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-8deg)}
   16%{opacity:1;transform:translateY(0) scale(1.18) rotate(4deg)}
@@ -1527,7 +1519,7 @@ function make3D(){
       grounded:true,touched:false,blink:0,nextBlink:2,hitT:0,lastHit:0};
     let bursts=[],localPopped=false,visible=false,opponentStyle=ballStyle,lastMatch='',lastGeneration=[-1,-1];
     const healthShown=[physics.MAX_HEALTH,physics.MAX_HEALTH];
-    let healthBars=[],movePointer=null;
+    let healthBars=[],movePointer=null,throwPointer=null;
     const desired=V(0,0,0),cameraPoint=V(0,0,0);
     function inFrontOfCamera(pos){
       camera.updateMatrixWorld();
@@ -1540,8 +1532,7 @@ function make3D(){
     }
     const distractions=new window.DahroojDuelDistractions({
       send:(kind,target)=>client.distract(kind,target),project:p=>toScreen(V(...p)),
-      targetAt:p=>{const v=planePoint(p,OZ);return [Math.max(-9,Math.min(9,v.x)),Math.max(.35,Math.min(6,v.y)),OZ];},
-      origin:()=>toScreen(S.pos),
+      targetAt:p=>{const z=Math.max(OZ,Math.min(-1,O.pos.z)),v=planePoint(p,z);return [Math.max(-9,Math.min(9,v.x)),Math.max(.35,Math.min(6,v.y)),z];},
       position:p=>physics.position(p,client.slot),localSlot:()=>client.slot
     });
     const client=new window.DahroojDuelClient({status:networkStatus,pop:popPlayers,hit:hitPlayer,distraction:e=>distractions.launch(e)});
@@ -1549,7 +1540,7 @@ function make3D(){
       if(event.slot===client.slot)S.hitT=.22;else O.hitT=.22;
     }
     function networkStatus(status){
-      aim.down=false;movePointer=null;healthShown.fill(physics.MAX_HEALTH);
+      aim.down=false;movePointer=null;throwPointer=null;distractions.clear();healthShown.fill(physics.MAX_HEALTH);
       if(status!=='playing'){
         distractions.clear();visible=false;body.visible=false;localPopped=false;bursts=[];lastMatch='';
         S.pos.set(0,BR,0);S.vel.set(0,0,0);S.side.set(0,0,0);S.shot=false;S.grounded=true;
@@ -1558,6 +1549,8 @@ function make3D(){
       displayScore();
     }
     function displayScore(){
+      elCount.dataset.opponent=client.state?.bot===1?'ai':'human';
+      elCount.title=client.state?.bot===1?'خصم آلي':'';
       const labels={connecting:'جارٍ الاتصال…',waiting:'بانتظار لاعب…',reconnecting:'جارٍ إعادة الاتصال…',version:'حدّث الصفحة للعب'};
       elCount.classList.toggle('duel-waiting',!client.state);
       const text=client.state?`${client.state.scores[client.slot]} — ${client.state.scores[1-client.slot]}`:(labels[client.status]||'جارٍ الاتصال…');
@@ -1653,26 +1646,41 @@ function make3D(){
       grp,aimZ:OZ,networked:true,
       ft:sp=>Math.max(.8,Math.min(1.6,1.75-sp/2400)),behind:()=>false,
       enter(){lastGeneration=[-1,-1];bursts=[];client.enter(ballStyle);},
-      leave(){client.leave();movePointer=null;distractions.clear();aim.down=false;visible=false;body.visible=false;localPopped=false;},
+      leave(){client.leave();movePointer=null;throwPointer=null;distractions.clear();aim.down=false;visible=false;body.visible=false;localPopped=false;elCount.removeAttribute('title');delete elCount.dataset.opponent;},
       canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
       submitShot:command=>client.shoot(command),
       startMove(p,id){
-        if(!client.canMove()||movePointer)return false;
+        if(movePointer||throwPointer)return true;
+        if(!client.canMove())return false;
         const center=toScreen(S.pos);
-        if(Math.hypot(p.x-center.x,p.y-center.y)>Math.max(44,radiusOnScreen(S.pos,BR)*2))return false;
-        movePointer={id,offset:S.pos.x-planePoint(p,0).x};aim.down=false;return true;
+        if(Math.hypot(p.x-center.x,p.y-center.y)>Math.max(44,radiusOnScreen(S.pos,BR)*2)){
+          if(client.canDistract()){throwPointer={id,start:p};aim.down=false;return true;}
+          return false;
+        }
+        movePointer={id,start:p,mode:client.canShoot()?'pending':'move',offset:S.pos.x-planePoint(p,0).x};
+        if(movePointer.mode==='move'){aim.down=false;return true;}
+        return false;
       },
       dragMove(p,id){
+        if(throwPointer?.id===id){if(Math.hypot(p.x-throwPointer.start.x,p.y-throwPointer.start.y)>12)throwPointer.cancelled=true;return true;}
         if(movePointer?.id!==id)return false;
-        if(client.canMove())client.move(planePoint(p,0).x+movePointer.offset);
-        else movePointer=null;
+        if(!client.canMove()){movePointer=null;aim.down=false;return true;}
+        if(movePointer.mode==='pending'){
+          const dx=p.x-movePointer.start.x,dy=p.y-movePointer.start.y;
+          if(Math.hypot(dx,dy)>8)movePointer.mode=Math.abs(dx)>Math.abs(dy)*1.15?'move':'aim';
+        }
+        if(movePointer.mode!=='move')return false;
+        aim.down=false;client.move(planePoint(p,0).x+movePointer.offset);
         return true;
       },
       endMove(p,id){
+        if(throwPointer?.id===id){const tap=throwPointer;throwPointer=null;if(!tap.cancelled&&client.canDistract())distractions.throwAt(p);return true;}
         if(movePointer?.id!==id)return false;
-        client.move(planePoint(p,0).x+movePointer.offset);movePointer=null;return true;
+        const gesture=movePointer;movePointer=null;
+        if(gesture.mode!=='move')return false;
+        client.move(planePoint(p,0).x+gesture.offset);return true;
       },
-      cancelMove(id){if(movePointer?.id===id){client.stopMove();movePointer=null;}},
+      cancelMove(id){if(throwPointer?.id===id)throwPointer=null;if(movePointer?.id===id){if(movePointer.mode==='move')client.stopMove();movePointer=null;}},
       playerVisible:()=>!localPopped&&inFrontOfCamera(S.pos),
       update(dt){
         client.setStyle(ballStyle);client.step(dt);displayScore();
@@ -1683,7 +1691,7 @@ function make3D(){
           const hp=client.state.health?.[slot]??physics.MAX_HEALTH;
           healthShown[slot]=hp===0?0:healthShown[slot]+(hp-healthShown[slot])*(1-Math.exp(-18*dt));
         }
-        updateHealth();if(!client.canMove())movePointer=null;
+        updateHealth();if(!client.canMove())movePointer=null;if(!client.canDistract())throwPointer=null;
         const own=client.state.balls[client.slot],other=client.state.balls[1-client.slot];
         if(syncBall(S,own,client.slot,dt)){skin.reset();bub.t=0;bub.parts=[];S.mood=null;S.moodT=0;S.scoredT=0;S.missT=0;}
         if(syncBall(O,other,1-client.slot,dt)){opponentSkin.reset();opponentBubble.t=0;opponentBubble.parts=[];}

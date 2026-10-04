@@ -21,7 +21,7 @@
       const current=()=>this.active&&generation===this.generation;
       ws.onopen=()=>{
         if(!current())return;
-        this.attempt=0;this.send({type:'join',protocol:3,style:this.style});this.ping();
+        this.attempt=0;this.send({type:'join',protocol:4,style:this.style});this.ping();
         clearInterval(this.heartbeat);this.heartbeat=setInterval(()=>{
           if(Date.now()-this.lastMessage>25000){ws.close();return;}this.ping();
         },8000);
@@ -37,7 +37,7 @@
         }
         if(m.type==='matched'){
           this.slot=m.slot;this.sequence=0;this.moveSequence=m.state.balls[m.slot].moveSeq||0;this.pending=null;this.lastEvent=m.state.event;
-          this.state=m.state;this.setStatus('playing');return;
+          this.state=m.state;this.nextDistraction=0;this.nextMove=0;this.setStatus('playing');return;
         }
         if(m.type==='distraction'&&this.state?.id===m.match){this.onDistraction(m);return;}
         if(m.type==='rejected'&&this.state?.id===m.state?.id&&this.pending?.seq===m.seq){
@@ -82,7 +82,7 @@
     ping(){this.send({type:'ping',t:Date.now()});}
     setStyle(style){if(this.style===style)return;this.style=style;this.send({type:'style',style});}
     canShoot(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canShoot(this.state,this.slot)&&!this.pending;}
-    canDistract(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&this.state.turn!==this.slot&&!this.state.resetT&&!this.state.balls[this.slot].popped;}
+    canDistract(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canDistract(this.state,this.slot);}
     canMove(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canMove(this.state,this.slot);}
     move(x){
       if(!this.canMove()||!Number.isFinite(x))return false;

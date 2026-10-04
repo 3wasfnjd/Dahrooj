@@ -26,6 +26,7 @@ async function open(width=390,height=844){
 }
 const select=(p,mode)=>p.locator(`[data-mode="${mode}"]`).tap();
 const ready=p=>p.waitForFunction(()=>{const m=window.__game.stage.testClient?.state;return m&&!m.resetT&&m.balls.every(b=>b.grounded&&!b.shot&&!b.popped);},null,{timeout:12000});
+const paired=async p=>{await p.waitForFunction(()=>window.__game.stage.testClient.state?.bot===null,null,{timeout:15000});await ready(p);};
 const state=p=>p.evaluate(()=>{const c=window.__game.stage.testClient;return {status:c?.status,slot:c?.slot,match:c?.state?.id,scores:c?.state?.scores,balls:c?.state?.balls};});
 async function fire(page){
   await ready(page);
@@ -39,14 +40,18 @@ try{
   const a=await open();
   assert.equal(app.engine.clients.size,0,'Other modes do not enter online matchmaking');
   await select(a,'opponent');assert.equal(await a.locator('[data-mode="opponent"]').getAttribute('aria-label'),'Duel');
-  await a.waitForFunction(()=>window.__game.stage.testClient.status==='waiting');
-  assert.equal(await a.locator('#count').textContent(),'بانتظار لاعب…');
-  assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
-  assert.equal(await a.evaluate(()=>window.__game.stage.testBody.visible),false,'No fake AI while waiting');
-  await a.screenshot({path:resolve(root,'test-results/duel-waiting.png')});
-  const b=await open(1280,800);await select(b,'opponent');await ready(a);await ready(b);
+  await ready(a);
+  assert.equal(await a.evaluate(()=>window.__game.stage.testClient.state.bot),1);
+  assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),true);
+  assert.equal(await a.evaluate(()=>window.__game.stage.testBody.visible),true,'A playable AI appears without another visitor');
+  assert.equal(await a.locator('.duel-distractions').count(),0);
+  await a.screenshot({path:resolve(root,'test-results/duel-ai.png')});
+  await fire(a);
+  await a.waitForFunction(()=>window.__game.stage.testClient.state.balls[1].seq>0,null,{timeout:20000});
+  checks.push('A solo visitor can play immediately against AI, which returns a normal physics throw.');
+  const b=await open(1280,800);await select(b,'opponent');await paired(a);await paired(b);
   const c=await open();await select(c,'opponent');
-  const d=await open();await select(d,'opponent');await ready(c);await ready(d);
+  const d=await open();await select(d,'opponent');await paired(c);await paired(d);
   const states=await Promise.all([a,b,c,d].map(state));
   assert.equal(states[0].match,states[1].match);assert.equal(states[2].match,states[3].match);assert.notEqual(states[0].match,states[2].match);
   assert.equal(app.engine.matches.size,2);checks.push('Four isolated browsers automatically pair 1+2 and 3+4; no room controls or room codes.');
@@ -114,19 +119,19 @@ try{
   }
   checks.push('All five styles sync; hits pop the correct player on both screens without a white ring; scores and respawns agree; second room stays unchanged.');
   checks.push('Turns alternate after each shot; only the current player can aim; both cameras show the correct turn and both players can score.');
-  // Fifth entrant waits; leaving automatically pairs the waiting entrant with the survivor.
-  const e=await open();await select(e,'opponent');await e.waitForFunction(()=>window.__game.stage.testClient.status==='waiting');
-  await select(a,'free');await ready(b);await ready(e);
+  // Fifth entrant practices with AI; a departure pairs them with the remaining human.
+  const e=await open();await select(e,'opponent');await ready(e);assert.equal(await e.evaluate(()=>window.__game.stage.testClient.state.bot),1);
+  await select(a,'free');await paired(b);await paired(e);
   assert.equal((await state(b)).match,(await state(e)).match);assert.notEqual((await state(b)).match,states[0].match);
   assert.equal((await state(c)).match,states[2].match);assert.equal(app.engine.matches.size,2);
-  await select(e,'cans');await b.waitForFunction(()=>window.__game.stage.testClient.status==='waiting');
+  await select(e,'cans');await b.waitForFunction(()=>window.__game.stage.testClient.state?.bot===1);
   await select(b,'free');assert.equal(app.engine.clients.size,2);
-  checks.push('Odd entrant waits; leaving Duel requeues the survivor; mode switching removes the connection and leaves other matches intact.');
+  checks.push('Odd entrant plays AI; leaving Duel rematches the survivor or restores AI; mode switching leaves other matches intact.');
   // Interrupt the remaining match at transport level; clients must reconnect automatically.
   for(const socket of [...app.engine.clients.keys()])socket.terminate();
   await c.waitForFunction(old=>window.__game.stage.testClient.state?.id&&window.__game.stage.testClient.state.id!==old,states[2].match,{timeout:12000});
-  await ready(c);await ready(d);assert.equal((await state(c)).match,(await state(d)).match);
-  checks.push('Dropped connections reconnect and rematch automatically, without a stale room or AI fallback.');
+  await paired(c);await paired(d);assert.equal((await state(c)).match,(await state(d)).match);
+  checks.push('Dropped connections reconnect and rematch automatically, with AI while a human is unavailable.');
   for(const mode of ['goal','hoop','window','padel','cans','free']){
     await select(a,mode);assert.equal(await a.locator(`[data-mode="${mode}"]`).getAttribute('aria-pressed'),'true');
     assert.equal(await a.locator('#count').evaluate(el=>el.classList.contains('duel')),false);

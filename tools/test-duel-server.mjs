@@ -11,15 +11,15 @@ function setup({random=()=>.5}={}){
   const engine=new Matchmaker({random,now:()=>now,id:()=>`match-${++nextId}`,send:(key,data)=>{
     if(!messages.has(key))messages.set(key,[]);messages.get(key).push(JSON.parse(data));
   },close:(...args)=>closed.push(args)});
-  function add(key,style='jelly'){engine.connect(key);engine.receive(key,JSON.stringify({type:'join',protocol:3,style}));}
+  function add(key,style='jelly'){engine.connect(key);engine.receive(key,JSON.stringify({type:'join',protocol:4,style}));}
   function advance(seconds){for(let i=0;i<Math.ceil(seconds*180);i++){now+=1000/180;engine.tick(P.STEP);}}
   return {engine,messages,closed,add,advance,now:delta=>{now+=delta;}};
 }
 const shot={type:'shot',seq:1,target:[0,.35,-20],flight:.8,curve:0,generation:0};
-test('FIFO pairs are isolated; odd player waits; leaving cancels and rematches automatically',()=>{
+test('FIFO human pairs stay isolated; odd player gets AI; leaving rematches automatically',()=>{
   const t=setup();for(const key of ['a','b','c','d','e'])t.add(key);
-  assert.equal(t.engine.matches.size,2);
-  assert.deepEqual([...t.engine.matches.values()].map(r=>r.players),[['a','b'],['c','d']]);
+  assert.equal(t.engine.matches.size,3);
+  assert.deepEqual([...t.engine.matches.values()].map(r=>r.players),[['a','b'],['c','d'],['e',null]]);
   assert.deepEqual(t.engine.queue,['e']);
   t.engine.disconnect('a');
   assert.deepEqual([...t.engine.matches.values()].map(r=>r.players),[['c','d'],['e','b']]);
@@ -105,12 +105,12 @@ test('hibernation restores idle pairs, pending joins and FIFO order without dupl
   t.engine.receive('a',JSON.stringify({type:'return',match,generation:0}));t.advance(2);
   const entries=[...t.engine.clients.keys()].map(k=>[k,JSON.parse(JSON.stringify(t.engine.attachment(k)))]);
   const fresh=setup();fresh.engine.restore(entries);
-  assert.deepEqual([...fresh.engine.matches.values()].map(r=>r.players),[['a','b'],['c','d']]);
+  assert.deepEqual([...fresh.engine.matches.values()].map(r=>r.players),[['a','b'],['c','d'],['e',null]]);
   assert.deepEqual(fresh.engine.queue,['e']);
   assert.equal(fresh.engine.matches.get(match).state.turn,1,'Current turn survives hibernation');
   assert.equal(P.canShoot(fresh.engine.matches.get(match).state,1),true);
-  fresh.engine.receive('f',JSON.stringify({type:'join',protocol:3,style:'bubble'}));
-  assert.deepEqual([...fresh.engine.matches.values()].at(-1).players,['e','f']);
+  fresh.engine.receive('f',JSON.stringify({type:'join',protocol:4,style:'bubble'}));
+  fresh.advance(2);assert.deepEqual([...fresh.engine.matches.values()].at(-1).players,['e','f']);
   assert.equal(fresh.engine.matches.size,3);
 });
 test('expired and flooding sockets are removed without leaving phantom matches',()=>{
@@ -127,10 +127,10 @@ test('real WebSockets pair four clients and reject a cross-origin connection',as
     for(let i=0;i<4;i++){
       const socket=new WebSocket(app.url.replace('http:','ws:')+'/ws',{origin:app.url});clients.push(socket);
       histories.push([]);socket.on('message',raw=>histories[i].push(JSON.parse(raw.toString())));
-      await once(socket,'open');socket.send(JSON.stringify({type:'join',protocol:3,style:'jelly'}));
+      await once(socket,'open');socket.send(JSON.stringify({type:'join',protocol:4,style:'jelly'}));
     }
-    await waitUntil(()=>histories.every(h=>h.some(m=>m.type==='matched')));
-    const ids=histories.map(h=>h.find(m=>m.type==='matched').state.id);
+    await waitUntil(()=>histories.every(h=>h.some(m=>m.type==='matched'&&m.state.bot!==1)));
+    const ids=histories.map(h=>h.find(m=>m.type==='matched'&&m.state.bot!==1).state.id);
     assert.equal(ids[0],ids[1]);assert.equal(ids[2],ids[3]);assert.notEqual(ids[0],ids[2]);
     clients[0].close();await waitUntil(()=>histories[1].some(m=>m.type==='waiting'&&m.reason==='left'));
     const blocked=new WebSocket(app.url.replace('http:','ws:')+'/ws',{origin:'https://unrelated.example'});
@@ -145,11 +145,11 @@ async function waitUntil(check){
 test('distractions only come from waiting opponent, stay in the room and never change physics',()=>{
   const t=setup();for(const key of ['a','b','c','d','e'])t.add(key);t.advance(2);
   const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
-  const before=JSON.stringify(m.balls),send=(key,extra={})=>t.engine.receive(key,JSON.stringify({type:'distraction',kind:'can',match:id,generation:0,...extra}));
+  const before=JSON.stringify(m.balls),send=(key,extra={})=>t.engine.receive(key,JSON.stringify({type:'distraction',kind:'ball',target:[0,.35,-20],match:id,generation:0,...extra}));
   send('a');send('c');send('e');send('b',{kind:'unknown'});send('b',{generation:99});
   assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,0);
-  for(const kind of ['can','bottle','balloon']){send('b',{kind});send('b',{kind});t.now(1001);}
-  for(const key of ['a','b'])assert.deepEqual(t.messages.get(key).filter(x=>x.type==='distraction').map(x=>x.kind),['can','bottle','balloon']);
+  for(let i=0;i<3;i++){send('b');send('b');t.now(1001);}
+  for(const key of ['a','b'])assert.deepEqual(t.messages.get(key).filter(x=>x.type==='distraction').map(x=>x.kind),['ball','ball','ball']);
   for(const key of ['c','d','e'])assert.equal(t.messages.get(key).filter(x=>x.type==='distraction').length,0);
   assert.equal(JSON.stringify(m.balls),before);assert.equal(m.projectiles.length,3);
   m.turn=1;send('b');assert.equal(t.messages.get('a').filter(x=>x.type==='distraction').length,3);
@@ -174,10 +174,10 @@ test('health persists across turns; three Dahrooj hits pop once and restore full
 });
 
 test('every distraction uses half the ball damage, requires a real hit and scores only on zero health',()=>{
-  for(const kind of ['can','bottle','balloon']){
+  for(const kind of ['ball']){
     const t=setup();for(const key of ['a','b','c','d'])t.add(key);t.advance(2);
     const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state,other=t.engine.matches.get(t.engine.clients.get('c').match).state;
-    const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind,match:id,generation:m.balls[1].generation,damage:999}));
+    const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind,target:[0,.35,-20],match:id,generation:m.balls[1].generation,damage:999}));
     for(let i=0;i<5;i++){
       send();t.advance(.6);assert.equal(m.health[0],100-i*20,'No damage before contact');
       t.advance(.5);assert.equal(m.health[0],Math.max(0,100-(i+1)*20));
@@ -193,7 +193,7 @@ test('every distraction uses half the ball damage, requires a real hit and score
 test('missed or already counted distractions cannot drain health; hibernation preserves damage',()=>{
   const t=setup();t.add('a');t.add('b');t.advance(2);
   const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
-  const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'can',match:id,generation:0}));
+  const send=()=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'ball',target:[0,.35,-20],match:id,generation:0}));
   send();m.balls[0].p[0]=6;t.advance(2);assert.deepEqual(m.health,[100,100]);
   m.balls[0].p[0]=0;send();t.advance(2);assert.deepEqual(m.health,[80,100]);
   t.advance(3);assert.deepEqual(m.health,[80,100]);
@@ -203,11 +203,11 @@ test('missed or already counted distractions cannot drain health; hibernation pr
   const legacy=setup();legacy.engine.restore(entries);assert.deepEqual(legacy.engine.matches.get(id).state.health,[100,100]);
 });
 
-test('defender can move sideways at bounded speed; invalid, stale, attacking and foreign movement is ignored',()=>{
+test('both players can move at bounded speed; airborne, invalid, stale and foreign movement is ignored',()=>{
   const t=setup();for(const k of ['a','b','c','d'])t.add(k);t.advance(2);
   const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
   const input={type:'move',match:id,seq:1,generation:0,x:1};
-  for(const [key,extra] of [['a',{}],['c',{}],['b',{x:9}],['b',{generation:99}],['b',{x:'1'}],['b',{seq:0}]])t.engine.receive(key,JSON.stringify({...input,...extra}));
+  for(const [key,extra] of [['c',{}],['b',{x:9}],['b',{generation:99}],['b',{x:'1'}],['b',{seq:0}]])t.engine.receive(key,JSON.stringify({...input,...extra}));
   t.advance(.1);assert.equal(m.balls[1].p[0],0);
   t.engine.receive('b',JSON.stringify(input));assert.equal(m.balls[1].p[0],0,'Input does not teleport');
   t.advance(.1);assert(m.balls[1].p[0]<0&&m.balls[1].p[0]>=-P.MOVE_SPEED*.101);
@@ -216,24 +216,59 @@ test('defender can move sideways at bounded speed; invalid, stale, attacking and
   t.engine.receive('b',JSON.stringify({...input,seq:2,x:-1}));t.advance(.6);assert(Math.abs(m.balls[1].p[0]-1)<.005);
   t.engine.receive('a',JSON.stringify({...shot,match:id}));t.advance(1.1);assert.deepEqual(m.health,[100,100],'Moving defender dodges the center shot');
   t.engine.receive('a',JSON.stringify({type:'return',match:id,generation:0}));assert.equal(m.turn,1);assert.equal(m.balls[1].moveTarget,null);
-  t.engine.receive('b',JSON.stringify({...input,seq:3,x:0}));t.advance(.1);assert(Math.abs(m.balls[1].p[0]-1)<.005,'Movement ends when the defender becomes the shooter');
+  t.engine.receive('b',JSON.stringify({...input,seq:3,x:0}));t.advance(.4);assert(Math.abs(m.balls[1].p[0])<.005,'The shooter can also move sideways');
+  t.advance(2);t.engine.receive('b',JSON.stringify({...shot,match:id,generation:0}));
+  assert(m.balls[1].shot);t.engine.receive('b',JSON.stringify({...input,seq:4,x:1}));assert.equal(m.balls[1].moveTarget,null,'An airborne throw keeps its original physics');
 });
 
-test('tap distractions use server randomness; dragged aim is shared exactly and never follows the opponent',()=>{
-  const rolls=[0,.5,.999],t=setup({random:()=>rolls.shift()});t.add('a');t.add('b');t.advance(2);
+test('small balls follow the tap target, never home, and reject old objects or missing targets',()=>{
+  const t=setup();t.add('a');t.add('b');t.advance(2);
   const id=t.engine.clients.get('a').match,m=t.engine.matches.get(id).state;
-  const send=extra=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'can',match:id,generation:0,...extra}));
-  for(let i=0;i<3;i++){send({});t.now(1001);}
-  const received=t.messages.get('a').filter(e=>e.type==='distraction');
-  assert.deepEqual(received.map(e=>e.target[0]),[-1.5,0,1.4969999999999999]);
-  assert.deepEqual(received,t.messages.get('b').filter(e=>e.type==='distraction'));
+  const send=extra=>t.engine.receive('b',JSON.stringify({type:'distraction',kind:'ball',match:id,generation:0,...extra}));
   const target=[1,.35,-20];send({target});
   const item=m.projectiles.at(-1),before=[...item.body.v];
+  assert.equal(item.body.radius,P.SMALL_R);assert(P.SMALL_R<P.R/2);
   m.balls[0].p[0]=-1.2;t.advance(.1);
-  assert(item.body.v[0]<0,'Slot 1 aim mirrors the given target instead of homing to the player');
-  assert(Math.abs(item.body.v[0])<Math.abs(before[0]));
+  assert(item.body.v[0]<0);assert(Math.abs(item.body.v[0])<Math.abs(before[0]));
   assert.deepEqual(t.messages.get('a').filter(e=>e.type==='distraction').at(-1).target,target);
+  assert.deepEqual(t.messages.get('a').filter(e=>e.type==='distraction'),t.messages.get('b').filter(e=>e.type==='distraction'));
   const count=m.projectiles.length;t.now(1001);
   for(const bad of [[99,.35,-20],[0,0,-20],[0,.35,0],['0',.35,-20],null])send({target:bad});
+  send({});for(const kind of ['can','bottle','balloon'])send({kind,target});
   assert.equal(m.projectiles.length,count);
+  send({target:[.2,1,-5]});assert.equal(m.projectiles.length,count+1,'A tap can aim at an approaching opponent');
+});
+
+test('AI starts immediately, shares style and physics, takes turns and resumes after a human leaves',()=>{
+  const t=setup();t.add('a','fabric');
+  let room=t.engine.matches.get(t.engine.clients.get('a').match);
+  assert.equal(room.state.bot,1);assert.deepEqual(room.state.styles,['fabric','fabric']);assert.equal(t.engine.clients.size,1);
+  t.advance(2);assert(P.canShoot(room.state,0));
+  t.engine.receive('a',JSON.stringify({type:'style',style:'fur'}));assert.deepEqual(room.state.styles,['fur','fur']);
+  const id=room.state.id;
+  t.engine.receive('a',JSON.stringify({...shot,match:id,target:[9,6,-20]}));t.advance(.5);
+  assert(room.state.balls[1].moveSeq>0,'AI reacts using normal movement');
+  t.engine.receive('a',JSON.stringify({type:'return',match:id,generation:0}));
+  t.advance(2.5);assert(room.state.balls[1].seq>0,'AI throws Dahrooj on its turn');
+  assert.equal(room.state.balls[1].shot,true);assert.equal(room.state.balls[1].moveTarget,null);
+  t.add('b');assert.equal(room.state.handoff,true);assert.equal(t.engine.clients.get('a').match,id,'A new human cannot interrupt a flying throw');
+  const before=room.state.balls[0].seq;
+  t.engine.receive('a',JSON.stringify({...shot,match:id,generation:room.state.balls[0].generation,seq:before+1}));assert.equal(room.state.balls[0].seq,before);
+  t.advance(8);assert.equal(t.engine.clients.get('a').match,t.engine.clients.get('b').match);
+  room=t.engine.matches.get(t.engine.clients.get('a').match);assert.equal(room.state.bot,null);assert.deepEqual(room.state.scores,[0,0]);assert.deepEqual(room.state.health,[100,100]);
+  t.engine.disconnect('b');room=t.engine.matches.get(t.engine.clients.get('a').match);assert.equal(room.state.bot,1);assert.deepEqual(t.engine.queue,['a']);
+});
+
+test('AI practice restores health and timers; cancelled handoff returns to AI without a stuck room',()=>{
+  const t=setup();t.add('a');t.advance(4.8);
+  const id=t.engine.clients.get('a').match,room=t.engine.matches.get(id);
+  assert.equal(room.state.health[0],80,'AI small ball applies the same 20 damage');
+  assert.equal(t.engine.active(),false,'Quiet solo play can hibernate after the AI action');
+  const fresh=setup();fresh.engine.restore([['a',JSON.parse(JSON.stringify(t.engine.attachment('a')))]]);
+  assert.equal(fresh.engine.matches.get(id).state.health[0],80);assert.equal(fresh.engine.active(),false);
+  fresh.engine.receive('a',JSON.stringify({...shot,match:id,target:[9,6,-20]}));fresh.advance(.3);fresh.add('b');
+  assert.equal(fresh.engine.matches.get(id).state.handoff,true);
+  fresh.engine.disconnect('b');assert.equal(fresh.engine.matches.get(id).state.handoff,false);
+  fresh.advance(10);assert.equal(fresh.engine.clients.size,1);assert.equal(fresh.engine.matches.size,1);
+  fresh.engine.disconnect('a');assert.equal(fresh.engine.active(),false);assert.equal(fresh.engine.matches.size,0);
 });
