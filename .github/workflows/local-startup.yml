@@ -14,10 +14,10 @@ jobs:
     env:
       LIBGL_ALWAYS_SOFTWARE: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Vendor existing startup resources (or verify pinned files)
@@ -30,7 +30,7 @@ jobs:
         run: node tools/test-startup.mjs
       - name: Save test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: local-startup-verification
           path: |
