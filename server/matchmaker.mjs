@@ -1,9 +1,9 @@
 import '../assets/duel-online/physics.js';
 const P=globalThis.DahroojDuelPhysics;
-const PROTOCOL=2;
+const PROTOCOL=3;
 export class Matchmaker {
-  constructor({send,close,id=()=>crypto.randomUUID(),now=()=>Date.now(),changed=()=>{}}){
-    Object.assign(this,{send,close,id,now,changed});
+  constructor({send,close,id=()=>crypto.randomUUID(),now=()=>Date.now(),random=Math.random,changed=()=>{}}){
+    Object.assign(this,{send,close,id,now,random,changed});
     this.clients=new Map();this.queue=[];this.matches=new Map();this.order=0;this.accumulator=0;this.broadcastT=0;
   }
   connect(key,attachment){
@@ -36,12 +36,17 @@ export class Matchmaker {
     const room=this.matches.get(c.match);
     if(!room||m.match!==c.match)return;
     const ball=room.state.balls[c.slot];
+    if(m.type==='move'){
+      if(P.move(room.state,c.slot,m)){this.broadcast(room);this.changed();}return;
+    }
     if(m.type==='distraction'){
       if(!['can','bottle','balloon'].includes(m.kind)||room.state.turn===c.slot||room.state.resetT||ball.popped||
         m.generation!==ball.generation||now<(c.nextDistraction||0))return;
+      const target=m.target===undefined?[(this.random()*2-1)*1.5,.35,-P.DISTANCE]:m.target;
+      if(!P.validDistractionTarget(target))return;
       c.nextDistraction=now+1000;
-      room.state.projectiles.push({slot:c.slot,kind:m.kind,body:P.distraction(c.slot,m.kind,ball.p),t:0,hit:false});
-      const event={type:'distraction',match:c.match,slot:c.slot,kind:m.kind,position:[...ball.p]};
+      room.state.projectiles.push({slot:c.slot,kind:m.kind,body:P.distraction(c.slot,m.kind,ball.p,target),t:0,hit:false});
+      const event={type:'distraction',match:c.match,slot:c.slot,kind:m.kind,target:[...target],position:[...ball.p]};
       for(const peer of room.players)this.emit(peer,event);
       this.changed();return;
     }

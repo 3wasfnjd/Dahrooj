@@ -20,4 +20,8 @@ Browser evidence is generated in `test-results/duel-*`. Browser checks use the r
 
 ## Health and damage
 
-Both players start with 100 health. A character hit removes 40; any distraction hit removes 20. The server simulates shared projectile physics and checks swept contacts once per projectile. Misses do not cause damage. Health persists between turns; only zero health causes a pop and score. Full health returns after the defeated round resets. A small ink-colored line above each character shows health without visible text. Regression coverage includes half damage, misses, lethal hits, round resets, hibernation, room isolation and synchronized browser health.
+Both players start with 100 health. A character hit removes 40; any distraction hit removes 20. The server simulates shared projectile physics and checks swept contacts once per projectile. Misses do not cause damage. Health persists between turns; only zero health causes a pop and score. Full health returns after the defeated round resets. Two small ink-colored lines below the turn icon show health without visible text, following the score order (self left, opponent right). Regression coverage includes half damage, misses, lethal hits, round resets, hibernation, room isolation and synchronized browser health.
+
+## Defender controls
+
+The waiting player can drag their character horizontally. Movement is bounded and speed-limited by the server, predicted locally, and shared with the other client. A tap throws a distraction toward a server-selected random horizontal target; dragging its existing icon to the court and releasing selects a target manually. Neither path tracks the opponent. Waiting/connection statuses are Arabic.

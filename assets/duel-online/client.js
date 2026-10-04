@@ -5,14 +5,14 @@
   class DuelClient {
     constructor({status=()=>{},pop=()=>{},distraction=()=>{},hit=()=>{}}={}){
       this.onStatus=status;this.onPop=pop;this.onDistraction=distraction;this.onHit=hit;this.active=false;this.state=null;this.slot=0;
-      this.pending=null;this.sequence=0;this.attempt=0;this.rtt=0;this.lastEvent=0;this.generation=0;
+      this.pending=null;this.moveSequence=0;this.pendingMove=null;this.moveInput=null;this.moveDirty=false;this.nextMove=0;this.sequence=0;this.attempt=0;this.rtt=0;this.lastEvent=0;this.generation=0;
       this.pageHide=()=>this.suspend();this.pageShow=()=>{if(this.active&&!this.socket)this.connect();};
     }
     enter(style){
       this.leave();this.active=true;this.style=style;this.setStatus('connecting');
       addEventListener('pagehide',this.pageHide);addEventListener('pageshow',this.pageShow);this.connect();
     }
-    setStatus(value){this.status=value;this.onStatus(value);}
+    setStatus(value){this.status=value;this.moveInput=null;this.moveDirty=false;this.pendingMove=null;this.onStatus(value);}
     connect(){
       if(!this.active)return;
       const generation=++this.generation,url=new URL('/ws',location.href);url.protocol=location.protocol==='https:'?'wss:':'ws:';
@@ -21,7 +21,7 @@
       const current=()=>this.active&&generation===this.generation;
       ws.onopen=()=>{
         if(!current())return;
-        this.attempt=0;this.send({type:'join',protocol:2,style:this.style});this.ping();
+        this.attempt=0;this.send({type:'join',protocol:3,style:this.style});this.ping();
         clearInterval(this.heartbeat);this.heartbeat=setInterval(()=>{
           if(Date.now()-this.lastMessage>25000){ws.close();return;}this.ping();
         },8000);
@@ -36,7 +36,7 @@
           this.state=null;this.pending=null;this.lastEvent=0;this.setStatus('waiting');return;
         }
         if(m.type==='matched'){
-          this.slot=m.slot;this.sequence=0;this.pending=null;this.lastEvent=m.state.event;
+          this.slot=m.slot;this.sequence=0;this.moveSequence=m.state.balls[m.slot].moveSeq||0;this.pending=null;this.lastEvent=m.state.event;
           this.state=m.state;this.setStatus('playing');return;
         }
         if(m.type==='distraction'&&this.state?.id===m.match){this.onDistraction(m);return;}
@@ -49,11 +49,15 @@
         if(this.pending&&own.generation===this.pending.generation&&own.seq<this.pending.seq&&!m.state.resetT){
           m.state.balls[this.slot]=old.balls[this.slot];
         }else this.pending=null;
+        if(this.pendingMove&&own.generation===this.pendingMove.generation&&(own.moveSeq||0)<this.pendingMove.seq&&P.canMove(m.state,this.slot)){
+          own.p[0]=old.balls[this.slot].p[0];own.v[0]=old.balls[this.slot].v[0];own.moveTarget=this.pendingMove.target;
+        }else this.pendingMove=null;
+        if(this.moveDirty&&P.canMove(m.state,this.slot))own.moveTarget=this.slot?-this.moveInput:this.moveInput;
         this.state=m.state;
         {
           const ahead=Math.min(.1,this.rtt/2000);
           for(let elapsed=0;elapsed<ahead;elapsed+=P.STEP)
-            this.state.balls.forEach((b,i)=>{if(!(this.pending&&i===this.slot))P.stepBall(b,Math.min(P.STEP,ahead-elapsed));});
+            this.state.balls.forEach((b,i)=>{if(!(this.pending&&i===this.slot))P.stepPlayer(this.state,i,Math.min(P.STEP,ahead-elapsed));});
         }
         for(const event of m.events||[]){
           if(event.id<=this.lastEvent)continue;
@@ -79,9 +83,23 @@
     setStyle(style){if(this.style===style)return;this.style=style;this.send({type:'style',style});}
     canShoot(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canShoot(this.state,this.slot)&&!this.pending;}
     canDistract(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&this.state.turn!==this.slot&&!this.state.resetT&&!this.state.balls[this.slot].popped;}
-    distract(kind){
+    canMove(){return this.status==='playing'&&this.socket?.readyState===WebSocket.OPEN&&this.state&&P.canMove(this.state,this.slot);}
+    move(x){
+      if(!this.canMove()||!Number.isFinite(x))return false;
+      this.moveInput=Math.max(-P.MOVE_LIMIT,Math.min(P.MOVE_LIMIT,x));this.moveDirty=true;
+      this.state.balls[this.slot].moveTarget=this.slot?-this.moveInput:this.moveInput;this.flushMove();return true;
+    }
+    flushMove(){
+      if(!this.moveDirty||!this.canMove()||Date.now()<this.nextMove)return;
+      const b=this.state.balls[this.slot],message={type:'move',match:this.state.id,generation:b.generation,seq:++this.moveSequence,x:this.moveInput};
+      if(this.send(message)){this.pendingMove={...message,target:this.slot?-message.x:message.x};this.moveDirty=false;this.nextMove=Date.now()+50;}
+    }
+    stopMove(){
+      if(this.canMove()){this.nextMove=0;this.move(P.position(this.state.balls[this.slot].p,this.slot)[0]);}
+    }
+    distract(kind,target){
       if(!this.canDistract()||Date.now()<(this.nextDistraction||0))return false;
-      const sent=this.send({type:'distraction',match:this.state.id,generation:this.state.balls[this.slot].generation,kind});
+      const sent=this.send({type:'distraction',match:this.state.id,generation:this.state.balls[this.slot].generation,kind,...(target?{target}: {})});
       if(sent)this.nextDistraction=Date.now()+1000;return sent;
     }
     shoot(command){
@@ -97,12 +115,14 @@
     }
     step(dt){
       if(!this.state)return;
-      this.state.balls.forEach(b=>P.stepBall(b,dt));
+      if(!this.canMove()){this.moveDirty=false;this.pendingMove=null;this.moveInput=null;}
+      this.flushMove();
+      for(let elapsed=0;elapsed<dt;elapsed+=P.STEP)this.state.balls.forEach((b,i)=>P.stepPlayer(this.state,i,Math.min(P.STEP,dt-elapsed)));
     }
     suspend(){
       ++this.generation;clearTimeout(this.retryTimer);clearTimeout(this.openTimeout);clearInterval(this.heartbeat);
       if(this.socket){this.socket.onclose=null;this.socket.close(1000,'Left Duel');this.socket=null;}
-      this.state=null;this.pending=null;
+      this.state=null;this.pending=null;this.pendingMove=null;this.moveDirty=false;this.moveInput=null;
     }
     leave(){
       this.active=false;this.suspend();removeEventListener('pagehide',this.pageHide);removeEventListener('pageshow',this.pageShow);

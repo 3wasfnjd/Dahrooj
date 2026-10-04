@@ -9,8 +9,8 @@
   const P=globalThis.DahroojDuelPhysics;
   const fills={can:'#2C2D3D',bottle:'#2C2D3D',balloon:'#2C2D3D'};
   class Distractions {
-    constructor({send,project,position,localSlot}){
-      Object.assign(this,{send,project,position,localSlot});this.items=[];this.cooldown=0;
+    constructor({send,project,position,localSlot,targetAt,origin}){
+      Object.assign(this,{send,project,position,localSlot,targetAt,origin});this.items=[];this.cooldown=0;
       this.paths=Object.fromEntries(Object.entries(shapes).map(([k,v])=>[k,new Path2D(v)]));
       this.bar=document.createElement('div');this.bar.className='duel-distractions';this.bar.hidden=true;
       this.bar.setAttribute('role','group');this.bar.setAttribute('aria-label','Distractions');
@@ -19,22 +19,41 @@
         const button=document.createElement('button');button.type='button';button.dataset.distraction=kind;
         button.setAttribute('aria-label',labels[kind]);
         button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shapes[kind]}"/></svg>`;
-        button.addEventListener('pointerdown',e=>e.stopPropagation());
-        button.addEventListener('click',e=>{e.stopPropagation();if(this.send(kind)){this.cooldown=1;this.setDisabled(true);}});
+        button.addEventListener('pointerdown',e=>{
+          e.stopPropagation();if(this.gesture||button.disabled||this.bar.hidden)return;
+          this.suppressClick=true;button.setPointerCapture(e.pointerId);
+          this.gesture={id:e.pointerId,kind,button,start:{x:e.clientX,y:e.clientY},point:{x:e.clientX,y:e.clientY},dragged:false};
+        });
+        button.addEventListener('pointermove',e=>{
+          const g=this.gesture;if(!g||g.id!==e.pointerId)return;e.stopPropagation();
+          g.point={x:e.clientX,y:e.clientY};g.dragged||=Math.hypot(g.point.x-g.start.x,g.point.y-g.start.y)>8;
+        });
+        button.addEventListener('pointerup',e=>{
+          const g=this.gesture;if(!g||g.id!==e.pointerId)return;e.stopPropagation();this.gesture=null;
+          const target=g.dragged?this.targetAt({x:e.clientX,y:e.clientY}):undefined;
+          if(this.send(kind,target)){this.cooldown=1;this.setDisabled(true);}
+        });
+        const cancel=e=>{if(this.gesture?.id===e.pointerId)this.gesture=null;};
+        button.addEventListener('pointercancel',cancel);button.addEventListener('lostpointercapture',cancel);
+        button.addEventListener('click',e=>{
+          e.stopPropagation();if(this.suppressClick&&e.detail!==0){this.suppressClick=false;return;}
+          if(this.send(kind)){this.cooldown=1;this.setDisabled(true);}
+        });
         this.bar.append(button);
       }
       document.body.append(this.bar);
     }
     setDisabled(value){for(const b of this.bar.children)b.disabled=value;}
-    clear(){this.items=[];this.cooldown=0;this.bar.hidden=true;this.setDisabled(false);}
+    clear(){this.items=[];this.gesture=null;this.cooldown=0;this.bar.hidden=true;this.setDisabled(false);}
     launch(event){
       if(!this.paths[event.kind])return;
-      const body=P.distraction(event.slot,event.kind,event.position);
+      const body=P.distraction(event.slot,event.kind,event.position,event.target);
+      if(!body)return;
       this.items.push({kind:event.kind,t:0,body,slot:event.slot,incoming:event.slot!==this.localSlot(),accumulator:0,drops:null,splashT:0});
       if(this.items.length>4)this.items.shift();
     }
     update(dt,waiting){
-      this.bar.hidden=!waiting;this.cooldown=Math.max(0,this.cooldown-dt);this.setDisabled(this.cooldown>0);
+      this.bar.hidden=!waiting;if(!waiting)this.gesture=null;this.cooldown=Math.max(0,this.cooldown-dt);this.setDisabled(this.cooldown>0);
       for(const item of this.items){
         item.t+=dt;item.accumulator+=Math.min(.1,dt);
         while(item.accumulator>=P.STEP){
@@ -64,6 +83,11 @@
       return {x:center.x,y:center.y,size:Math.max(1,Math.hypot(edge.x-center.x,edge.y-center.y))};
     }
     paint(c,w,h){
+      if(this.gesture?.dragged){
+        const from=this.origin(),to=this.gesture.point;
+        c.save();c.strokeStyle='rgba(44,45,61,.28)';c.lineWidth=2;c.lineCap='round';c.setLineDash([2,8]);
+        c.beginPath();c.moveTo(from.x,from.y);c.lineTo(to.x,to.y);c.stroke();c.restore();
+      }
       for(const item of this.items){
         if(item.drops){
           c.save();c.fillStyle='#2C2D3D';c.globalAlpha=Math.max(0,1-item.splashT/.4);

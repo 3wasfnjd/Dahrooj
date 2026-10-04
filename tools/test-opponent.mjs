@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {startLocal} from '../server/local.mjs';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const app=await startLocal({port:0,transformHTML:html=>html
-  .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testOpponent:O,testRadius:OR,testPaintPop:paintPop,testPaintHealth:paintHealth,testBody:body,testBursts:()=>bursts,')
+  .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testOpponent:O,testRadius:OR,testPaintPop:paintPop,testBody:body,testBursts:()=>bursts,')
   .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage};',
     'window.__game={S,BR,aim,shoot,toScreen,camera,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage};')
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')});
@@ -40,7 +40,7 @@ try{
   assert.equal(app.engine.clients.size,0,'Other modes do not enter online matchmaking');
   await select(a,'opponent');assert.equal(await a.locator('[data-mode="opponent"]').getAttribute('aria-label'),'Duel');
   await a.waitForFunction(()=>window.__game.stage.testClient.status==='waiting');
-  assert.equal(await a.locator('#count').textContent(),'Waiting for player…');
+  assert.equal(await a.locator('#count').textContent(),'بانتظار لاعب…');
   assert.equal(await a.evaluate(()=>window.__game.stage.canAim()),false);
   assert.equal(await a.evaluate(()=>window.__game.stage.testBody.visible),false,'No fake AI while waiting');
   await a.screenshot({path:resolve(root,'test-results/duel-waiting.png')});

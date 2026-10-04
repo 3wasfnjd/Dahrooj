@@ -2,19 +2,39 @@
 (() => {
   'use strict';
   const R=.24, GRAV=13, DISTANCE=20, STEP=1/180;
+  const MOVE_LIMIT=1.25, MOVE_SPEED=4.5;
   const MAX_HEALTH=100, BALL_DAMAGE=40, DISTRACTION_DAMAGE=BALL_DAMAGE/2;
   const STYLES=['jelly','fabric','clay','fur','bubble'];
   const length=v=>Math.hypot(...v);
   function ball(slot,generation=0){
     return {p:[0,R+1,-slot*DISTANCE],v:[0,0,0],side:[0,0,0],grounded:false,
-      shot:false,hit:false,shotT:0,restT:0,missT:0,popped:false,generation,seq:0};
+      moveTarget:null,moveSeq:0,shot:false,hit:false,shotT:0,restT:0,missT:0,popped:false,generation,seq:0};
   }
   function reset(match,slot){
     const old=match.balls[slot];
     match.balls[slot]=ball(slot,old.generation+1);
-    match.balls[slot].seq=old.seq;
+    match.balls[slot].seq=old.seq;match.balls[slot].moveSeq=old.moveSeq||0;
   }
-  function endTurn(match,slot){reset(match,slot);match.projectiles=[];match.turn=1-slot;}
+  function endTurn(match,slot){
+    reset(match,slot);match.projectiles=[];match.turn=1-slot;
+    for(const b of match.balls){b.moveTarget=null;if(!b.shot)b.v[0]=0;}
+  }
+  function canMove(m,slot){const b=m.balls[slot];return m.turn!==slot&&!m.resetT&&b.grounded&&!b.shot&&!b.popped;}
+  function move(m,slot,command){
+    const b=m.balls[slot];
+    if(!canMove(m,slot)||command.generation!==b.generation||!Number.isFinite(command.x)||Math.abs(command.x)>MOVE_LIMIT||
+      !Number.isSafeInteger(command.seq)||command.seq<1||command.seq<=(b.moveSeq||0))return false;
+    b.moveTarget=slot?-command.x:command.x;b.moveSeq=command.seq;return true;
+  }
+  function stepPlayer(m,slot,dt){
+    const b=m.balls[slot];
+    if(canMove(m,slot)&&Number.isFinite(b.moveTarget)){
+      const delta=b.moveTarget-b.p[0];
+      if(Math.abs(delta)<.003){b.p[0]=b.moveTarget;b.v[0]=0;b.moveTarget=null;}
+      else b.v[0]=Math.max(-MOVE_SPEED,Math.min(MOVE_SPEED,delta/dt));
+    }else if(!canMove(m,slot))b.moveTarget=null;
+    return stepBall(b,dt);
+  }
   function canShoot(match,slot){return match.turn===slot&&!match.resetT&&match.balls.every(b=>b.grounded&&!b.shot&&!b.popped);}
   // The second player sees the same camera, rotated through 180 degrees.
   function position(p,slot){return slot?[-p[0],p[1],-DISTANCE-p[2]]:[...p];}
@@ -32,7 +52,7 @@
     const norm=Math.hypot(dx,dz)||1;
     b.side=[-dz/norm*c.curve*9,0,dx/norm*c.curve*9];
     b.v=target.map((value,i)=>(value-b.p[i]-.5*(i===1?-GRAV:b.side[i])*c.flight*c.flight)/c.flight);
-    b.shot=true;b.hit=false;b.shotT=0;b.restT=0;b.missT=0;b.grounded=false;b.seq=c.seq;
+    b.moveTarget=null;b.shot=true;b.hit=false;b.shotT=0;b.restT=0;b.missT=0;b.grounded=false;b.seq=c.seq;
     return true;
   }
   // Exact gravity, curve, drag, floor bounce and friction from update3().
@@ -52,10 +72,11 @@
     if(b.shot){b.shotT+=dt;b.restT=b.grounded&&length(v)<.35?b.restT+dt:0;}
     return impact;
   }
-  function distraction(slot,kind,from){
-    if(!['can','bottle','balloon'].includes(kind))return null;
+  function validDistractionTarget(target){return Array.isArray(target)&&target.length===3&&target.every(Number.isFinite)&&Math.abs(target[0])<=9&&target[1]>=.35&&target[1]<=6&&target[2]===-DISTANCE;}
+  function distraction(slot,kind,from,target){
+    if(!['can','bottle','balloon'].includes(kind)||!validDistractionTarget(target))return null;
     const body=ball(slot);body.p=[...from];body.grounded=true;
-    launch(body,slot,{seq:1,target:[{can:-.15,bottle:.15,balloon:0}[kind],.35,-DISTANCE],flight:.8,curve:0});
+    launch(body,slot,{seq:1,target,flight:.8,curve:0});
     return body;
   }
   function prepareMatch(m){
@@ -102,7 +123,7 @@
       return events;
     }
     const previous=m.balls.map(b=>[...b.p]);
-    for(const b of m.balls)stepBall(b,dt);
+    for(let slot=0;slot<2;slot++)stepPlayer(m,slot,dt);
     const [a,b]=m.balls,n=a.p.map((v,i)=>v-b.p[i]),distance=length(n);
     if(!a.popped&&!b.popped&&distance<R*2&&(a.shot||b.shot)){
       if(distance>1e-5)for(let i=0;i<3;i++)n[i]/=distance;else n.splice(0,3,0,0,1);
@@ -130,7 +151,7 @@
     }
     return events;
   }
-  function active(m){return m.resetT>0||m.projectiles?.length>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||length(b.v)>.001));}
+  function active(m){return m.resetT>0||m.projectiles?.length>0||m.balls.some(b=>!b.popped&&(!b.grounded||b.shot||Number.isFinite(b.moveTarget)||length(b.v)>.001));}
   function snapshot(m){return JSON.parse(JSON.stringify(m));}
-  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
+  globalThis.DahroojDuelPhysics=Object.freeze({R,GRAV,DISTANCE,STEP,MOVE_LIMIT,MOVE_SPEED,canMove,move,stepPlayer,validDistractionTarget,MAX_HEALTH,BALL_DAMAGE,DISTRACTION_DAMAGE,STYLES,distraction,prepareMatch,ball,reset,endTurn,canShoot,position,vector,validShot,launch,stepBall,createMatch,stepMatch,active,snapshot});
 })();
