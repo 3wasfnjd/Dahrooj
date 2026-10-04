@@ -17,7 +17,7 @@
       for(const kind of Object.keys(shapes)){
         const button=document.createElement('button');button.type='button';button.dataset.distraction=kind;
         button.setAttribute('aria-label',labels[kind]);
-        button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shapes[kind]}"/></svg>`;
+        button.innerHTML=`<svg viewBox="0 0 24 24" fill="#000" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${shapes[kind]}"/></svg>`;
         button.addEventListener('pointerdown',e=>e.stopPropagation());
         button.addEventListener('click',e=>{e.stopPropagation();if(this.send(kind)){this.cooldown=1;this.setDisabled(true);}});
         this.bar.append(button);
@@ -44,43 +44,41 @@
         const end=incoming?{x:w*(.5+offset),y:h*.57}:far;
         let x=start.x+(end.x-start.x)*t,y=start.y+(end.y-start.y)*t-Math.sin(t*Math.PI)*h*.23;
         const size=incoming?8+Math.pow(t,2)*Math.min(68,w*.17):25*(1-t)+6;
-        // Keep the launch arc; continue its velocity into a floor contact, never stop in mid-air.
-        const gravity=h*(incoming?2:.12),floor=incoming?h*.82:this.project([0,0,-20]).y;
-        const vx=(end.x-start.x)/1.1,vy=(end.y-start.y+Math.PI*h*.23)/1.1;
-        const drop=Math.max(0,floor-end.y-size*.7);
-        const impact=(Math.sqrt(vy*vy+2*gravity*drop)-vy)/gravity;
-        const after=item.t-1.1,landed=after-impact;
-        let rotation=t*Math.PI*2*(item.kind==='can'?1:-1),alpha=1;
+        // Preserve the launch, then carry the same velocity beyond the viewport.
+        // Props pass through: no screen collision, landing or bounce.
+        const after=Math.max(0,item.t-1.1);
         if(after>0){
-          const fall=Math.min(after,impact);
-          x=end.x+vx*fall;y=end.y+vy*fall+.5*gravity*fall*fall;
-          rotation=(1+fall/1.1)*Math.PI*2*(item.kind==='can'?1:-1);
-          if(landed>=0){
-            const rebound=(vy+gravity*impact)*.22,bounceTime=2*rebound/gravity;
-            const bounce=Math.min(landed,bounceTime);
-            x+=vx*.28*bounce;y+=-rebound*bounce+.5*gravity*bounce*bounce;
-            rotation+=bounce*2*(item.kind==='can'?1:-1);
-            alpha=Math.max(0,1-Math.max(0,landed-bounceTime-.12)/.22);
+          const vx=(end.x-start.x)/1.1,vy=(end.y-start.y+Math.PI*h*.23)/1.1;
+          x=end.x+vx*after;
+          y=end.y+vy*after+.5*h*.9*after*after;
+        }
+        // Water only opens after passing the opponent, never on the screen plane.
+        if(item.kind==='balloon'){
+          const opponent=this.project(incoming?[0,.24,0]:[0,.24,-20]);
+          const beyond=Math.max(end.y,opponent.y)+size*1.3;
+          const vy=(end.y-start.y+Math.PI*h*.23)/1.1,gravity=h*.9;
+          const passTime=(Math.sqrt(vy*vy+2*gravity*(beyond-end.y))-vy)/gravity;
+          const splashTime=after-passTime;
+          if(splashTime>=0){
+            if(splashTime<.45){
+              const px=end.x+(end.x-start.x)/1.1*passTime;
+              c.save();c.globalAlpha=1-splashTime/.45;c.fillStyle=fills.balloon;
+              for(const [dx,dy] of [[-1.5,-1.7],[-.9,-2.4],[-.4,-1.3],[.2,-2.1],[.7,-1.5],[1.2,-2.3],[1.7,-1.1]]){
+                const r=size*(.035+.012*Math.abs(dx));
+                c.beginPath();c.ellipse(px+dx*size*splashTime*3,beyond+dy*size*splashTime*3+size*9*splashTime*splashTime,r,r*1.5,-dx*.25,0,Math.PI*2);c.fill();
+              }
+              c.restore();
+            }
+            continue;
           }
         }
-        c.save();c.globalAlpha=alpha;
-        if(item.kind==='balloon'&&landed>=0){
-          // A few falling drops at contact, with no ring or radial flower shape.
-          const q=landed;c.globalAlpha=Math.max(0,1-q/.5);c.fillStyle=fills.balloon;
-          const drops=[[-1.5,-1.7],[-.9,-2.4],[-.4,-1.3],[.2,-2.1],[.7,-1.5],[1.2,-2.3],[1.7,-1.1]];
-          for(const [dx,dy] of drops){
-            const px=end.x+vx*impact+dx*size*q*3;
-            const py=floor-size*.5+dy*size*q*3+size*9*q*q;
-            const r=size*(.035+.012*Math.abs(dx));
-            c.beginPath();c.ellipse(px,py,r,r*1.5,-dx*.25,0,Math.PI*2);c.fill();
-          }
-        }else{
-          c.translate(x,y);
-          c.rotate(item.kind==='balloon'?Math.sin(t*6)*.15:rotation);
-          c.scale(size/12,size/12);c.translate(-12,-12);
-          c.fillStyle=fills[item.kind];c.strokeStyle='#2c2d3d';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
-          c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);
-        }
+        if(y-size*1.5>h)continue;
+        c.save();
+        c.translate(x,y);
+        c.rotate(item.kind==='balloon'?Math.sin(item.t/1.1*6)*.15:item.t/1.1*Math.PI*2*(item.kind==='can'?1:-1));
+        c.scale(size/12,size/12);c.translate(-12,-12);
+        c.fillStyle=fills[item.kind];c.strokeStyle='#2c2d3d';c.lineWidth=.85;c.lineJoin='round';c.lineCap='round';
+        c.fill(this.paths[item.kind]);c.stroke(this.paths[item.kind]);
         c.restore();
       }
     }
