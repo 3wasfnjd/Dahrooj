@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node server/local.mjs",
     "build": "node tools/package-site.mjs",
-    "test": "node --test tools/test-duel-server.mjs tools/test-duel-view.mjs",
+    "test": "node --test tools/test-duel-server.mjs tools/test-duel-view.mjs tools/test-duel-input.mjs",
     "test:browser": "node tools/test-opponent.mjs",
     "deploy": "wrangler deploy"
   },

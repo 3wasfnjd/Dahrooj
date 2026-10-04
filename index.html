@@ -641,6 +641,7 @@ function drawXStitch(c,R){
 
 // eyes, mouth and cheeks, drawn around (0,0) for a body of radius Rr
 function drawFace(c,Rr,face,lx,ly,blushK,blinkOn){
+  if(face==='none') return;
   const er=Rr*0.19, ex=Rr*0.31, ey=-Rr*0.08+ly*Rr*0.06, exo=lx*Rr*0.08;
   drawEye(c,-ex+exo,ey,er,lx,ly,face,blinkOn);
   drawEye(c,ex+exo,ey,er,lx,ly,face,blinkOn);
@@ -1104,7 +1105,7 @@ function make3D(){
 
   const S={pos:V(0,BR+1.2,0),vel:V(0,0,0),side:V(0,0,0),d:0,dv:0,axis:V(0,1,0),
     shot:false,shotT:0,scoredT:0,missT:0,mood:null,moodT:0,moodNext:null,idle:0,restT:0,hitT:0,blink:0,nextBlink:2,grounded:false,lastHit:0,prevZ:0,prevY:0};
-  const aim={down:false,pts:[],x:W/2,y:H*0.3};
+  const aim={down:false,pointerId:null,pts:[],x:W/2,y:H*0.3};
   let fxDash=[];
   const tmp2=V(0,0,0);
 
@@ -1532,7 +1533,7 @@ function make3D(){
     }
     const distractions=new window.DahroojDuelDistractions({
       send:(kind,target)=>{client.setStyle(ballStyle);return client.distract(kind,target);},project:p=>toScreen(V(...p)),
-      makeSprite:style=>makeStartBallSprite(style,'open',false,{t:0,parts:[]}),
+      makeSprite:style=>makeStartBallSprite(style,'none',false,{t:0,parts:[]}),
       styleAt:slot=>client.state?.styles[slot]??ballStyle,
       targetAt:p=>{const z=Math.max(OZ,Math.min(-1,O.pos.z)),v=planePoint(p,z);return [Math.max(-9,Math.min(9,v.x)),Math.max(.35,Math.min(6,v.y)),z];},
       position:p=>physics.position(p,client.slot),localSlot:()=>client.slot
@@ -1542,7 +1543,7 @@ function make3D(){
       if(event.slot===client.slot)S.hitT=.22;else O.hitT=.22;
     }
     function networkStatus(status){
-      aim.down=false;movePointer=null;throwPointer=null;distractions.clear();healthShown.fill(physics.MAX_HEALTH);
+      cancelAim();movePointer=null;throwPointer=null;distractions.clear();healthShown.fill(physics.MAX_HEALTH);
       if(status!=='playing'){
         distractions.clear();visible=false;body.visible=false;localPopped=false;bursts=[];lastMatch='';
         S.pos.set(0,BR,0);S.vel.set(0,0,0);S.side.set(0,0,0);S.shot=false;S.grounded=true;
@@ -1594,7 +1595,7 @@ function make3D(){
           })});
         if(slot===client.slot)localPopped=true;else {O.touched=true;body.visible=false;react('joy',1.7);confetti.celebrate(S.pos);}
       }
-      aim.down=false;startPopSound();displayScore();
+      cancelAim();startPopSound();displayScore();
     }
     function paintPop(c){
       for(const burst of bursts){
@@ -1648,31 +1649,39 @@ function make3D(){
       grp,aimZ:OZ,networked:true,
       ft:sp=>Math.max(.8,Math.min(1.6,1.75-sp/2400)),behind:()=>false,
       enter(){lastGeneration=[-1,-1];bursts=[];client.enter(ballStyle);},
-      leave(){client.leave();movePointer=null;throwPointer=null;distractions.clear();aim.down=false;visible=false;body.visible=false;localPopped=false;elCount.removeAttribute('title');delete elCount.dataset.opponent;},
+      leave(){client.leave();movePointer=null;throwPointer=null;distractions.clear();cancelAim();visible=false;body.visible=false;localPopped=false;elCount.removeAttribute('title');delete elCount.dataset.opponent;},
       canAim:()=>client.canShoot(),canHit:()=>client.canShoot(),
       submitShot:command=>client.shoot(command),
       startMove(p,id){
-        if(movePointer||throwPointer)return true;
         if(!client.canMove())return false;
         const center=toScreen(S.pos);
-        if(Math.hypot(p.x-center.x,p.y-center.y)>Math.max(44,radiusOnScreen(S.pos,BR)*2)){
-          if(client.canDistract()){throwPointer={id,start:p};aim.down=false;return true;}
-          return false;
+        const near=Math.hypot(p.x-center.x,p.y-center.y)<=Math.max(44,radiusOnScreen(S.pos,BR)*2);
+        if(!near&&client.canDistract()){
+          if(!throwPointer)throwPointer={id,start:p};
+          return true;
         }
-        movePointer={id,start:p,mode:client.canShoot()?'pending':'move',offset:S.pos.x-planePoint(p,0).x};
-        if(movePointer.mode==='move'){aim.down=false;return true;}
-        return false;
+        if(movePointer){
+          // A held body touch becomes movement when a second finger starts a shot.
+          if(movePointer.mode==='pending'&&aim.pointerId===movePointer.id){movePointer.mode='move';cancelAim(movePointer.id);}
+          return aim.down||!client.canShoot();
+        }
+        if(!near)return false;
+        movePointer={id,start:p,mode:client.canShoot()&&!aim.down?'pending':'move',offset:S.pos.x-planePoint(p,0).x};
+        return movePointer.mode==='move';
       },
       dragMove(p,id){
         if(throwPointer?.id===id){if(Math.hypot(p.x-throwPointer.start.x,p.y-throwPointer.start.y)>12)throwPointer.cancelled=true;return true;}
         if(movePointer?.id!==id)return false;
-        if(!client.canMove()){movePointer=null;aim.down=false;return true;}
+        if(!client.canMove()){movePointer=null;cancelAim(id);return true;}
         if(movePointer.mode==='pending'){
           const dx=p.x-movePointer.start.x,dy=p.y-movePointer.start.y;
-          if(Math.hypot(dx,dy)>8)movePointer.mode=Math.abs(dx)>Math.abs(dy)*1.15?'move':'aim';
+          if(Math.hypot(dx,dy)>8){
+            if(Math.abs(dx)>Math.abs(dy)*1.15){movePointer.mode='move';cancelAim(id);}
+            else {movePointer=null;return false;}
+          }
         }
         if(movePointer.mode!=='move')return false;
-        aim.down=false;client.move(planePoint(p,0).x+movePointer.offset);
+        client.move(planePoint(p,0).x+movePointer.offset);
         return true;
       },
       endMove(p,id){
@@ -1693,7 +1702,7 @@ function make3D(){
           const hp=client.state.health?.[slot]??physics.MAX_HEALTH;
           healthShown[slot]=hp===0?0:healthShown[slot]+(hp-healthShown[slot])*(1-Math.exp(-18*dt));
         }
-        updateHealth();if(!client.canMove())movePointer=null;if(!client.canDistract())throwPointer=null;
+        updateHealth();if(!client.canMove())movePointer=null;if(!client.canDistract())throwPointer=null;if(!client.canShoot())cancelAim();
         const own=client.state.balls[client.slot],other=client.state.balls[1-client.slot];
         if(syncBall(S,own,client.slot,dt)){skin.reset();bub.t=0;bub.parts=[];S.mood=null;S.moodT=0;S.scoredT=0;S.missT=0;}
         if(syncBall(O,other,1-client.slot,dt)){opponentSkin.reset();opponentBubble.t=0;opponentBubble.parts=[];}
@@ -1921,7 +1930,7 @@ function make3D(){
 
   const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow,opponent:buildOpponent};
   const stages={}; let stage=null, stageName='';
-  function leaveStage(){if(stage&&stage.leave)stage.leave();aim.down=false;}
+  function leaveStage(){if(stage&&stage.leave)stage.leave();cancelAim();}
   function setStage(name){
     leaveStage();
     if(!stages[name]) stages[name]=builders[name]();
@@ -1949,22 +1958,25 @@ function make3D(){
   }
 
   /* ---------- input: swipe up to shoot ---------- */
+  function cancelAim(id){if(id!==undefined&&aim.pointerId!==id)return;aim.down=false;aim.pointerId=null;}
   function sp(e){const r=gcv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top,t:performance.now()/1000};}
   gcv.addEventListener('pointerdown',e=>{
     ensureAudio(); gcv.setPointerCapture(e.pointerId);
     const p=sp(e);if(stage.startMove?.(p,e.pointerId))return;
+    if(aim.down)return;
     aim.x=p.x; aim.y=p.y;
     const ok=stage.canAim?stage.canAim():(!S.shot && S.grounded);
     if(!ok) return;
-    aim.down=true; aim.pts=[p];
+    aim.down=true; aim.pointerId=e.pointerId; aim.pts=[p];
   });
   gcv.addEventListener('pointermove',e=>{
     const p=sp(e);if(stage.dragMove?.(p,e.pointerId))return;
+    if(aim.down&&aim.pointerId!==e.pointerId)return;
     aim.x=p.x; aim.y=p.y;
     if(aim.down){ aim.pts.push(p); if(aim.pts.length>80) aim.pts.shift(); }
   });
   function shoot(){
-    if(!aim.down) return; aim.down=false;
+    if(!aim.down) return; cancelAim();
     const pts=aim.pts, a=pts[0], b=pts[pts.length-1];
     const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
     if(stage.shot){
@@ -1994,9 +2006,14 @@ function make3D(){
     if(stage.submitShot)stage.submitShot({target:[target.x,target.y,stage.aimZ],flight:ft,curve});
     if(stage.onHit) stage.onHit(sp2);
   }
-  gcv.addEventListener('pointerup',e=>{if(!stage.endMove?.(sp(e),e.pointerId))shoot();});
-  gcv.addEventListener('pointercancel',e=>{aim.down=false;stage.cancelMove?.(e.pointerId);});
-  gcv.addEventListener('lostpointercapture',e=>stage.cancelMove?.(e.pointerId));
+  gcv.addEventListener('pointerup',e=>{
+    const handled=stage.endMove?.(sp(e),e.pointerId);
+    if(aim.pointerId!==e.pointerId)return;
+    if(handled)cancelAim(e.pointerId);else shoot();
+  });
+  function cancelPointer(e){stage.cancelMove?.(e.pointerId);cancelAim(e.pointerId);}
+  gcv.addEventListener('pointercancel',cancelPointer);
+  gcv.addEventListener('lostpointercapture',cancelPointer);
 
   function update3(dt){
     if(stage.timeScale) dt*=stage.timeScale();
