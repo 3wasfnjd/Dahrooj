@@ -115,6 +115,25 @@ try{
   check(s.shot&&sv[2]<-4,'Letting go of the pull launches Dahrooj forward '+JSON.stringify(sv));
   await pick(...button('hand'));
 
+  // Summit: a model mountain in front of you, with the left stick, A to jump and the trigger to throw.
+  await pick(...button('mode',4));
+  check(await p.evaluate(()=>window.__g.xr.climbing&&window.__g.scene.getObjectByName('xr-climb').visible&&!window.__g.stage.grp.visible),'The menu opens the Summit as a model mountain');
+  const climbBall=()=>p.evaluate(()=>{const b=window.__g.xr.climb.state.ball;return {x:b.x,y:b.y,vy:b.vy,grounded:b.grounded};});
+  const x0=(await climbBall()).x;
+  await p.evaluate(()=>window.__dev.controllers.left.updateAxes('thumbstick',1,0));await p.waitForTimeout(500);
+  await p.evaluate(()=>window.__dev.controllers.left.updateAxes('thumbstick',0,0));
+  check((await climbBall()).x>x0+.5,'The left stick rolls Dahrooj along the mountain');
+  await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',1));
+  await p.waitForFunction(()=>!window.__g.xr.climb.state.ball.grounded,null,{timeout:3000});
+  await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));
+  check(true,'A jumps');
+  await ctl('right',[.2,1.2,-.3]);await trigger(1);await p.waitForTimeout(120);await trigger(0);
+  check(await p.evaluate(()=>window.__g.xr.climb.state.shots.length>0||window.__g.xr.climb.state.ball.cool>0),'The trigger throws a ball at the monsters');
+  const head=await p.evaluate(()=>{const g=window.__g.scene.getObjectByName('xr-climb'),rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
+    const p=rig.worldToLocal(g.getWorldPosition(new THREE.Vector3()));return Math.hypot(p.x-h.x,p.z-h.z);});
+  check(head>.4&&head<1.1,'The mountain stands within reach in front of you ('+head.toFixed(2)+' m)');
+  await pick(...button('mode',0));
+  check(await p.evaluate(()=>!window.__g.xr.climbing&&!window.__g.scene.getObjectByName('xr-climb').visible&&window.__g.stage.grp.visible&&window.__g.stageName==='goal'),'Leaving the Summit brings the goal back');
   await pick(...button('exit'));
   await p.waitForFunction(()=>!window.__g.xr.presenting,null,{timeout:5000});
   check(true,'The exit button ends the session');

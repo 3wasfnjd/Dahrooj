@@ -11,7 +11,7 @@
   // Duel runs on the server in game time: its shots use game speed per real metre per second.
   const DUEL_GAIN=2;
   // Duel is paused in the headset for now.
-  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب']];
+  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب'],['climb','الجبل']];
   const STYLES=[['jelly','جيلي'],['fabric','قماش'],['clay','صلصال'],['fur','فرو'],['bubble','فقاعة']];
   const XR_MODES=new Set(MODES.map(m=>m[0]));
   const LABEL=Object.fromEntries(MODES);
@@ -22,6 +22,9 @@
     const {T,renderer,scene,camera,S,BR,V}=g;
     let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE;
     let throwStyle='hand',parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
+    // Summit: a model mountain on the table (AR) or on a plinth in front of you (VR).
+    let climbOn=false,climb3=null,climbSpot=null,climbUnit=.022;
+    const modeNow=()=>climbOn?'climb':g.mode();
     const rig=new T.Group();rig.name='xr-rig';
     const ray=new T.Raycaster(),wp=V(0,0,0),wq=new T.Quaternion(),fwd=V(0,0,0),eye=V(0,0,0),UP=V(0,1,0);
     const scaleNow=()=>rig.scale.x;
@@ -80,12 +83,18 @@
     const hud=panel(1,.3,1024,300);rig.add(hud.mesh);
     function drawHud(){
       const t=g.texts(),name=LABEL[g.mode()]||'',turn=t.turn==='Your turn'?'دورك':t.turn?'دور الخصم':'';
-      const key=placing?'placing':[t.title,t.count,turn,t.toast,name].join('|');if(key===hud.key)return;hud.key=key;
+      const ch=climbOn&&climb3?climb3.hud():null;
+      const key=placing?'placing':ch?['climb',ch.hearts,ch.height,ch.checkpoint,ch.again,t.title,t.toast].join('|'):[t.title,t.count,turn,t.toast,name].join('|');if(key===hud.key)return;hud.key=key;
       const c=hud.ctx;c.clearRect(0,0,1024,300);c.textAlign='center';c.direction='rtl';
       if(placing){
         c.fillStyle='rgba(255,252,246,.88)';round(c,62,30,900,230,46);c.fill();c.fillStyle=INK;
         c.font=font(800,52);c.fillText('وجّه على سطح واضغط الزناد للتثبيت',512,125);
         c.font=font(700,40);c.fillStyle='rgba(44,45,61,.7)';c.fillText('العصا للأعلى والأسفل تكبّر وتصغّر',512,200);
+      }else if(ch){
+        c.fillStyle='rgba(255,252,246,.82)';round(c,212,8,600,190,40);c.fill();
+        c.font=font(800,70);for(let i=0;i<ch.max;i++){c.fillStyle=i<ch.hearts?'#c8584b':'rgba(44,45,61,.2)';c.fillText('♥',422+i*90,98);}
+        c.font=font(700,44);c.fillStyle='rgba(44,45,61,.75)';c.fillText(ch.again?'A للتسلق من جديد':t.title||`${ch.height} م`,512,170);
+        if(t.toast){c.font=font(700,40);const w=Math.min(980,c.measureText(t.toast).width+70);c.fillStyle=INK;round(c,512-w/2,214,w,72,36);c.fill();c.fillStyle=PAPER;c.fillText(t.toast,512,264);}
       }else{
         c.fillStyle='rgba(255,252,246,.82)';round(c,212,8,600,190,40);c.fill();
         c.fillStyle=INK;c.font=font(800,92);c.fillText(t.title||t.count||'0',512,118);
@@ -106,16 +115,16 @@
     buttons.push({kind:'place',id:'place',label:'',x:524,y:472,w:232,h:104});
     buttons.push({kind:'exit',id:'exit',label:'خروج',x:768,y:472,w:232,h:104});
     function drawMenu(hover){
-      const key=[g.mode(),g.style(),throwStyle,kind,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
+      const key=[modeNow(),g.style(),throwStyle,kind,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
       const c=menu.ctx;c.clearRect(0,0,1024,720);
       c.fillStyle='rgba(255,252,246,.94)';round(c,4,4,1016,712,46);c.fill();
       c.strokeStyle='rgba(44,45,61,.18)';c.lineWidth=4;c.stroke();
       c.textAlign='center';c.direction='rtl';c.fillStyle='rgba(44,45,61,.55)';c.font=font(700,34);
       c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',262,454);
-      c.font=font(600,30);c.fillText('زر A أو X يرجّع دحروج فورًا · الزناد أثناء الطيران يرجّعه ليدك',512,650);
+      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي':'الزناد وهو طاير يعطيك دحروج ثاني · A أو X يرجّعه',512,650);
       buttons.forEach((b,i)=>{
         const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط'):b.label;
-        const on=(b.kind==='mode'&&b.id===g.mode())||(b.kind==='style'&&b.id===g.style())||(b.kind==='throw'&&b.id===throwStyle),hot=hover.includes(i);
+        const on=(b.kind==='mode'&&b.id===modeNow())||(b.kind==='style'&&b.id===g.style())||(b.kind==='throw'&&b.id===throwStyle),hot=hover.includes(i);
         c.fillStyle=on?INK:hot?'rgba(44,45,61,.14)':'rgba(44,45,61,.05)';round(c,b.x,b.y,b.w,b.h,b.h/2);c.fill();
         c.fillStyle=on?PAPER:INK;c.font=font(800,label.length>8?32:40);c.fillText(label,b.x+b.w/2,b.y+b.h/2+14);
       });
@@ -127,11 +136,11 @@
     }
     function menuAction(i){
       const b=buttons[i];if(!b)return;
-      if(b.kind==='mode'){holder=null;g.setMode(b.id);}
+      if(b.kind==='mode'){holder=null;if(b.id==='climb')setClimb(true);else{setClimb(false);g.setMode(b.id);}}
       else if(b.kind==='style')g.setStyle(b.id);
       else if(b.kind==='throw'){holder=null;throwStyle=b.id;}
       else if(b.kind==='exit')session?.end();
-      else if(b.kind==='place'){if(kind==='immersive-ar'){holder=null;placing=true;}else place();}
+      else if(b.kind==='place'){if(kind==='immersive-ar'){holder=null;placing=true;}else{climbSpot=null;place();}}
     }
 
     /* ---------- the slingshot, held in the left hand ---------- */
@@ -174,9 +183,9 @@
     function beginIntro(){intro={t:0,frames:0,balls:[],ready:false,leaving:0};}
     // Spawn around the player once the headset has reported a few poses.
     function spawnIntro(){
-      const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);
+      const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);intro.center=pos.clone();
       for(let i=0;i<14;i++){
-        const a=yaw+(Math.random()-.5)*2.6,dist=.6+Math.random()*1.3,style=INTRO_STYLES[i%5];
+        const a=yaw+(Math.random()-.5)*2.6,dist=.55+Math.random()*1.05,style=INTRO_STYLES[i%5];
         const m=models?models.make(style):null;if(m)introGroup.add(m.group);
         intro.balls.push({m,p:V(pos.x+Math.sin(a)*dist,pos.y+.9+Math.random()*.9,pos.z-Math.cos(a)*dist),v:V((Math.random()-.5)*.6,0,(Math.random()-.5)*.6),
           delay:i*.16,d:0,dv:0,hit:0,blink:0,next:1+Math.random()*3});
@@ -205,6 +214,9 @@
           if(sp>.6){b.v.y=sp*.55;b.v.x*=.85;b.v.z*=.85;b.dv-=sp*2.2;b.hit=.25;if(g.bump)g.bump(Math.min(1,sp/6)*.6);}
           else{b.v.y=0;b.v.x*=Math.pow(.2,dt);b.v.z*=Math.pow(.2,dt);}
         }
+        // Stay within about two metres of where the player stood, clear of the room's walls.
+        const ox=b.p.x-I.center.x,oz=b.p.z-I.center.z,od=Math.hypot(ox,oz);
+        if(od>1.9){b.p.x=I.center.x+ox/od*1.9;b.p.z=I.center.z+oz/od*1.9;const out=(b.v.x*ox+b.v.z*oz)/od;if(out>0){b.v.x-=ox/od*out*1.5;b.v.z-=oz/od*out*1.5;}}
         b.dv+=(-b.d*320-b.dv*12)*dt;b.d=clamp(b.d+b.dv*dt,-.3,.45);
         b.hit=Math.max(0,b.hit-dt);b.next-=dt;if(b.next<=0){b.blink=.14;b.next=2+Math.random()*3;}b.blink=Math.max(0,b.blink-dt);
       }
@@ -295,6 +307,7 @@
       if(intro){if(h.onStart)endIntro();return;}
       if(menuOpen&&h===leftHand())return;
       if(placing){if(anchor){placing=false;g.respawn();}return;}
+      if(climbOn){if(h===leftHand())climb3.jump();else climb3.throwBall();return;}
       const st=g.stage();
       if(st.networked){
         if(st.xrAim&&st.xrAim()){h.charging=true;return;}
@@ -376,8 +389,40 @@
       for(const [plane,e] of planeLines)if(!seen.has(plane)){planesGroup.remove(e.line);planeLines.delete(plane);}
     }
 
+    /* ---------- Summit ---------- */
+    function setClimb(on){
+      if(on&&!climb3){
+        if(!window.createDahroojClimb3D||!g.climbCore)return;
+        climb3=window.createDahroojClimb3D(T,{core:g.climbCore,models,BR,unit:climbUnit});rig.add(climb3.group);climb3.start();
+      }
+      climbOn=!!on&&!!climb3;
+      if(climb3)climb3.show(climbOn);
+      const st=g.stage();if(st&&st.grp)st.grp.visible=!climbOn;
+      holder=null;parked=false;S.held=false;g.clearVolley();hud.key='';
+      if(!climbOn&&session)place();
+    }
+    // The mountain stands on the pinned surface (AR) or on a plinth just in front of you (VR).
+    function placeClimb(){
+      let P,theta;
+      if(kind==='immersive-ar'&&anchor){P=anchor.P;theta=anchor.theta;}
+      else{
+        if(!climbSpot){const {pos,dir}=headLocal();climbSpot={P:V(pos.x+dir.x*.7,Math.max(.5,pos.y-.75),pos.z+dir.z*.7),theta:Math.atan2(dir.x,-dir.z)};}
+        P=climbSpot.P;theta=climbSpot.theta;
+      }
+      climb3.group.position.copy(P);climb3.group.rotation.set(0,-theta,0);
+      climb3.setBase(kind==='immersive-ar'?0:P.y);
+      hud.mesh.position.copy(P).add(V(0,24*climbUnit+.12,0));hud.mesh.scale.setScalar(.5);
+    }
+    function climbEvent(e){
+      if(e.type==='land'){if(e.power>.08)g.bump?.(e.power*.8);}
+      else if(e.type==='launch')g.whoosh(e.power);
+      else if(e.type==='throw')g.whoosh(.25);
+      else if(e.type==='hurt')g.bump?.(1);
+      g.climbEvent?.(e);
+    }
+
     /* ---------- session ---------- */
-    async function enter(mode,{opening=false}={}){
+    async function enter(mode,{opening=false,climb=false}={}){
       if(session||!navigator.xr)return;
       if(!XR_MODES.has(g.mode()))g.setMode('goal');
       const options=mode==='immersive-ar'
@@ -393,12 +438,13 @@
       lastTime=0;renderer.setAnimationLoop(loop);
       g.respawn();
       if(opening){placing=false;beginIntro();}
+      climbSpot=null;if(climb)setClimb(true);
     }
     function onEnd(){
       renderer.setAnimationLoop(null);
       for(const s of hitSources.values())s.cancel?.();hitSources.clear();
       if(intro){for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);intro=null;}start.mesh.visible=false;
-      holder=null;parked=false;placing=false;S.held=false;g.clearVolley();g.respawn();
+      setClimb(false);holder=null;parked=false;placing=false;S.held=false;g.clearVolley();g.respawn();
       session=null;kind=null;
       rig.remove(camera);scene.remove(rig);
       scene.background=null;floor.visible=false;ballSprite.visible=false;
@@ -444,7 +490,7 @@
         }
       }else reticle.visible=false;
       if(kind==='immersive-ar')showPlanes(frame);
-      const hover=[],F=forkHand();let startHot=false;
+      const hover=[],F=climbOn?null:forkHand();let startHot=false,stickX=0;
       for(const h of hands){
         h.grip.getWorldPosition(wp);h.hist.push({p:wp.clone(),t:clock});
         while(h.hist.length&&clock-h.hist[0].t>.25)h.hist.shift();
@@ -455,7 +501,18 @@
         h.line.scale.z=(hit?hit.distance:.6*scaleNow())/scaleNow();
         h.line.visible=h.dot.visible=!!h.source&&holder!==h&&h!==F;
         const pad=h.source?.gamepad,axes=pad?.axes;
-        if(pad){const now=[4,5].map(i=>!!pad.buttons[i]?.pressed);if(now.some((b,i)=>b&&!h.buttons[i]))recall();h.buttons=now;}
+        if(pad){
+          const now=[4,5].map(i=>!!pad.buttons[i]?.pressed),edge=now.map((b,i)=>b&&!h.buttons[i]);h.buttons=now;
+          // Summit: A or X jumps, B or Y throws. Elsewhere either calls Dahrooj back.
+          if(climbOn){if(edge[0])climb3.jump();if(edge[1])climb3.throwBall();}
+          else if(edge.some(Boolean))recall();
+        }
+        if(climbOn&&axes&&axes.length>3){
+          if(h===leftHand()||!leftHand())stickX=Math.abs(axes[2])>.25?axes[2]:stickX;
+          // The right stick up and down resizes the mountain.
+          if(h!==leftHand()&&Math.abs(axes[3])>.4){climbUnit=clamp(climbUnit*Math.exp(-axes[3]*dt*.9),.012,.06);climb3.setUnit(climbUnit);hud.key='';}
+          continue;
+        }
         // Duel: either thumbstick moves Dahrooj sideways.
         if(st.xrMove&&axes&&axes.length>2&&Math.abs(axes[2])>.35&&clock-h.lastMove>.1){h.lastMove=clock;st.xrMove(axes[2]);}
         // AR: thumbstick up makes the court bigger, down makes it smaller. The pinned spot stays.
@@ -463,6 +520,7 @@
           arScale=clamp(arScale*Math.exp(axes[3]*dt*.9),AR_MIN,AR_MAX);place();
         }
       }
+      if(climbOn){climb3.setDir(stickX);placeClimb();}
       fork.visible=!!F?.source;if(F?.source&&fork.parent!==F.grip)F.grip.add(fork);
       drawMenu(hover);drawHud();if(start.mesh.visible)drawStart(startHot);
       if(intro){stepIntro(dt);drawIntro();}
@@ -470,7 +528,7 @@
       eyeNow();hud.mesh.lookAt(eye);
       // Dahrooj waits by your hand (or in the slingshot) between throws.
       if(st.networked){if(parked||(S.held&&!holder)){parked=false;S.held=false;}}
-      else if(!S.shot&&!holder&&!placing&&!intro)parked=true;
+      else if(!S.shot&&!holder&&!placing&&!intro&&!climbOn)parked=true;
       if(parked){S.held=true;S.pos.lerp(updateParkSpot(F),1-Math.exp(-dt*10));S.vel.set(0,0,0);S.grounded=false;}
       // The held ball rides in front of the hand (in the pouch with the slingshot), easing in.
       if(holder){
@@ -495,9 +553,10 @@
           d.position.copy(p);d.scale.setScalar(r);d.visible=p.y>0;
         }
       }else for(const d of dots)d.visible=false;
-      g.step(dt*timeK());
+      if(climbOn){eyeNow();climb3.update(dt,{style:g.style(),eye,onEvent:climbEvent});}
+      else g.step(dt*timeK());
       // Dahrooj, the Duel opponent and small balls.
-      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro)&&!st.networked),actors=st.xrActors?st.xrActors():[];
+      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn)&&!st.networked),actors=st.xrActors?st.xrActors():[];
       const face=parked&&!(S.mood&&S.moodT>0)?'open':g.ballFace();
       if(models){
         ballModel=model(ballModel,g.style(),true);
@@ -524,7 +583,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get opening(){return !!intro;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

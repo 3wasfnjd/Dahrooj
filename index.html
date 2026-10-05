@@ -294,6 +294,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./assets/duel-online/distractions.js"></script>
 <script src="./assets/climb/climb.js"></script>
 <script src="./assets/xr/dahrooj3d.js"></script>
+<script src="./assets/xr/climb3d.js"></script>
 <script src="./assets/xr/xr.js"></script>
 <script>
 (() => {
@@ -2275,6 +2276,7 @@ function make3D(){
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s),
     another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
+    climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e),
     onExit:()=>{if(XR_ENTRY)document.getElementById('xr-gate').hidden=false;},
     recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),
@@ -2420,13 +2422,24 @@ function makeClimb(){
       paintBlob(c,P,x,y,r,sx,sy,face,lx,ly,blushK,false);
     },
     sounds:{wake:()=>{ensureAudio();played=true;},land:s=>{if(s>.08)thump(s*.8);},launch:p=>whoosh(p),hurt:()=>thump(1),pop:startPopSound,checkpoint:chime},
-    onCheckpoint:()=>toast('نقطة حفظ ✓'),
-    onDefeat:()=>chProgress('monsters15',(chState.monsters15||0)+1),
-    onSummit:seconds=>{
-      addCount('climb'); chProgress('summit1',1); showTitle('القمة!');
-      const m=Math.floor(seconds/60),s=Math.round(seconds%60);
-      toast(`وصلت القمة في ${m?ar(m)+' د ':''}${ar(s)} ث`);
-    }});
+    onCheckpoint:climbHooks.checkpoint, onDefeat:climbHooks.defeat, onSummit:climbHooks.summit});
+}
+// Summit progress, shared by the phone climb and the headset model mountain.
+const climbHooks={
+  checkpoint:()=>toast('نقطة حفظ ✓'),
+  defeat:()=>chProgress('monsters15',(chState.monsters15||0)+1),
+  summit:seconds=>{
+    addCount('climb'); chProgress('summit1',1); showTitle('القمة!');
+    const m=Math.floor(seconds/60),s=Math.round(seconds%60);
+    toast(`وصلت القمة في ${m?ar(m)+' د ':''}${ar(s)} ث`);
+  }
+};
+// Headset events: the same sounds and progress as the phone.
+function climbEvent(e){
+  if(e.type==='pop'||e.type==='stomp'||e.type==='kill') startPopSound();
+  if(e.type==='stomp'||e.type==='kill') climbHooks.defeat();
+  else if(e.type==='checkpoint'){ chime(); climbHooks.checkpoint(); }
+  else if(e.type==='summit'){ chime(); climbHooks.summit(e.time); }
 }
 function setMode(m){
   if(intro) return;
@@ -2474,8 +2487,9 @@ for(const [id,kind] of [['btn-vr','immersive-vr'],['btn-ar','immersive-ar']]){
   navigator.xr?.isSessionSupported?.(kind).then(ok=>{btn.hidden=!ok;},()=>{});
   btn.addEventListener('click',()=>{
     ensureAudio(); played=true;
+    const climbing=mode==='climb';
     if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
-    if(G3&&G3.xr) G3.xr.enter(kind).catch(err=>toast('تعذّر تشغيل '+(kind==='immersive-ar'?'AR':'VR')));
+    if(G3&&G3.xr) G3.xr.enter(kind,{climb:climbing}).catch(err=>toast('تعذّر تشغيل '+(kind==='immersive-ar'?'AR':'VR')));
   });
 }
 
