@@ -2269,7 +2269,8 @@ function setMode(m){
   if(intro) return;
   if(m===mode&&m==='opponent')return;
   if(m==='climb'){
-    if(!climb) climb=makeClimb(); if(!climb) return;
+    if(!climb){ climb=makeClimb(); if(climb) setTimeout(()=>toast('اسحب يمين ويسار للحركة، واضغط للقفز'),1200); }
+    if(!climb) return;
     if(G3)G3.leaveStage(); climb.enter();
   }else if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }

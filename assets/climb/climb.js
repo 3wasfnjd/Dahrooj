@@ -2,7 +2,9 @@
    2D, drawn on the free-mode canvas. All gameplay is measured in ball radii (u). */
 (() => {
   'use strict';
-  const G=60, VMAX=28, PULL_FULL=5, PULL_MIN=.6, MAX_HEARTS=3, MAX_WIDTH=18, PREVIEW=.28;
+  const G=60, MAX_HEARTS=3, MAX_WIDTH=18;
+  // Touch controls like the other modes: drag sideways to roll, tap to jump.
+  const RUN=10, JUMP=25, ACCEL=70, ACCEL_ICE=14, ACCEL_AIR=34, COYOTE=.1, BUFFER=.13;
   const THEMES=[
     {name:'meadow',top:'#7f9a5b'},{name:'cliffs',top:'#a38b74'},
     {name:'caves',top:'#77728a'},{name:'snow',top:'#e8f1f5'}
@@ -57,7 +59,8 @@
   function createState(width){
     const level=buildLevel(width);
     return {...level,time:0,events:[],checkpoint:0,won:false,wonAt:0,startedAt:0,
-      ball:{x:width/2,y:1,vx:0,vy:0,grounded:true,on:level.platforms[0],hearts:MAX_HEARTS,inv:0,dead:0,d:0,dv:0,best:0}};
+      input:{dir:0,buffer:0},
+      ball:{x:width/2,y:1,vx:0,vy:0,grounded:true,on:level.platforms[0],hearts:MAX_HEARTS,inv:0,dead:0,d:0,dv:0,best:0,coyote:0,stun:0}};
   }
   function solid(p){return !p.crumble||p.crumble.state!=='fallen';}
   function checkpointPlatform(state){return state.platforms.find(p=>p.checkpoint===state.checkpoint);}
@@ -69,7 +72,8 @@
   }
   function respawn(state){
     const b=state.ball,p=checkpointPlatform(state);
-    Object.assign(b,{x:state.width/2,y:p.y+1,vx:0,vy:0,grounded:true,on:p,hearts:MAX_HEARTS,inv:1,dead:0,d:0,dv:0});
+    Object.assign(b,{x:state.width/2,y:p.y+1,vx:0,vy:0,grounded:true,on:p,hearts:MAX_HEARTS,inv:1,dead:0,d:0,dv:0,coyote:0,stun:0});
+    state.input.buffer=0;
     resetHazards(state);
   }
   function restart(state){
@@ -80,22 +84,17 @@
     if(b.inv>0||b.dead||state.won)return;
     b.hearts--;state.events.push({type:'hurt'});
     if(b.hearts<=0){b.dead=.001;b.grounded=false;state.events.push({type:'pop',x:b.x,y:b.y});return;}
-    b.inv=1.4;b.grounded=false;b.on=null;b.vy=14;b.vx=(b.x>=fromX?1:-1)*8;
+    b.inv=1.4;b.stun=.3;b.grounded=false;b.on=null;b.coyote=0;b.vy=14;b.vx=(b.x>=fromX?1:-1)*8;
   }
-  function launch(state,vx,vy){
-    const b=state.ball;
-    if(!b.grounded||b.dead||state.won)return false;
-    const m=Math.hypot(vx,vy);if(m>VMAX){vx*=VMAX/m;vy*=VMAX/m;}
-    b.vx=vx;b.vy=vy;b.grounded=false;b.on=null;b.d=Math.min(b.d,0);b.dv-=6;
-    state.events.push({type:'launch',power:Math.min(1,m/VMAX)});return true;
-  }
+  // dir: -1 left, 0 stop, 1 right (fractions allowed). jump() is buffered briefly before landing.
+  function setDir(state,dir){state.input.dir=clamp(Number(dir)||0,-1,1);}
+  function jump(state){if(!state.ball.dead&&!state.won)state.input.buffer=BUFFER;}
+  function approach(v,target,rate){return v<target?Math.min(target,v+rate):Math.max(target,v-rate);}
   function land(state,p,impact){
     const b=state.ball;
     b.y=p.y+1;b.on=p;b.dv+=Math.min(18,impact*.9);
     state.events.push({type:'land',power:Math.min(1,impact/30)});
-    if(impact>16&&!p.ice){b.vy=impact*.22;return;}
-    b.vy=0;b.grounded=true;
-    if(!p.ice)b.vx*=.25;
+    b.vy=0;b.grounded=true;b.coyote=0;
     if(p.crumble&&p.crumble.state==='solid'){p.crumble.state='shaking';p.crumble.t=0;}
     if(p.checkpoint!=null&&p.checkpoint>state.checkpoint){state.checkpoint=p.checkpoint;state.events.push({type:'checkpoint',index:p.checkpoint});}
     if(p.summit&&!state.won){state.won=true;state.wonAt=state.time;state.events.push({type:'summit',time:state.time-state.startedAt});}
@@ -154,20 +153,28 @@
     b.inv=Math.max(0,b.inv-dt);
     b.dv+=(-b.d*260-b.dv*12)*dt;b.d=clamp(b.d+b.dv*dt,-.25,.4);
     if(b.dead){b.dead+=dt;if(b.dead>1.1)respawn(state);return;}
+    b.stun=Math.max(0,b.stun-dt);b.coyote=Math.max(0,b.coyote-dt);
+    const input=state.input,dir=b.stun>0||state.won?0:input.dir;
+    input.buffer=Math.max(0,input.buffer-dt);
     if(b.grounded){
       const p=b.on;
-      if(!p||!solid(p)){b.grounded=false;b.on=null;}
+      if(!p||!solid(p)){b.grounded=false;b.on=null;b.coyote=COYOTE;}
       else{
         b.x+=p.dx;b.y=p.y+1;
-        b.vx*=Math.pow(p.ice?.6:.0004,dt);
+        b.vx=approach(b.vx,dir*RUN,(p.ice?ACCEL_ICE:ACCEL)*dt);
         b.x+=b.vx*dt;
-        if(!p.full&&(b.x<p.x0-.3||b.x>p.x1+.3)){b.grounded=false;b.on=null;}
-        if(onSpikes(p,b.x))hurt(state,(p.x0+p.x1)/2);
+        if(!p.full&&(b.x<p.x0-.3||b.x>p.x1+.3)){b.grounded=false;b.on=null;b.coyote=COYOTE;}
+        else if(onSpikes(p,b.x))hurt(state,(p.x0+p.x1)/2);
       }
+    }
+    if(input.buffer>0&&(b.grounded||b.coyote>0)&&!b.dead){
+      b.vy=JUMP;b.grounded=false;b.on=null;b.coyote=0;input.buffer=0;b.dv-=6;
+      state.events.push({type:'launch',power:.6});
     }
     if(!b.grounded){
       const prevBottom=b.y-1;
-      b.vy=Math.max(-40,b.vy-G*dt);b.vx*=Math.pow(.9,dt);
+      b.vy=Math.max(-40,b.vy-G*dt);
+      if(b.stun<=0)b.vx=approach(b.vx,dir*RUN,ACCEL_AIR*dt);
       b.x+=b.vx*dt;b.y+=b.vy*dt;
       if(b.vy<=0){
         for(const p of state.platforms){
@@ -202,12 +209,13 @@
   }
 
   // Exported for logic tests (reachability and rules) without a browser.
-  const api={G,VMAX,PULL_FULL,PULL_MIN,MAX_HEARTS,MAX_WIDTH,TOP,SECTIONS,buildLevel,createState,step,launch,hurt,respawn,restart,solid};
+  const api={G,RUN,JUMP,MAX_HEARTS,MAX_WIDTH,TOP,SECTIONS,buildLevel,createState,step,setDir,jump,hurt,respawn,restart,solid};
   globalThis.DahroojClimbCore=api;
   if(typeof document==='undefined')return;
 
   window.createDahroojClimb=({canvas,ctx,view,drawPaper,paintBall,sounds={},onSummit=()=>{},onCheckpoint=()=>{}})=>{
-    let state=null,active=false,cam=0,aim=null,parts=[],clouds=[],ridge=[];
+    let state=null,active=false,cam=0,parts=[],clouds=[],ridge=[];
+    const touches=new Map(),keys={left:false,right:false};
     const ink='#2c2d3d';
     function setup(){
       const {W,R}=view();const width=Math.min(MAX_WIDTH,W/R);
@@ -224,27 +232,55 @@
 
     const geo=()=>{const {W,H,R}=view();const ox=(W-state.width*R)/2,base=H*.86;return {W,H,R,ox,base,sx:x=>ox+x*R,sy:y=>base-(y-cam)*R};};
     function point(e){const r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
+    // Each finger: a horizontal drag becomes a joystick (distance from the press sets the speed),
+    // a short tap jumps, and a flick up while dragging also jumps. A second finger can tap to jump.
+    const TAP_TIME=.3,TAP_SLOP=12;
+    function steer(){
+      let dir=0;
+      for(const t of touches.values())if(t.mode==='move')dir=t.dir;
+      if(keys.left!==keys.right)dir=keys.left?-1:1;
+      setDir(state,dir);
+    }
     function down(e){
       if(!active)return;
       e.preventDefault();canvas.setPointerCapture?.(e.pointerId);sounds.wake?.();
-      if(state.won&&state.time-state.wonAt>1.2){restart(state);return;}
-      if(aim)return;
-      const p=point(e);aim={id:e.pointerId,x0:p.x,y0:p.y,x:p.x,y:p.y};
+      if(state.won){if(state.time-state.wonAt>1.2)restart(state);return;}
+      const p=point(e);
+      touches.set(e.pointerId,{x0:p.x,y0:p.y,x:p.x,y:p.y,top:p.y,t0:performance.now(),mode:'tap',dir:0});
     }
-    function move(e){if(aim&&e.pointerId===aim.id){const p=point(e);aim.x=p.x;aim.y=p.y;}}
-    function velocity(){
-      const {R}=view(),dx=(aim.x0-aim.x)/R,dy=(aim.y-aim.y0)/R,len=Math.hypot(dx,dy);
-      if(len<PULL_MIN)return null;
-      const k=VMAX/PULL_FULL,m=Math.min(VMAX,len*k);return {vx:dx/len*m,vy:dy/len*m,power:m/VMAX};
+    function move(e){
+      const t=touches.get(e.pointerId);if(!t)return;
+      const p=point(e),{R}=view(),span=R*1.2;
+      t.x=p.x;t.y=p.y;
+      if(t.mode==='tap'&&Math.abs(p.x-t.x0)>TAP_SLOP)t.mode='move';
+      if(t.mode==='move'){
+        let dx=p.x-t.x0;
+        // Keep the anchor within reach so reversing direction responds at once.
+        if(Math.abs(dx)>span){t.x0=p.x-Math.sign(dx)*span;dx=Math.sign(dx)*span;}
+        t.dir=Math.abs(dx)<R*.15?0:dx/span;
+        if(p.y<t.top-R*1.1){jump(state);t.top=p.y;}else t.top=Math.max(t.top,p.y);
+        steer();
+      }
     }
     function up(e){
-      if(!aim||e.pointerId!==aim.id)return;
-      const v=velocity();aim=null;
-      if(v)launch(state,v.vx,v.vy);
+      const t=touches.get(e.pointerId);if(!t)return;
+      touches.delete(e.pointerId);
+      if(t.mode==='tap'&&(performance.now()-t.t0)/1000<TAP_TIME)jump(state);
+      steer();
     }
-    function cancel(e){if(aim&&e.pointerId===aim.id)aim=null;}
+    function cancel(e){if(touches.delete(e.pointerId))steer();}
     canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
     canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',cancel);canvas.addEventListener('lostpointercapture',cancel);
+    const KEYS={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+    function key(e,pressed){
+      if(!active||e.target?.closest?.('input,textarea'))return;
+      if(KEYS[e.code]){keys[KEYS[e.code]]=pressed;steer();e.preventDefault();}
+      else if(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){
+        e.preventDefault();
+        if(pressed&&!e.repeat){sounds.wake?.();if(state.won){if(state.time-state.wonAt>1.2)restart(state);}else jump(state);}
+      }
+    }
+    addEventListener('keydown',e=>key(e,true));addEventListener('keyup',e=>key(e,false));
 
     function burst(x,y,colors,count,speed){
       for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,v=speed*(.4+Math.random()*.8);
@@ -383,24 +419,22 @@
       const b=state.ball,{R}=g;
       if(b.dead)return;
       if(b.inv>0&&Math.floor(b.inv*12)%2)c.globalAlpha=.45;
-      let power=0;const v=aim&&b.grounded?velocity():null;if(v)power=v.power;
-      const d=b.d+power*.14,sx=1+d*.75,sy=1-d;
+      const d=b.d,sx=1+d*.75,sy=1-d;
       const x=g.sx(b.x),y=g.sy(b.y)+R*(1-sy);
       let face='open';
-      if(state.won)face='joy';else if(b.inv>1)face='closed';else if(v)face=power>.35?'squint':'focus';else if(!b.grounded&&Math.hypot(b.vx,b.vy)>20)face='wide';
-      let lx=0,ly=0;
-      if(v){lx=v.vx/VMAX;ly=-v.vy/VMAX;}else if(!b.grounded){const s=Math.hypot(b.vx,b.vy)||1;lx=b.vx/s*.6;ly=-b.vy/s*.6;}
+      if(state.won)face='joy';else if(b.inv>1)face='closed';else if(!b.grounded&&b.vy<-22)face='wide';else if(!b.grounded)face='focus';
+      const s=Math.hypot(b.vx,b.vy)||1,lx=clamp(b.vx/RUN,-1,1)*.8,ly=b.grounded?0:clamp(-b.vy/s,-1,1)*.6;
       paintBall(c,x,y,R,sx,sy,face,lx,ly,0,b.vx*R,-b.vy*R);
       c.globalAlpha=1;
     }
-    function drawAim(c,g){
-      const b=state.ball;if(!aim||!b.grounded||b.dead)return;
-      const v=velocity();if(!v)return;
-      const {R}=g;
-      c.fillStyle='rgba(44,45,61,.45)';
-      for(let t=.04;t<=PREVIEW;t+=.04){const x=b.x+v.vx*t,y=b.y+v.vy*t-G*t*t/2;c.beginPath();c.arc(g.sx(x),g.sy(y),Math.max(2,R*.1)*(1-t/PREVIEW*.5),0,Math.PI*2);c.fill();}
-      c.strokeStyle='rgba(44,45,61,.35)';c.lineWidth=2;c.setLineDash([3,7]);c.beginPath();c.moveTo(aim.x0,aim.y0);c.lineTo(aim.x,aim.y);c.stroke();c.setLineDash([]);
-      c.strokeStyle='rgba(75,78,86,.85)';c.lineWidth=3;c.beginPath();c.arc(aim.x,aim.y,14,-Math.PI/2,-Math.PI/2+Math.PI*2*v.power);c.stroke();
+    // A faint joystick under the steering finger.
+    function drawTouch(c,g){
+      for(const t of touches.values()){
+        if(t.mode!=='move')continue;
+        const {R}=g;
+        c.strokeStyle='rgba(44,45,61,.22)';c.lineWidth=2;c.beginPath();c.arc(t.x0,t.y0,R*1.2,0,Math.PI*2);c.stroke();
+        c.fillStyle='rgba(44,45,61,.28)';c.beginPath();c.arc(t.x0+t.dir*R*1.2,t.y0,R*.42,0,Math.PI*2);c.fill();
+      }
     }
     function heart(c,x,y,s,full){
       c.beginPath();c.moveTo(x,y+s*.35);c.bezierCurveTo(x-s*.9,y-s*.25,x-s*.35,y-s*.95,x,y-s*.42);c.bezierCurveTo(x+s*.35,y-s*.95,x+s*.9,y-s*.25,x,y+s*.35);
@@ -433,12 +467,12 @@
       drawBall(c,g);
       for(const p of parts){c.globalAlpha=1-p.t/p.max;c.fillStyle=p.c;c.beginPath();c.arc(g.sx(p.x),g.sy(p.y),g.R*p.s,0,Math.PI*2);c.fill();}
       c.globalAlpha=1;
-      drawAim(c,g);
+      drawTouch(c,g);
       drawHud(c,g);
     }
     return {
-      enter(){setup();active=true;aim=null;cam=Math.max(0,state.ball.y-view().H*.28/view().R);},
-      leave(){active=false;aim=null;},
+      enter(){setup();active=true;touches.clear();keys.left=keys.right=false;setDir(state,0);cam=Math.max(0,state.ball.y-view().H*.28/view().R);},
+      leave(){active=false;touches.clear();keys.left=keys.right=false;if(state)setDir(state,0);},
       resize(){if(state)setup();},
       update,render,
       get state(){return state;}

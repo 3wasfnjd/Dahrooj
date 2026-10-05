@@ -13,11 +13,12 @@ function staticState(width){
   for(const p of s.platforms){p.move=null;p.crumble=null;p.spikes=null;}
   return s;
 }
-function jump(width,from,x,vx,vy){
+// Take off from x with a run-up speed, hold one air direction, and report where Dahrooj lands.
+function hop(width,from,x,run,air){
   const s=staticState(width),a=s.platforms[from];
-  Object.assign(s.ball,{x,y:a.y+1,vx:0,vy:0,grounded:true,on:a});
-  C.launch(s,vx,vy);
-  for(let t=0;t<3&&!s.ball.grounded;t+=1/60)C.step(s,1/60);
+  Object.assign(s.ball,{x,y:a.y+1,vx:run*C.RUN,vy:0,grounded:true,on:a});
+  C.setDir(s,run);C.jump(s);C.step(s,1/240);C.setDir(s,air);
+  for(let t=0;t<2.5&&!s.ball.grounded;t+=1/60)C.step(s,1/60);
   return s.ball.grounded?s.ball.on:null;
 }
 // Phone (320 and 390 wide) and desktop widths, in ball radii.
@@ -26,15 +27,14 @@ for(const width of [13.3,16.25,18]){
   for(let k=0;k+1<order.length;k++){
     const {p:a,i:from}=order[k],b=order[k+1].p;
     let ok=false;
-    for(const f of [.5,.15,.85,0,1]){
+    for(let f=0;f<=1.001&&!ok;f+=.125){
       const x=Math.min(Math.max(a.x0+(a.x1-a.x0)*f,1),width-1);
-      for(let deg=20;deg<=160&&!ok;deg+=4)for(let power=.3;power<=1.001&&!ok;power+=.07){
-        const v=C.VMAX*power,landed=jump(width,from,x,Math.cos(deg*Math.PI/180)*v,Math.sin(deg*Math.PI/180)*v);
-        ok=!!landed&&landed.y>=b.y;
+      for(const run of [0,-1,1])for(const air of [0,-1,1]){
+        if(ok)break;
+        const landed=hop(width,from,x,run,air);ok=!!landed&&landed.y>=b.y;
       }
-      if(ok)break;
     }
-    check(ok,`width ${width}: platform at ${a.y} reaches ${b.y}`);
+    check(ok,`width ${width}: platform at ${a.y} reaches ${b.y} by running and jumping`);
   }
   console.log(`PASS width ${width}: all ${order.length-1} steps from the ground to the summit are reachable`);
 }
@@ -91,14 +91,26 @@ for(const width of [13.3,16.25,18]){
   Object.assign(s.ball,{x:5,y:summit.y+1.3,vx:0,vy:-2,grounded:false,on:null});
   for(let t=0;t<.2;t+=1/60)C.step(s,1/60);
   check(s.won&&s.events.some(e=>e.type==='summit'),'Reaching the summit wins');
-  check(!C.launch(s,0,20),'No launching after winning');
+  C.jump(s);C.step(s,1/60);check(s.ball.grounded,'No jumping after winning');
   C.restart(s);check(!s.won&&s.checkpoint===0&&s.ball.y===1,'Restart returns to the foot of the mountain');
 }
 {
-  const s=C.createState(16.25);C.restart(s);
-  check(!C.launch(s,0,0.1)||Math.hypot(s.ball.vx,s.ball.vy)<=C.VMAX,'Launch speed is capped');
-  const s2=C.createState(16.25);C.restart(s2);C.launch(s2,0,100);
-  check(Math.abs(Math.hypot(s2.ball.vx,s2.ball.vy)-C.VMAX)<1e-9,'Launch speed is capped at the maximum');
-  check(!C.launch(s2,0,10),'No second launch in the air');
+  const s=C.createState(16.25);C.restart(s);s.monsters=[];
+  C.setDir(s,1);for(let t=0;t<.5;t+=1/60)C.step(s,1/60);
+  check(Math.abs(s.ball.vx-C.RUN)<1e-9&&s.ball.grounded,'Dragging right rolls at full speed');
+  C.setDir(s,0);for(let t=0;t<.3;t+=1/60)C.step(s,1/60);
+  check(s.ball.vx===0,'Releasing stops on normal ground');
+  C.jump(s);C.step(s,1/60);
+  check(!s.ball.grounded&&s.ball.vy>0,'A tap jumps');
+  const height=s.ball.y;let top=0;for(let t=0;t<1.2;t+=1/240){C.step(s,1/240);top=Math.max(top,s.ball.y);}
+  check(top-1>4.6&&top-1<5.6,'Jump height clears one platform step');
+  C.jump(s);for(let t=0;t<.25;t+=1/240)C.step(s,1/240);
+  const vy=s.ball.vy;C.jump(s);C.step(s,1/240);
+  check(!s.ball.grounded&&s.ball.vy<vy,'No double jump in the air');
+  // Buffered jump just before landing.
+  const s2=C.createState(16.25);C.restart(s2);s2.monsters=[];
+  Object.assign(s2.ball,{y:1.6,vy:-5,grounded:false,on:null});C.jump(s2);
+  for(let t=0;t<.12;t+=1/240)C.step(s2,1/240);
+  check(s2.ball.vy>0&&!s2.ball.grounded,'A tap just before landing still jumps');
 }
 console.log(`PASS ${checks} climb checks.`);
