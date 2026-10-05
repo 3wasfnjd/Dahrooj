@@ -2181,6 +2181,7 @@ const CHALLENGES=[
   {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   goal:1},
   {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
   {id:'summit1',  title:'اوصل قمة الجبل',                 goal:1},
+  {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     goal:15},
 ];
 let chState={}, stylesUsed=[];
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
@@ -2305,6 +2306,7 @@ function makeClimb(){
     },
     sounds:{wake:()=>{ensureAudio();played=true;},land:s=>{if(s>.08)thump(s*.8);},launch:p=>whoosh(p),hurt:()=>thump(1),pop:startPopSound,checkpoint:chime},
     onCheckpoint:()=>toast('نقطة حفظ ✓'),
+    onDefeat:()=>chProgress('monsters15',(chState.monsters15||0)+1),
     onSummit:seconds=>{
       addCount('climb'); chProgress('summit1',1); showTitle('القمة!');
       const m=Math.floor(seconds/60),s=Math.round(seconds%60);

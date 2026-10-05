@@ -243,7 +243,7 @@
   globalThis.DahroojClimbCore=api;
   if(typeof document==='undefined')return;
 
-  window.createDahroojClimb=({canvas,ctx,view,drawPaper,paintBall,padEl=null,makeShotSprite,currentStyle=()=>'jelly',sounds={},onSummit=()=>{},onCheckpoint=()=>{}})=>{
+  window.createDahroojClimb=({canvas,ctx,view,drawPaper,paintBall,padEl=null,makeShotSprite,currentStyle=()=>'jelly',sounds={},onSummit=()=>{},onCheckpoint=()=>{},onDefeat=()=>{}})=>{
     // Thrown balls use the same eyeless sprites as Duel, in the style chosen at the moment of the throw.
     const shotSprites=new Map();
     const shotSprite=style=>{if(!shotSprites.has(style))shotSprites.set(style,makeShotSprite(style));return shotSprites.get(style);};
@@ -333,7 +333,7 @@
         else if(e.type==='launch')sounds.launch?.(e.power);
         else if(e.type==='hurt')sounds.hurt?.();
         else if(e.type==='pop'){sounds.pop?.();burst(e.x,e.y,[ink,'#fffaf2','#c8584b'],18,9);}
-        else if(e.type==='stomp'||e.type==='kill'){sounds.pop?.();burst(e.x,e.y,['#5b3a59','#fffaf2',ink],12,7);}
+        else if(e.type==='stomp'||e.type==='kill'){sounds.pop?.();burst(e.x,e.y,['#5b3a59','#fffaf2',ink],12,7);onDefeat();}
         else if(e.type==='throw')sounds.launch?.(.25);
         else if(e.type==='checkpoint'){sounds.checkpoint?.();onCheckpoint(e.index);}
         else if(e.type==='summit'){sounds.checkpoint?.();burst(state.ball.x,state.ball.y+1,['#c8584b','#e2b04a','#7f9a5b','#5b8bb5','#fffaf2'],40,14);onSummit(e.time);}
