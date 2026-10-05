@@ -20,7 +20,7 @@
 
   window.createDahroojXR=g=>{
     const {T,renderer,scene,camera,S,BR,V}=g;
-    let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE;
+    let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE,popT=1,frames=0;
     let throwStyle='hand',parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
     // Summit: a model mountain on the table (AR) or on a plinth in front of you (VR).
     let climbOn=false,climb3=null,climbSpot=null,climbUnit=.022;
@@ -171,52 +171,88 @@
     const introGroup=new T.Group();introGroup.scale.setScalar(INTRO_R/BR);rig.add(introGroup);
     const start=panel(.56,.28,1024,512);start.mesh.name='xr-start';start.mesh.visible=false;rig.add(start.mesh);
     function drawStart(hot){
-      const key='start|'+hot;if(start.key===key)return;start.key=key;
+      const popped=intro?intro.popped:0,key='start|'+hot+'|'+popped;if(start.key===key)return;start.key=key;
       const c=start.ctx;c.clearRect(0,0,1024,512);c.textAlign='center';c.direction='rtl';
       c.fillStyle='rgba(255,252,246,.94)';round(c,6,6,1012,500,70);c.fill();
       c.fillStyle=INK;c.font=font(800,120);c.fillText('دحروج',512,170);
       c.fillStyle=hot?'#44465a':INK;round(c,212,250,600,170,85);c.fill();
       c.fillStyle=PAPER;c.font=font(800,66);c.fillText('بدء اللعبة',540,358);
       c.beginPath();c.moveTo(300,300);c.lineTo(300,370);c.lineTo(352,335);c.closePath();c.fill();
+      c.fillStyle='rgba(44,45,61,.6)';c.font=font(700,34);c.fillText(popped?`فجّرت ${popped}`:'وجّه يدك واضغط الزناد لتفجير الكور',512,470);
       start.tex.needsUpdate=true;
     }
-    function beginIntro(){intro={t:0,frames:0,balls:[],ready:false,leaving:0};}
-    // Spawn around the player once the headset has reported a few poses.
+    function beginIntro(){intro={t:0,frames:0,balls:[],shots:[],sparks:[],ready:false,leaving:0,popped:0,spawned:false,gap:0};}
+    const INTRO_COUNT=28,ROOM=2.3,SPARK=new T.SphereGeometry(1,8,6),SHOT_GEO=new T.SphereGeometry(.018,12,8);
+    const SHOT_MAT=new T.MeshBasicMaterial({color:0xfffaf2}),STYLE_COLORS={jelly:0x4b4e56,fabric:0x7c2941,clay:0x825637,fur:0xf1ebe1,bubble:0xcfe8ff};
+    // A wave of balls rains all around the player once the headset has reported a few poses.
     function spawnIntro(){
-      const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);intro.center=pos.clone();
-      for(let i=0;i<14;i++){
-        const a=yaw+(Math.random()-.5)*2.6,dist=.55+Math.random()*1.05,style=INTRO_STYLES[i%5];
+      const {pos}=headLocal();intro.center=pos.clone();intro.spawned=true;intro.gap=0;
+      for(let i=0;i<INTRO_COUNT;i++){
+        const a=Math.random()*Math.PI*2,dist=.5+Math.random()*1.7,style=INTRO_STYLES[i%5],sp=.25+Math.random()*.45,dirA=Math.random()*Math.PI*2;
         const m=models?models.make(style):null;if(m)introGroup.add(m.group);
-        intro.balls.push({m,p:V(pos.x+Math.sin(a)*dist,pos.y+.9+Math.random()*.9,pos.z-Math.cos(a)*dist),v:V((Math.random()-.5)*.6,0,(Math.random()-.5)*.6),
-          delay:i*.16,d:0,dv:0,hit:0,blink:0,next:1+Math.random()*3});
+        intro.balls.push({m,style,p:V(pos.x+Math.sin(a)*dist,pos.y+.7+Math.random()*1.1,pos.z-Math.cos(a)*dist),v:V(0,0,0),
+          born:intro.t+i*.09,gx:Math.cos(dirA)*sp,gz:Math.sin(dirA)*sp,hop:.5+Math.random()*2.5,d:0,dv:0,hit:0,blink:0,next:1+Math.random()*3});
       }
     }
     function endIntro(){
       if(!intro||intro.leaving)return;
       intro.leaving=.001;start.mesh.visible=false;
+      for(const s of [...intro.shots,...intro.sparks])rig.remove(s.m);intro.shots.length=intro.sparks.length=0;
       placing=kind==='immersive-ar';g.respawn();
     }
-    // Simple room physics in metres: gravity, the floor, and the balls pushing each other.
+    function clearIntro(){
+      if(!intro)return;
+      for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);
+      for(const s of [...intro.shots,...intro.sparks])rig.remove(s.m);
+      intro=null;introGroup.scale.setScalar(INTRO_R/BR);
+    }
+    // The trigger fires a small shot along the hand's ray; a hit pops the ball.
+    function fireIntro(h){
+      const I=intro;if(!I||I.leaving||clock-(h.lastShot||0)<.12)return;h.lastShot=clock;
+      const d=V(0,0,-1).applyQuaternion(h.target.quaternion).normalize();
+      const m=new T.Mesh(SHOT_GEO,SHOT_MAT);rig.add(m);
+      I.shots.push({m,p:h.target.position.clone().addScaledVector(d,.06),v:d.multiplyScalar(9),t:0});
+      g.whoosh(.2);
+    }
+    function popBall(b){
+      const I=intro;I.balls.splice(I.balls.indexOf(b),1);I.popped++;if(b.m)introGroup.remove(b.m.group);
+      for(let k=0;k<12;k++){
+        const m=new T.Mesh(SPARK,new T.MeshBasicMaterial({color:k%3?STYLE_COLORS[b.style]:0xfffaf2,transparent:true}));m.scale.setScalar(.012+Math.random()*.01);rig.add(m);
+        const a=Math.random()*Math.PI*2,e=Math.random()*Math.PI-Math.PI/2,v=1+Math.random()*1.6;
+        I.sparks.push({m,p:b.p.clone(),v:V(Math.cos(a)*Math.cos(e)*v,Math.sin(e)*v+1,Math.sin(a)*Math.cos(e)*v),t:0,max:.45+Math.random()*.3});
+      }
+      g.popSound?.();
+    }
+    // Room physics in metres: gravity, the floor, wandering and hopping, and the balls pushing each other.
     function stepIntro(dt){
       const I=intro;
-      if(!I.balls.length&&!I.leaving){if(++I.frames>=3)spawnIntro();return;}
-      I.t+=dt;
       if(I.leaving){
         I.leaving+=dt;const k=Math.max(0,1-I.leaving/.35);introGroup.scale.setScalar(INTRO_R/BR*Math.max(.001,k));
-        if(k<=0){for(const b of I.balls)if(b.m)introGroup.remove(b.m.group);intro=null;introGroup.scale.setScalar(INTRO_R/BR);}
+        if(k<=0)clearIntro();
         return;
       }
-      const live=I.balls.filter(b=>I.t>=b.delay);
+      if(!I.spawned){if(++I.frames>=3)spawnIntro();return;}
+      I.t+=dt;
+      // All popped: a new wave a moment later.
+      if(!I.balls.length){I.gap+=dt;if(I.gap>1)spawnIntro();}
+      const live=I.balls.filter(b=>I.t>=b.born);
       for(const b of live){
-        b.v.y-=REAL_G*dt;b.v.multiplyScalar(Math.pow(.8,dt));b.p.addScaledVector(b.v,dt);
+        const grounded=b.p.y<=INTRO_R+.001&&Math.abs(b.v.y)<.01;
+        b.v.y-=REAL_G*dt;
+        if(grounded){
+          b.v.x+=(b.gx-b.v.x)*Math.min(1,dt*2);b.v.z+=(b.gz-b.v.z)*Math.min(1,dt*2);
+          b.hop-=dt;if(b.hop<=0){b.v.y=1.6+Math.random()*1.6;b.hop=1+Math.random()*2.5;b.dv-=3;
+            if(Math.random()<.5){const a=Math.random()*Math.PI*2,sp=.25+Math.random()*.45;b.gx=Math.cos(a)*sp;b.gz=Math.sin(a)*sp;}}
+        }
+        b.p.addScaledVector(b.v,dt);
         if(b.p.y<INTRO_R){
           const sp=-b.v.y;b.p.y=INTRO_R;
-          if(sp>.6){b.v.y=sp*.55;b.v.x*=.85;b.v.z*=.85;b.dv-=sp*2.2;b.hit=.25;if(g.bump)g.bump(Math.min(1,sp/6)*.6);}
-          else{b.v.y=0;b.v.x*=Math.pow(.2,dt);b.v.z*=Math.pow(.2,dt);}
+          if(sp>.6){b.v.y=sp*.5;b.dv-=sp*2.2;b.hit=.2;if(sp>2&&g.bump)g.bump(Math.min(1,sp/6)*.4);}
+          else b.v.y=0;
         }
-        // Stay within about two metres of where the player stood, clear of the room's walls.
+        // Stay within the room around where the player stood; turn back at the edge.
         const ox=b.p.x-I.center.x,oz=b.p.z-I.center.z,od=Math.hypot(ox,oz);
-        if(od>1.9){b.p.x=I.center.x+ox/od*1.9;b.p.z=I.center.z+oz/od*1.9;const out=(b.v.x*ox+b.v.z*oz)/od;if(out>0){b.v.x-=ox/od*out*1.5;b.v.z-=oz/od*out*1.5;}}
+        if(od>ROOM){b.p.x=I.center.x+ox/od*ROOM;b.p.z=I.center.z+oz/od*ROOM;b.gx=-ox/od*Math.abs(b.gx||.3);b.gz=-oz/od*Math.abs(b.gz||.3);b.v.x*=-.5;b.v.z*=-.5;}
         b.dv+=(-b.d*320-b.dv*12)*dt;b.d=clamp(b.d+b.dv*dt,-.3,.45);
         b.hit=Math.max(0,b.hit-dt);b.next-=dt;if(b.next<=0){b.blink=.14;b.next=2+Math.random()*3;}b.blink=Math.max(0,b.blink-dt);
       }
@@ -226,6 +262,17 @@
           n.divideScalar(l);const push=(INTRO_R*2-l)/2;a.p.addScaledVector(n,-push);b.p.addScaledVector(n,push);
           const rel=b.v.clone().sub(a.v).dot(n);if(rel<0){a.v.addScaledVector(n,rel*.8);b.v.addScaledVector(n,-rel*.8);}
         }
+      }
+      // Shots fly with a little drop and pop the first ball they touch.
+      for(let k=I.shots.length-1;k>=0;k--){
+        const s=I.shots[k];s.t+=dt;s.v.y-=1.5*dt;s.p.addScaledVector(s.v,dt);s.m.position.copy(s.p);
+        const hit=live.find(b=>I.balls.includes(b)&&b.p.distanceTo(s.p)<INTRO_R+.03);
+        if(hit)popBall(hit);
+        if(hit||s.t>1.2||s.p.y<0){rig.remove(s.m);I.shots.splice(k,1);}
+      }
+      for(let k=I.sparks.length-1;k>=0;k--){
+        const s=I.sparks[k];s.t+=dt;s.v.y-=REAL_G*.5*dt;s.p.addScaledVector(s.v,dt);s.m.position.copy(s.p);s.m.material.opacity=1-s.t/s.max;
+        if(s.t>=s.max){rig.remove(s.m);s.m.material.dispose();I.sparks.splice(k,1);}
       }
       if(!I.ready&&I.t>3.2){
         I.ready=true;const {pos,dir}=headLocal();
@@ -238,7 +285,7 @@
       eyeNow();
       for(const b of intro.balls){
         if(!b.m)continue;
-        b.m.group.visible=intro.t>=b.delay;
+        b.m.group.visible=intro.t>=b.born;
         const falling=b.p.y>INTRO_R+.02&&b.v.y<-1.5;
         b.m.update({pos:V(b.p.x,b.p.y-INTRO_R*Math.max(0,b.d),b.p.z).multiplyScalar(BR/INTRO_R),toward:eye,
           faceName:b.hit>0?'closed':falling?'wide':'open',blink:b.blink>0,squash:[1+b.d*.75,1-b.d]});
@@ -304,7 +351,7 @@
     function press(h){
       if(!session)return;
       if(h.hover>=0){menuAction(h.hover);return;}
-      if(intro){if(h.onStart)endIntro();return;}
+      if(intro){if(h.onStart)endIntro();else fireIntro(h);return;}
       if(menuOpen&&h===leftHand())return;
       if(placing){if(anchor){placing=false;g.respawn();}return;}
       if(climbOn){if(h===leftHand())climb3.jump();else climb3.throwBall();return;}
@@ -317,13 +364,14 @@
       if(h===forkHand())return; // this hand holds the slingshot
       // Dahrooj in flight keeps going and a fresh one comes to the hand: throw them back to back.
       if(S.shot&&!g.another())g.recall();
-      if(!holder&&g.canHold()){holder=h;holdT=0;parked=false;S.held=true;S.vel.set(0,0,0);S.shot=false;}
+      // Dahrooj appears straight in the hand with a little pop, rather than flying over to it.
+      if(!holder&&g.canHold()){holder=h;holdT=0;popT=0;parked=false;S.held=true;S.vel.set(0,0,0);S.shot=false;}
     }
     function release(h,lost){
       if(holder===h){
         holder=null;
         const u=lost?null:launch(h,S.pos);
-        if(u)g.throwWith(toGame(u));else parked=true;
+        if(u)g.throwWith(toGame(u));else{parked=true;popT=0;S.pos.copy(updateParkSpot(forkHand()));}
       }
       if(h.charging){
         h.charging=false;const st=g.stage();
@@ -393,7 +441,7 @@
     function setClimb(on){
       if(on&&!climb3){
         if(!window.createDahroojClimb3D||!g.climbCore)return;
-        climb3=window.createDahroojClimb3D(T,{core:g.climbCore,models,BR,unit:climbUnit});rig.add(climb3.group);climb3.start();
+        climb3=window.createDahroojClimb3D(T,{core:g.climbCore,models,BR,renderer,unit:climbUnit});rig.add(climb3.group);climb3.start();
       }
       climbOn=!!on&&!!climb3;
       if(climb3)climb3.show(climbOn);
@@ -435,7 +483,7 @@
       floor.visible=mode==='immersive-vr';
       s.addEventListener('end',onEnd);
       await renderer.xr.setSession(s);
-      lastTime=0;renderer.setAnimationLoop(loop);
+      lastTime=0;frames=0;renderer.setAnimationLoop(loop);
       g.respawn();
       if(opening){placing=false;beginIntro();}
       climbSpot=null;if(climb)setClimb(true);
@@ -443,7 +491,7 @@
     function onEnd(){
       renderer.setAnimationLoop(null);
       for(const s of hitSources.values())s.cancel?.();hitSources.clear();
-      if(intro){for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);intro=null;}start.mesh.visible=false;
+      clearIntro();start.mesh.visible=false;
       setClimb(false);holder=null;parked=false;placing=false;S.held=false;g.clearVolley();g.respawn();
       session=null;kind=null;
       rig.remove(camera);scene.remove(rig);
@@ -475,7 +523,7 @@
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
     }
     function loop(time,frame){
-      const dt=lastTime?clamp((time-lastTime)/1000,0,.05):1/72;lastTime=time;clock+=dt;
+      const dt=lastTime?clamp((time-lastTime)/1000,0,.05):1/72;lastTime=time;clock+=dt;frames++;
       const st=g.stage();
       if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
       if(placedFor!==g.mode())place();
@@ -528,14 +576,16 @@
       eyeNow();hud.mesh.lookAt(eye);
       // Dahrooj waits by your hand (or in the slingshot) between throws.
       if(st.networked){if(parked||(S.held&&!holder)){parked=false;S.held=false;}}
-      else if(!S.shot&&!holder&&!placing&&!intro&&!climbOn)parked=true;
+      // Only once the headset has reported a few poses, so he doesn't appear somewhere else first.
+      else if(!S.shot&&!holder&&!placing&&!intro&&!climbOn&&!parked&&frames>3){parked=true;popT=0;S.pos.copy(updateParkSpot(F));}
       if(parked){S.held=true;S.pos.lerp(updateParkSpot(F),1-Math.exp(-dt*10));S.vel.set(0,0,0);S.grounded=false;}
+      popT+=dt;
       // The held ball rides in front of the hand (in the pouch with the slingshot), easing in.
       if(holder){
         holdT+=dt;holder.grip.getWorldPosition(wp);holder.grip.getWorldQuaternion(wq);
         fwd.set(0,0,-1).applyQuaternion(wq);
         const target=F?.source?wp:wp.addScaledVector(fwd,BR*1.05);
-        S.pos.lerp(target,holdT<.15?.35:1);S.vel.set(0,0,0);S.grounded=false;
+        S.pos.copy(target);S.vel.set(0,0,0);S.grounded=false;
       }
       // Slingshot bands follow the pouch: Dahrooj, the pulling hand in Duel, or the rest spot.
       if(F?.source){
@@ -556,11 +606,13 @@
       if(climbOn){eyeNow();climb3.update(dt,{style:g.style(),eye,onEvent:climbEvent});}
       else g.step(dt*timeK());
       // Dahrooj, the Duel opponent and small balls.
-      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn)&&!st.networked),actors=st.xrActors?st.xrActors():[];
+      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn||!(parked||holder||S.shot))&&!st.networked),actors=st.xrActors?st.xrActors():[];
       const face=parked&&!(S.mood&&S.moodT>0)?'open':g.ballFace();
       if(models){
         ballModel=model(ballModel,g.style(),true);
         ballModel.update({pos:S.pos,toward:eye,faceName:face,blink:S.blink>0,squash:[1+d*.75,1-d]});
+        // Pop in: grow from small with a slight overshoot.
+        if(popT<.25){const k=popT/.25,e=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);ballModel.group.scale.multiplyScalar(Math.max(.05,e));}
         ballModel.group.visible=shown;
         actors.forEach((a,i)=>{
           const m=actorModels[i]=model(actorModels[i],a.style,a.face!=='none'),k=a.r/BR;
@@ -583,7 +635,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

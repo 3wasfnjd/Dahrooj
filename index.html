@@ -1174,7 +1174,7 @@ function make3D(){
 
 
   const S={pos:V(0,BR+1.2,0),vel:V(0,0,0),side:V(0,0,0),d:0,dv:0,axis:V(0,1,0),
-    shot:false,shotT:0,scoredT:0,missT:0,mood:null,moodT:0,moodNext:null,idle:0,restT:0,hitT:0,blink:0,nextBlink:2,grounded:false,lastHit:0,prevZ:0,prevY:0};
+    shot:false,shotT:0,zMax:6,xMax:16,scoredT:0,missT:0,mood:null,moodT:0,moodNext:null,idle:0,restT:0,hitT:0,blink:0,nextBlink:2,grounded:false,lastHit:0,prevZ:0,prevY:0};
   const aim={down:false,pointerId:null,pts:[],x:W/2,y:H*0.3};
   let xr=null; // Quest VR/AR, created at the end of make3D
   const xrOn=()=>!!(xr&&xr.presenting);
@@ -2053,7 +2053,7 @@ function make3D(){
   function respawn(){
     skin.reset();
     S.missT=0; S.mood=null; S.moodT=0; S.idle=0;
-    S.pos.set(0,BR+1.0,0); S.vel.set(0,0,0); S.side.set(0,0,0); S.shot=false; S.scoredT=0; S.restT=0; S.d=0; S.dv=0; S.grounded=false;
+    S.pos.set(0,BR+1.0,0); S.vel.set(0,0,0); S.side.set(0,0,0); S.shot=false; S.scoredT=0; S.restT=0; S.d=0; S.dv=0; S.grounded=false; S.zMax=6; S.xMax=16;
     if(stage && stage.onRespawn) stage.onRespawn();
   }
 
@@ -2141,12 +2141,12 @@ function make3D(){
       }
       else if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) return end(); }
       else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) return end(); }
-      else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>16 || P.z<-34 || P.z>6) miss();
+      else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>S.xMax || P.z<-34 || P.z>S.zMax) miss();
     }
     return false;
   }
   // Headset volleys: a thrown Dahrooj keeps flying while a fresh one comes to the hand.
-  const VOLLEY_KEYS=['shot','shotT','scoredT','missT','mood','moodT','moodNext','idle','restT','hitT','blink','nextBlink','grounded','lastHit','prevZ','prevY','d','dv'];
+  const VOLLEY_KEYS=['zMax','xMax','shot','shotT','scoredT','missT','mood','moodT','moodNext','idle','restT','hitT','blink','nextBlink','grounded','lastHit','prevZ','prevY','d','dv'];
   const VOLLEY_VECS=['pos','vel','side','axis'], volley=[], VOLLEY_MAX=6;
   function snapBall(){ const o={}; for(const k of VOLLEY_KEYS) o[k]=S[k]; for(const k of VOLLEY_VECS) o[k]=S[k].clone(); return o; }
   function loadBall(o){ for(const k of VOLLEY_KEYS) S[k]=o[k]; for(const k of VOLLEY_VECS) S[k].copy(o[k]); }
@@ -2260,6 +2260,8 @@ function make3D(){
     const sp=v.length();
     S.held=false; S.vel.copy(v); S.side.set(0,0,0);
     S.shot=true; S.shotT=0; S.grounded=false; S.prevZ=S.pos.z; S.prevY=S.pos.y;
+    // In AR the player can stand far behind the court: the out-of-bounds lines follow the throw.
+    S.zMax=Math.max(6,S.pos.z+3); S.xMax=Math.max(16,Math.abs(S.pos.x)+6);
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp/18)*8;
     whoosh(Math.min(1,sp/18));
     if(stage.onHit) stage.onHit(sp*170);
@@ -2275,6 +2277,7 @@ function make3D(){
     stage:()=>stage, stageName:()=>stageName,
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s),
+    popSound:()=>startPopSound(),
     another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
     climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e),
     onExit:()=>{if(XR_ENTRY)document.getElementById('xr-gate').hidden=false;},

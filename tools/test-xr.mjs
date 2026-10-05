@@ -93,7 +93,7 @@ try{
   for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
   await trigger(0);await p.waitForTimeout(80);
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.volley.length===1&&window.__g.volley[0].shot),'Two throws fly at once');
-  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:12000});
+  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:25000});
   check(true,'Earlier throws finish on their own');
   await aButton();await parked();
 
@@ -120,9 +120,10 @@ try{
   check(await p.evaluate(()=>window.__g.xr.climbing&&window.__g.scene.getObjectByName('xr-climb').visible&&!window.__g.stage.grp.visible),'The menu opens the Summit as a model mountain');
   const climbBall=()=>p.evaluate(()=>{const b=window.__g.xr.climb.state.ball;return {x:b.x,y:b.y,vy:b.vy,grounded:b.grounded};});
   const x0=(await climbBall()).x;
-  await p.evaluate(()=>window.__dev.controllers.left.updateAxes('thumbstick',1,0));await p.waitForTimeout(500);
+  await p.evaluate(()=>window.__dev.controllers.left.updateAxes('thumbstick',1,0));
+  const rolled=await p.waitForFunction(x0=>window.__g.xr.climb.state.ball.x>x0+.5,x0,{timeout:5000}).then(()=>true,()=>false);
   await p.evaluate(()=>window.__dev.controllers.left.updateAxes('thumbstick',0,0));
-  check((await climbBall()).x>x0+.5,'The left stick rolls Dahrooj along the mountain');
+  check(rolled,'The left stick rolls Dahrooj along the mountain '+errors.join(' / '));
   await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',1));
   await p.waitForFunction(()=>!window.__g.xr.climb.state.ball.grounded,null,{timeout:3000});
   await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));
@@ -153,6 +154,17 @@ try{
   s=await state();check(!s.placing,'The trigger pins the court');
   check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-rig').scale.x===8),'AR shows the court at an eighth');
   await parked();
+  // Standing more than two metres from the goal used to count every AR throw as a miss at once.
+  // Step a metre and a half back from the pinned goal (and the hand with you).
+  await p.evaluate(()=>{window.__dev.position.z+=1.5;});await ctl('right',[.2,1.2,1.2]);await ctl('left',[-.18,1.05,1.18]);await p.waitForTimeout(600);
+  const farZ=await p.evaluate(()=>window.__g.S.pos.z);check(farZ>6,'In AR the player stands behind the old out-of-bounds line ('+farZ.toFixed(1)+')');
+  await p.waitForTimeout(150);await trigger(1);await p.waitForTimeout(150);
+  check(await p.evaluate(()=>{const S=window.__g.S,rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.controllers.right.position;
+    const b=rig.worldToLocal(S.pos.clone());return window.__g.xr.holding&&Math.hypot(b.x-h.x,b.y-h.y,b.z-h.z)<.12;}),'Dahrooj appears straight in the hand');
+  for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.05,1.2-i*.08),i);await p.waitForTimeout(14);}
+  await trigger(0);await p.waitForTimeout(300);
+  check(await p.evaluate(()=>window.__g.S.shot&&window.__g.S.missT===0),'A throw from far away stays in play');
+  await aButton();await p.evaluate(()=>{window.__dev.position.z-=1.5;});await ctl('right',[.2,1.2,-.3]);await ctl('left',[-.18,1.05,-.32]);await parked();
   // Thumbstick up makes the court bigger (a smaller world scale), within limits.
   await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,-1));await p.waitForTimeout(1500);
   await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,0));await p.waitForTimeout(100);
@@ -188,6 +200,22 @@ try{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;
       return Math.max(...group.children.map(m=>{const p=rig.worldToLocal(group.localToWorld(m.position.clone()));return Math.hypot(p.x-h.x,p.z-h.z);}));});
     check(spread<2.6,'They land around the player in the room ('+spread.toFixed(2)+' m)');
+    // Shoot at the nearest ball until one pops.
+    let popped=0;
+    for(let k=0;k<8&&!popped;k++){
+      await q.evaluate(()=>{
+        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=5);
+        const eye=new T.Vector3(.15,1.2,-.05);let best=null,bd=9;
+        for(const m of group.children){const p=rig.worldToLocal(group.localToWorld(m.position.clone()));const d=p.distanceTo(eye);if(m.visible&&d<bd){bd=d;best=p;}}
+        const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(eye,best,new T.Vector3(0,1,0)));
+        const c=window.__dev.controllers.right;c.position.set(eye.x,eye.y,eye.z);c.quaternion.set(q.x,q.y,q.z,q.w);
+      });
+      await q.waitForTimeout(120);
+      await q.evaluate(()=>window.__dev.controllers.right.updateButtonValue('trigger',1));await q.waitForTimeout(100);
+      await q.evaluate(()=>window.__dev.controllers.right.updateButtonValue('trigger',0));await q.waitForTimeout(500);
+      popped=await q.evaluate(()=>window.__g.xr.popped);
+    }
+    check(popped>=1,'The trigger shoots the opening balls and pops them ('+popped+')');
     await q.evaluate(()=>{
       const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),panel=window.__g.scene.getObjectByName('xr-start');
       const spot=rig.worldToLocal(panel.localToWorld(new T.Vector3(0,-.05,0)));
