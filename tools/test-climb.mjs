@@ -113,4 +113,9 @@ for(const width of [13.3,16.25,18]){
   for(let t=0;t<.12;t+=1/240)C.step(s2,1/240);
   check(s2.ball.vy>0&&!s2.ball.grounded,'A tap just before landing still jumps');
 }
+// The cliff bats (second section) always leave a clear lane of at least two ball widths.
+for(const width of [13.3,16.25,18]){
+  const bats=C.createState(width).monsters.filter(m=>m.type==='bat'&&m.y0>36&&m.y0<72);
+  for(const bat of bats)check(Math.max(bat.x0,width-bat.x1)-.45>=4,`width ${width}: bat at ${bat.y0} leaves a safe lane`);
+}
 console.log(`PASS ${checks} climb checks.`);

@@ -4,6 +4,7 @@
   'use strict';
   const G=60, MAX_HEARTS=3, MAX_WIDTH=18;
   // Touch controls like the other modes: drag sideways to roll, tap to jump.
+  const HIT=.82; // hazard contact radius, smaller than the drawn ball
   const RUN=10, JUMP=25, ACCEL=70, ACCEL_ICE=14, ACCEL_AIR=34, COYOTE=.1, BUFFER=.13;
   const THEMES=[
     {name:'meadow',top:'#7f9a5b'},{name:'cliffs',top:'#a38b74'},
@@ -18,17 +19,17 @@
     {from:36,platforms:[
       [.28,40,3.2,{crumble:1}],[.66,44,3.6,{spikes:[0,.45]}],[.36,48,3,{crumble:1}],
       [.74,52,3.2,{spitter:.75}],[.44,56,2.8],[.16,60,3,{crumble:1}],[.56,64,3.4,{crawler:1}],[.84,68,2.8]],
-      bats:[[46.5,.1,.9,.9,0],[58.5,.15,.85,1.2,2]],icicles:[]},
+      bats:[[46.5,.12,.62,.7,0],[58.5,.38,.88,.8,2]],icicles:[]},
     {from:72,platforms:[
       [.5,76,3.2,{move:[.2,.9]}],[.2,80,3,{spitter:.3}],[.66,84,2.8,{move:[.16,1.6]}],
       [.38,88,3,{spikes:[.55,1]}],[.78,92,2.6,{crumble:1}],[.5,96,3,{crawler:1}],
       [.2,100,2.8,{move:[.12,1.3]}],[.6,104,2.8,{spitter:.7}]],
-      bats:[[86.5,.1,.9,1.4,1],[98.5,.1,.6,1.6,0],[98.5,.4,.9,1.3,3]],icicles:[]},
+      bats:[[86.5,.15,.7,1,1],[98.5,.1,.5,1.1,0],[98.5,.55,.9,1,3]],icicles:[]},
     {from:108,platforms:[
       [.3,112,3.2,{ice:1}],[.7,116,3,{ice:1}],[.4,120,2.8,{ice:1,crumble:1}],[.12,124,2.8,{ice:1}],
       [.5,128,2.8,{ice:1,move:[.15,1.2]}],[.84,132,2.6,{ice:1}],[.52,136,2.8,{ice:1,crawler:1}],
       [.2,140,2.6,{ice:1}],[.6,144,2.6,{ice:1,spitter:.5}]],
-      bats:[[122.5,.1,.9,1.5,1],[134.5,.2,.8,1.8,2]],icicles:[[.68,119.5],[.5,131.5],[.22,147.4]]}
+      bats:[[122.5,.3,.9,1.1,1],[134.5,.15,.7,1.3,2]],icicles:[[.68,119.5],[.5,131.5],[.22,147.4]]}
   ];
   const TOP=148;
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -84,7 +85,7 @@
     if(b.inv>0||b.dead||state.won)return;
     b.hearts--;state.events.push({type:'hurt'});
     if(b.hearts<=0){b.dead=.001;b.grounded=false;state.events.push({type:'pop',x:b.x,y:b.y});return;}
-    b.inv=1.4;b.stun=.3;b.grounded=false;b.on=null;b.coyote=0;b.vy=14;b.vx=(b.x>=fromX?1:-1)*8;
+    b.inv=1.6;b.stun=.3;b.grounded=false;b.on=null;b.coyote=0;b.vy=14;b.vx=(b.x>=fromX?1:-1)*8;
   }
   // dir: -1 left, 0 stop, 1 right (fractions allowed). jump() is buffered briefly before landing.
   function setDir(state,dir){state.input.dir=clamp(Number(dir)||0,-1,1);}
@@ -193,14 +194,14 @@
     // Monsters, seeds and icicles.
     for(const m of state.monsters){
       if(!m.alive||b.dead)continue;
-      const my=m.type==='crawler'?m.plat.y+.6:m.y,r=m.type==='bat'?.6:.7;
-      if(Math.hypot(b.x-m.x,b.y-my)>1+r)continue;
+      const my=m.type==='crawler'?m.plat.y+.6:m.y,r=m.type==='bat'?.45:.7;
+      if(Math.hypot(b.x-m.x,b.y-my)>HIT+r)continue;
       if(m.type!=='bat'&&b.vy<-2&&b.y>my+.3){
         m.alive=false;m.t=0;b.vy=18;b.grounded=false;b.on=null;state.events.push({type:'stomp',x:m.x,y:my});
       }else hurt(state,m.x);
     }
-    for(const s of state.seeds)if(!b.dead&&Math.hypot(b.x-s.x,b.y-s.y)<1.3){s.t=99;hurt(state,s.x);}
-    for(const i of state.icicles)if(i.state==='fall'&&!b.dead&&Math.hypot(b.x-i.x,b.y-(i.y-.6))<1.3){i.state='gone';i.t=0;hurt(state,i.x);}
+    for(const s of state.seeds)if(!b.dead&&Math.hypot(b.x-s.x,b.y-s.y)<HIT+.2){s.t=99;hurt(state,s.x);}
+    for(const i of state.icicles)if(i.state==='fall'&&!b.dead&&Math.hypot(b.x-i.x,b.y-(i.y-.6))<HIT+.2){i.state='gone';i.t=0;hurt(state,i.x);}
   }
 
   function step(state,dt){
@@ -230,44 +231,38 @@
     for(let i=0;i<14;i++)clouds.push({y:8+i*11+Math.random()*5,f:Math.random(),s:.6+Math.random()*.8,speed:.01+Math.random()*.02});
     for(let i=0;i<=40;i++)ridge.push([Math.sin(i*1.7)*.5+Math.sin(i*.6+1)*.8,Math.sin(i*2.3+2)*.4+Math.sin(i*.9)*.7]);
 
-    const geo=()=>{const {W,H,R}=view();const ox=(W-state.width*R)/2,base=H*.86;return {W,H,R,ox,base,sx:x=>ox+x*R,sy:y=>base-(y-cam)*R};};
+    const geo=()=>{const {W,H,R}=view();const ox=(W-state.width*R)/2,base=H*(showPad?.74:.86);return {W,H,R,ox,base,sx:x=>ox+x*R,sy:y=>base-(y-cam)*R};};
     function point(e){const r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
-    // Each finger: a horizontal drag becomes a joystick (distance from the press sets the speed),
-    // a short tap jumps, and a flick up while dragging also jumps. A second finger can tap to jump.
-    const TAP_TIME=.3,TAP_SLOP=12;
+    // Common mobile platformer layout: the left thumb holds left/right (sliding between them
+    // changes direction; it stays pressed slightly outside the button), the right thumb jumps.
+    const coarse=typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches;
+    let showPad=coarse;
+    function pad(){
+      const {W,H}=view(),r=clamp(Math.min(W,H)*.085,26,40),y=H-Math.max(150,H*.2);
+      return {r,y,left:W*.06+r,right:W*.06+r*3.4,jump:W-W*.06-r*1.15,split:W/2};
+    }
     function steer(){
       let dir=0;
-      for(const t of touches.values())if(t.mode==='move')dir=t.dir;
+      for(const t of touches.values())if(t.side==='move')dir=t.dir;
       if(keys.left!==keys.right)dir=keys.left?-1:1;
       setDir(state,dir);
     }
+    function aimDir(t){const g=pad();t.dir=t.x<(g.left+g.right)/2?-1:1;}
     function down(e){
       if(!active)return;
       e.preventDefault();canvas.setPointerCapture?.(e.pointerId);sounds.wake?.();
+      if(e.pointerType==='touch')showPad=true;
       if(state.won){if(state.time-state.wonAt>1.2)restart(state);return;}
-      const p=point(e);
-      touches.set(e.pointerId,{x0:p.x,y0:p.y,x:p.x,y:p.y,top:p.y,t0:performance.now(),mode:'tap',dir:0});
+      const p=point(e),g=pad(),t={x:p.x,y:p.y,side:p.x<g.split?'move':'jump',dir:0};
+      touches.set(e.pointerId,t);
+      if(t.side==='move'){aimDir(t);steer();}else jump(state);
     }
     function move(e){
       const t=touches.get(e.pointerId);if(!t)return;
-      const p=point(e),{R}=view(),span=R*1.2;
-      t.x=p.x;t.y=p.y;
-      if(t.mode==='tap'&&Math.abs(p.x-t.x0)>TAP_SLOP)t.mode='move';
-      if(t.mode==='move'){
-        let dx=p.x-t.x0;
-        // Keep the anchor within reach so reversing direction responds at once.
-        if(Math.abs(dx)>span){t.x0=p.x-Math.sign(dx)*span;dx=Math.sign(dx)*span;}
-        t.dir=Math.abs(dx)<R*.15?0:dx/span;
-        if(p.y<t.top-R*1.1){jump(state);t.top=p.y;}else t.top=Math.max(t.top,p.y);
-        steer();
-      }
+      const p=point(e);t.x=p.x;t.y=p.y;
+      if(t.side==='move'){aimDir(t);steer();}
     }
-    function up(e){
-      const t=touches.get(e.pointerId);if(!t)return;
-      touches.delete(e.pointerId);
-      if(t.mode==='tap'&&(performance.now()-t.t0)/1000<TAP_TIME)jump(state);
-      steer();
-    }
+    function up(e){if(touches.delete(e.pointerId))steer();}
     function cancel(e){if(touches.delete(e.pointerId))steer();}
     canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
     canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',cancel);canvas.addEventListener('lostpointercapture',cancel);
@@ -427,14 +422,19 @@
       paintBall(c,x,y,R,sx,sy,face,lx,ly,0,b.vx*R,-b.vy*R);
       c.globalAlpha=1;
     }
-    // A faint joystick under the steering finger.
-    function drawTouch(c,g){
-      for(const t of touches.values()){
-        if(t.mode!=='move')continue;
-        const {R}=g;
-        c.strokeStyle='rgba(44,45,61,.22)';c.lineWidth=2;c.beginPath();c.arc(t.x0,t.y0,R*1.2,0,Math.PI*2);c.stroke();
-        c.fillStyle='rgba(44,45,61,.28)';c.beginPath();c.arc(t.x0+t.dir*R*1.2,t.y0,R*.42,0,Math.PI*2);c.fill();
-      }
+    // On-screen buttons for touch screens.
+    function drawTouch(c){
+      if(!showPad)return;
+      const g=pad(),held={left:false,right:false,jump:false};
+      for(const t of touches.values()){if(t.side==='jump')held.jump=true;else held[t.dir<0?'left':'right']=true;}
+      const button=(x,on,shape)=>{
+        c.fillStyle=on?'rgba(44,45,61,.42)':'rgba(255,252,246,.42)';c.strokeStyle='rgba(44,45,61,.28)';c.lineWidth=1.5;
+        c.beginPath();c.arc(x,g.y,g.r,0,Math.PI*2);c.fill();c.stroke();
+        c.fillStyle=on?'rgba(255,250,242,.95)':'rgba(44,45,61,.6)';c.beginPath();shape(x,g.y,g.r*.38);c.fill();
+      };
+      button(g.left,held.left,(x,y,s)=>{c.moveTo(x-s,y);c.lineTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);});
+      button(g.right,held.right,(x,y,s)=>{c.moveTo(x+s,y);c.lineTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);});
+      button(g.jump,held.jump,(x,y,s)=>{c.moveTo(x,y-s);c.lineTo(x+s,y+s*.7);c.lineTo(x-s,y+s*.7);});
     }
     function heart(c,x,y,s,full){
       c.beginPath();c.moveTo(x,y+s*.35);c.bezierCurveTo(x-s*.9,y-s*.25,x-s*.35,y-s*.95,x,y-s*.42);c.bezierCurveTo(x+s*.35,y-s*.95,x+s*.9,y-s*.25,x,y+s*.35);
@@ -467,7 +467,7 @@
       drawBall(c,g);
       for(const p of parts){c.globalAlpha=1-p.t/p.max;c.fillStyle=p.c;c.beginPath();c.arc(g.sx(p.x),g.sy(p.y),g.R*p.s,0,Math.PI*2);c.fill();}
       c.globalAlpha=1;
-      drawTouch(c,g);
+      drawTouch(c);
       drawHud(c,g);
     }
     return {
