@@ -2,7 +2,26 @@
 <html lang="ar">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no, email=no, address=no">
+<script>
+// A game, not a document: keep browser gestures (pinch or double-tap zoom, selection,
+// long-press menus, image dragging) from interrupting play. Buttons and links still click.
+(()=>{
+  const stop=e=>e.preventDefault(),opt={passive:false};
+  for(const type of ['gesturestart','gesturechange','gestureend'])document.addEventListener(type,stop,opt);
+  for(const type of ['dblclick','contextmenu','selectstart','dragstart'])document.addEventListener(type,stop,opt);
+  document.addEventListener('touchmove',e=>{if(e.touches.length>1||(e.scale&&e.scale!==1))e.preventDefault();},opt);
+  let lastEnd=0;
+  document.addEventListener('touchend',e=>{
+    if(e.timeStamp-lastEnd<320&&e.cancelable&&!e.target.closest?.('button,a,#chpanel'))e.preventDefault();
+    lastEnd=e.timeStamp;
+  },opt);
+})();
+</script>
 <title>Dahrooj</title>
 <link rel="stylesheet" href="./vendor/fonts/fonts.css">
 <link rel="stylesheet" href="./assets/start/start-screen.css">
@@ -16,6 +35,11 @@
   color-scheme:light;
 }
 html,body{height:100%;margin:0;overflow:hidden}
+/* No zoom, selection, callouts, tap highlight, pull-to-refresh or rubber-banding anywhere in the game. */
+html,body{touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+img,svg,canvas{-webkit-user-drag:none;user-drag:none}
 body{background:var(--paper);color:var(--ink);font-family:Tahoma,"Segoe UI",sans-serif}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 #c{z-index:0;cursor:pointer}
@@ -81,6 +105,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   width:min(290px,calc(100vw - 32px));padding:12px 14px;border-radius:18px;
   background:rgba(255,252,246,.94);border:1.5px solid rgba(44,45,61,.14);box-shadow:0 10px 30px rgba(44,45,61,.12);
   font:600 15px/1.35 "Baloo Bhaijaan 2","Grandstander",Tahoma,sans-serif;color:var(--ink);direction:rtl;
+  max-height:calc(100dvh - 190px);overflow:auto;touch-action:pan-y;overscroll-behavior:contain;
 }
 .ch-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:17px;margin-bottom:8px}
 .ch-n{font-size:13px;opacity:.55;font-variant-numeric:tabular-nums}
