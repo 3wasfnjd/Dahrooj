@@ -79,7 +79,12 @@ try{
   await p.evaluate(()=>document.getElementById('btn-ar').click());
   await p.waitForFunction(()=>window.__g?.xr?.presenting,null,{timeout:8000});
   check((await state()).kind==='immersive-ar','AR starts');
-  check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-rig').scale.x===5&&window.__g.scene.background===null),'AR shows the room with the court at a fifth');
+  check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-rig').scale.x===8&&window.__g.scene.background===null),'AR shows the room with the court at an eighth');
+  // Thumbstick up makes the court bigger (a smaller world scale), within limits.
+  await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,-1));await p.waitForTimeout(1500);
+  await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,0));await p.waitForTimeout(100);
+  const zoom=await p.evaluate(()=>window.__g.scene.getObjectByName('xr-rig').scale.x);
+  check(zoom<7.8&&zoom>=4,'The thumbstick resizes the AR court ('+zoom.toFixed(2)+')');
   await p.evaluate(()=>window.__dev.activeSession.end());
   await p.waitForFunction(()=>!window.__g.xr.presenting,null,{timeout:5000});
 

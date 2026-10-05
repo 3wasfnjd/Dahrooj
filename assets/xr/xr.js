@@ -3,8 +3,10 @@
    Press the trigger (or pinch) to take Dahrooj into your hand, swing and let go to throw. */
 (() => {
   'use strict';
-  const AR_SCALE=5, MAX_SPEED=22, SPAN=.04, MIN_THROW=2;
-  const GAIN={'immersive-vr':1.9,'immersive-ar':.7};
+  // AR shows the world at an eighth by default (Dahrooj ~6 cm, the goal ~75 cm); the thumbstick resizes it.
+  const AR_SCALE=8, AR_MIN=4, AR_MAX=16, MAX_SPEED=26, SPAN=.04, MIN_THROW=2;
+  // Throw strength per metre per second of real hand speed: a relaxed swing reaches the goal.
+  const GAIN={'immersive-vr':3,'immersive-ar':6};
   const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['padel','بادل'],['cans','علب'],['opponent','مبارزة']];
   const STYLES=[['jelly','جيلي'],['fabric','قماش'],['clay','صلصال'],['fur','فرو'],['bubble','فقاعة']];
   const LABEL=Object.fromEntries(MODES);
@@ -13,7 +15,7 @@
 
   window.createDahroojXR=g=>{
     const {T,renderer,scene,camera,S,BR,V}=g;
-    let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='';
+    let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE;
     const rig=new T.Group();rig.name='xr-rig';
     const ray=new T.Raycaster(),wp=V(0,0,0),wq=new T.Quaternion(),fwd=V(0,0,0);
     const scaleNow=()=>rig.scale.x;
@@ -159,7 +161,8 @@
       if(!holder&&g.canHold()){holder=h;holdT=0;S.held=true;S.vel.set(0,0,0);S.shot=false;}
     }
     function release(h,lost){
-      const v=velocity(h).multiplyScalar(GAIN[kind]||1.9);
+      // World velocity is real hand speed times the world scale; turn it into throw strength.
+      const v=velocity(h).multiplyScalar((GAIN[kind]||3)/scaleNow());
       if(v.length()>MAX_SPEED)v.setLength(MAX_SPEED);
       if(holder===h){
         holder=null;
@@ -181,8 +184,8 @@
     /* ---------- session ---------- */
     function place(){
       // Stand just behind the ball, facing the court. AR shrinks the world around you.
-      const s=kind==='immersive-ar'?AR_SCALE:1;
-      rig.scale.setScalar(s);rig.position.set(0,0,kind==='immersive-ar'?1.6:1.05);rig.rotation.set(0,0,0);
+      const s=kind==='immersive-ar'?arScale:1;
+      rig.scale.setScalar(s);rig.position.set(0,0,kind==='immersive-ar'?.32*s:1.05);rig.rotation.set(0,0,0);
     }
     async function enter(mode){
       if(session||!navigator.xr)return;
@@ -237,6 +240,10 @@
         // Duel: either thumbstick moves Dahrooj sideways.
         const axes=h.source?.gamepad?.axes;
         if(st.xrMove&&axes&&axes.length>2&&Math.abs(axes[2])>.35&&clock-h.lastMove>.1){h.lastMove=clock;st.xrMove(axes[2]);}
+        // AR: thumbstick up makes the court bigger, down makes it smaller.
+        if(kind==='immersive-ar'&&axes&&axes.length>3&&Math.abs(axes[3])>.4&&!holder){
+          arScale=clamp(arScale*Math.exp(axes[3]*dt*.9),AR_MIN,AR_MAX);place();
+        }
       }
       drawMenu(hover);drawHud();
       // The held ball rides in front of the hand, easing in from where it was.
