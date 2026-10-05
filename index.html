@@ -129,6 +129,15 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .modes button svg{width:22px;height:22px}
 .modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .modes button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+/* Summit touch controls: the same translucent pills and outline icons as the mode and style bars. */
+.climb-pad{position:fixed;z-index:3;left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));
+  bottom:calc(122px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;pointer-events:none}
+.pad-group{display:flex;gap:6px;padding:5px;background:rgba(255,252,246,.5);border:1.5px solid rgba(44,45,61,.14);border-radius:999px;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.pad-group span{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:var(--ink);transition:background .12s ease,color .12s ease,transform .12s ease}
+.pad-group span svg{width:26px;height:26px}
+.pad-group span.on{background:var(--ink);color:var(--paper);transform:scale(.94)}
+@media (max-width:360px){.pad-group{gap:4px;padding:4px}.pad-group span{width:50px;height:50px}.pad-group span svg{width:24px;height:24px}}
 /* Eight modes: keep round buttons inside narrow phones. */
 @media (max-width:420px){.modes{gap:3px;padding:4px}.modes button{width:38px;height:38px;flex:none}.modes button svg{width:20px;height:20px}}
 @media (max-width:340px){.modes{gap:2px}.modes button{width:34px;height:34px}.modes button svg{width:18px;height:18px}}
@@ -196,6 +205,16 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button data-mode="opponent" aria-pressed="false" aria-label="Duel" title="Duel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2H3m13-16a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4.6V20h-3"/></svg>
   </button>
+</div>
+<div class="climb-pad" id="climb-pad" hidden aria-hidden="true">
+  <div class="pad-group">
+    <span data-pad="left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></span>
+    <span data-pad="right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+  </div>
+  <div class="pad-group">
+    <span data-pad="shoot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="12" r="5"/><path d="M3 9h4.5M2 12h5M3 15h4.5"/></svg></span>
+    <span data-pad="jump"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19.5V5M5.5 11.5 12 5l6.5 6.5"/></svg></span>
+  </div>
 </div>
 <p class="credit">Aboden Games<small>© 2026</small></p>
 </div>
@@ -2251,7 +2270,7 @@ function showTitle(text){
 function makeClimb(){
   if(!window.createDahroojClimb) return null;
   const ring=Array.from({length:28},(_,i)=>{const a=i/28*Math.PI*2-Math.PI/2;return [Math.cos(a),Math.sin(a)];});
-  return window.createDahroojClimb({canvas:cv,ctx,view:()=>({W,H,R,dpr}),drawPaper,
+  return window.createDahroojClimb({canvas:cv,ctx,view:()=>({W,H,R,dpr}),drawPaper,padEl:document.getElementById('climb-pad'),
     makeShotSprite:style=>makeStartBallSprite(style,'none',false,{t:0,parts:[]}),
     currentStyle:()=>ballStyle,
     paintBall(c,x,y,r,sx,sy,face,lx,ly,blushK,vx,vy){
