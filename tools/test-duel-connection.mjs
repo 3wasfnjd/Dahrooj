@@ -27,12 +27,13 @@ test('the original Pages address connects to the Duel Worker without navigating 
   }
 });
 
-test('only the exact Pages origin and the server origin may enter Duel',()=>{
+test('only the exact Pages and preview origins and the server origin may enter Duel',()=>{
   const server='https://dahrooj-duel.glory-noon.workers.dev';
   assert(allowsDuelOrigin(server,server));
   assert(allowsDuelOrigin('https://3wasfnjd.github.io',server));
+  assert(allowsDuelOrigin('https://raw.githack.com',server));
   for(const origin of [null,undefined,'null','https://unrelated.example','https://other.github.io',
-    'https://3wasfnjd.github.io.unrelated.example','http://3wasfnjd.github.io','https://3wasfnjd.github.io/Dahrooj/']){
+    'https://3wasfnjd.github.io.unrelated.example','http://3wasfnjd.github.io','https://3wasfnjd.github.io/Dahrooj/','http://raw.githack.com','https://raw.githack.com.unrelated.example']){
     assert.equal(allowsDuelOrigin(origin,server),false,String(origin));
   }
 });

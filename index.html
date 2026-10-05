@@ -1787,6 +1787,7 @@ function make3D(){
         return list;
       },
       xrAim:()=>client.canShoot(),
+      xrRecall(){if(!localPopped&&S.shot&&!client.state.resetT)client.returnBall();},
       xrDistract(origin,dir){
         if(!client.canDistract()||distractions.cooldown>0||dir.z>-.01)return false;
         const z=Math.max(OZ,Math.min(-1,O.pos.z)),k=(z-origin.z)/dir.z;
@@ -2215,6 +2216,7 @@ function make3D(){
     stage:()=>stage, stageName:()=>stageName,
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh,
+    recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),
     sprite:(style,face,blink)=>makeStartBallSprite(style,face,blink,{t:0,parts:[]}),
     drawFace(c,Rr,face,lx,ly,blush,blink,style){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink);}finally{ballStyle=prev;}},
@@ -2393,7 +2395,7 @@ for(const [id,kind] of [['btn-vr','immersive-vr'],['btn-ar','immersive-ar']]){
   navigator.xr?.isSessionSupported?.(kind).then(ok=>{btn.hidden=!ok;},()=>{});
   btn.addEventListener('click',()=>{
     ensureAudio(); played=true;
-    if(mode==='free'||mode==='climb') setMode('goal');
+    if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
     if(G3&&G3.xr) G3.xr.enter(kind).catch(err=>toast('تعذّر تشغيل '+(kind==='immersive-ar'?'AR':'VR')));
   });
 }
