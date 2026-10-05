@@ -129,8 +129,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .modes button svg{width:22px;height:22px}
 .modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .modes button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
-/* Seven modes: keep round buttons inside narrow phones. */
-@media (max-width:380px){.modes{gap:3px;padding:4px}.modes button{width:38px;height:38px;flex:none}.modes button svg{width:20px;height:20px}}
+/* Eight modes: keep round buttons inside narrow phones. */
+@media (max-width:420px){.modes{gap:3px;padding:4px}.modes button{width:38px;height:38px;flex:none}.modes button svg{width:20px;height:20px}}
+@media (max-width:340px){.modes{gap:2px}.modes button{width:34px;height:34px}.modes button svg{width:18px;height:18px}}
 </style>
 <style>[hidden]{display:none!important}*{box-sizing:border-box}</style>
 <script defer src="./assets/audio/background-music.js"></script>
@@ -189,6 +190,9 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   <button data-mode="cans" aria-pressed="false" aria-label="Cans" title="Cans">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="13" width="5" height="7" rx="1"/><rect x="9.5" y="13" width="5" height="7" rx="1"/><rect x="15.5" y="13" width="5" height="7" rx="1"/><rect x="6.5" y="5" width="5" height="7" rx="1"/><rect x="12.5" y="5" width="5" height="7" rx="1"/></svg>
   </button>
+  <button data-mode="climb" aria-pressed="false" aria-label="Summit" title="Summit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 20 9 9l3.6 6 2.4-3.8L21.5 20z"/><path d="M15 11.2V4l3.6 1.6L15 7.2"/></svg>
+  </button>
   <button data-mode="opponent" aria-pressed="false" aria-label="Duel" title="Duel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2H3m13-16a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4.6V20h-3"/></svg>
   </button>
@@ -215,6 +219,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./assets/duel-online/physics.js?v=settle-1"></script>
 <script src="./assets/duel-online/client.js?v=settle-1"></script>
 <script src="./assets/duel-online/distractions.js"></script>
+<script src="./assets/climb/climb.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -233,9 +238,9 @@ const ptr = {x:0,y:0,down:false,mode:null,t0:0,charge:0,hist:[]};
 const dashes=[], splats=[], lines=[];
 let shake=0, dizzy=0, hitT=0, blink=0, nextBlink=2, idle=0, time=0;
 let audio=null;
-let G3=null, played=false;
+let G3=null, played=false, climb=null;
 const elCount=document.getElementById('count');
-const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0,opponent:0};
+const counts={free:0,goal:0,hoop:0,cans:0,padel:0,window:0,opponent:0,climb:0};
 function showCount(){ elCount.textContent=counts[mode]; }
 function addCount(m,reset){
   const before=counts[m];
@@ -305,6 +310,7 @@ function resize(){
   jellyInit(ball.x,ball.y);
   makePaper();
   if(G3) G3.resize();
+  if(climb) climb.resize();
   if(intro) intro.resize(W,H,dpr);
 }
 addEventListener('resize',()=>resize());
@@ -411,7 +417,7 @@ function impact(cx,cy,nx,ny,speed){
 
 function pos(e){const r=cv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
 cv.addEventListener('pointerdown',e=>{
-  if(intro) return;
+  if(intro||mode!=='free') return;
   ensureAudio(); played=true;
   cv.setPointerCapture(e.pointerId);
   const p=pos(e); ptr.x=p.x; ptr.y=p.y; ptr.down=true; ptr.t0=time; ptr.charge=0; ptr.hist=[{x:p.x,y:p.y,t:time}];
@@ -424,7 +430,7 @@ cv.addEventListener('pointerdown',e=>{
   idle=0;
 });
 cv.addEventListener('pointermove',e=>{
-  if(intro) return;
+  if(intro||mode!=='free') return;
   const p=pos(e); ptr.x=p.x; ptr.y=p.y;
   if(ptr.down){ptr.hist.push({x:p.x,y:p.y,t:time}); if(ptr.hist.length>8) ptr.hist.shift();}
   idle=0;
@@ -2130,6 +2136,7 @@ const CHALLENGES=[
   {id:'rally10',  title:'رالي بادل ١٠ ضربات',             goal:10},
   {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   goal:1},
   {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
+  {id:'summit1',  title:'اوصل قمة الجبل',                 goal:1},
 ];
 let chState={}, stylesUsed=[];
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
@@ -2240,17 +2247,40 @@ function showTitle(text){
   elTitle.textContent=text; elTitle.classList.remove('show'); void elTitle.offsetWidth; elTitle.classList.add('show');
   clearTimeout(titleTimer); titleTimer=setTimeout(()=>elTitle.classList.remove('show'),1400);
 }
+// Summit: a 2D climb on the free-mode canvas, drawn with the same five ball renderers.
+function makeClimb(){
+  if(!window.createDahroojClimb) return null;
+  const ring=Array.from({length:28},(_,i)=>{const a=i/28*Math.PI*2-Math.PI/2;return [Math.cos(a),Math.sin(a)];});
+  return window.createDahroojClimb({canvas:cv,ctx,view:()=>({W,H,R,dpr}),drawPaper,
+    paintBall(c,x,y,r,sx,sy,face,lx,ly,blushK,vx,vy){
+      const P=ring.map(([a,b])=>({x:x+a*r*sx,y:y+b*r*sy}));
+      furVel.x=vx; furVel.y=vy;
+      paintBlob(c,P,x,y,r,sx,sy,face,lx,ly,blushK,false);
+    },
+    sounds:{wake:()=>{ensureAudio();played=true;},land:s=>{if(s>.08)thump(s*.8);},launch:p=>whoosh(p),hurt:()=>thump(1),pop:startPopSound,checkpoint:chime},
+    onCheckpoint:()=>toast('نقطة حفظ ✓'),
+    onSummit:seconds=>{
+      addCount('climb'); chProgress('summit1',1); showTitle('القمة!');
+      const m=Math.floor(seconds/60),s=Math.round(seconds%60);
+      toast(`وصلت القمة في ${m?ar(m)+' د ':''}${ar(s)} ث`);
+    }});
+}
 function setMode(m){
   if(intro) return;
   if(m===mode&&m==='opponent')return;
-  if(m!=='free'){
+  if(m==='climb'){
+    if(!climb) climb=makeClimb(); if(!climb) return;
+    if(G3)G3.leaveStage(); climb.enter();
+  }else if(m!=='free'){
     if(!G3){ G3=make3D(); if(!G3) return; }
     G3.setStage(m);
   }else if(G3)G3.leaveStage();
+  if(m!=='climb'&&climb) climb.leave();
+  ptr.down=false; J.grab=-1;
   mode=m;
   elCount.classList.toggle('duel',m==='opponent');
   for(const b of modeBtns) b.setAttribute('aria-pressed',b.dataset.mode===m);
-  gcv.hidden = fxc.hidden = m==='free';
+  gcv.hidden = fxc.hidden = m==='free'||m==='climb';
   showCount();
   const btn=modeBtns.find(b=>b.dataset.mode===m); if(btn) showTitle(btn.getAttribute('aria-label'));
 }
@@ -2307,6 +2337,9 @@ function frame(now){
   }else if(mode==='free'){
     for(let i=0;i<8;i++) update(dt/8);
     render();
+  }else if(mode==='climb'){
+    time+=dt; tickStyle(dt);
+    climb.update(dt); climb.render();
   } else {
     time+=dt;
     for(let i=0;i<steps;i++) G3.update(dt/steps);
