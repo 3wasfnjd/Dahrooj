@@ -4,7 +4,7 @@ import {writeFile} from 'node:fs/promises';
 import {startLocal} from '../server/local.mjs';
 const app=await startLocal({port:0,transformHTML:s=>s
   .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testDistractions:distractions,testOpponent:O,')
-  .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage};','window.__game={S,aim,toScreen,makeStartBallSprite,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage};')
+  .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};','window.__game={S,aim,toScreen,makeStartBallSprite,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
   .replace('function drawEye(c,ex,ey,er,lx,ly,face,blinkOn){','function drawEye(c,ex,ey,er,lx,ly,face,blinkOn){window.__eyeCount=(window.__eyeCount||0)+1;')
   .replace('distraction:e=>distractions.launch(e)','distraction:e=>{window.__smallCount=(window.__smallCount||0)+1;distractions.launch(e);}')
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')});

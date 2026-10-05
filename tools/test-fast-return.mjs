@@ -13,7 +13,7 @@ let passed=0;
 for(const [W,H] of [[390,844],[844,390],[1280,800]]){
  const V=(x,y,z)=>new T.Vector3(x,y,z),noop=()=>{};
  const S={pos:V(0,0,0),vel:V(0,0,0),side:V(0,0,0),axis:V(0,1,0),nextBlink:2,blink:0,hitT:0,lastHit:0};
- const context=vm.createContext({T,V,S,W,H,R:Math.max(24,Math.min(45,Math.min(W,H)*.06)),floorY:H*.78,dpr:1,BR:.24,GRAV:13,UP:V(0,1,0),camera:new T.PerspectiveCamera(45,1,.1,120),renderer:{setPixelRatio:noop,setSize:noop},stage:{collide:noop,update:noop,onRespawn:noop},stageName:'goal',hoopStreak:3,skin:{reset:noop},aim:{down:false},splats3:[],fxDash:[],time:1,hit:noop,confetti:{celebrate:noop},addCount:noop});
+ const context=vm.createContext({T,V,S,W,H,R:Math.max(24,Math.min(45,Math.min(W,H)*.06)),floorY:H*.78,dpr:1,BR:.24,GRAV:13,UP:V(0,1,0),camera:new T.PerspectiveCamera(45,1,.1,120),renderer:{setPixelRatio:noop,setSize:noop},stage:{collide:noop,update:noop,onRespawn:noop},stageName:'goal',hoopStreak:3,skin:{reset:noop},aim:{down:false},splats3:[],fxDash:[],time:1,hit:noop,confetti:{celebrate:noop},addCount:noop,xrOn:()=>false});
  vm.runInContext(functions+'\nresize3();respawn();',context);
  const check=(ok,label)=>{assert(ok,`${W}x${H}: ${label}`);passed++;};
  for(const mode of ['goal','hoop','cans','padel','window']){

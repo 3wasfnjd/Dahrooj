@@ -9,8 +9,8 @@ import {startLocal} from '../server/local.mjs';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const app=await startLocal({port:0,transformHTML:html=>html
   .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,testOpponent:O,testRadius:OR,testPaintPop:paintPop,testBody:body,testBursts:()=>bursts,')
-  .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage};',
-    'window.__game={S,BR,aim,shoot,toScreen,camera,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage};')
+  .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};',
+    'window.__game={S,BR,aim,shoot,toScreen,camera,get stage(){return stage;}};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')});
 const browser=await chromium.launch({headless:true,
   ...(process.env.DAHROOJ_CHROMIUM?{executablePath:process.env.DAHROOJ_CHROMIUM}:{}),
