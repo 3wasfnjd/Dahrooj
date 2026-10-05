@@ -8,7 +8,7 @@ vm.runInContext(readFileSync(new URL('../vendor/three/three-r128.min.js',import.
 const T=threeContext.exports;
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const extract=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));
-const functions=[extract('  const returnFrustum=','  function hit('),extract('  function react(kind','  /* ---------- input: swipe'),extract('  function update3(dt)','  function render3()'),extract('  function resize3()','  resize3();')].join('\n');
+const functions=[extract('  const returnFrustum=','  function hit('),extract('  function react(kind','  /* ---------- input: swipe'),extract("  // One ball's flight",'  function render3()'),extract('  function resize3()','  resize3();')].join('\n');
 let passed=0;
 for(const [W,H] of [[390,844],[844,390],[1280,800]]){
  const V=(x,y,z)=>new T.Vector3(x,y,z),noop=()=>{};

@@ -2,7 +2,7 @@
    The courts are built in game metres; the headset shows them smaller (VR at a half, AR as a model on a
    surface you pick) and speeds time up to match, so falls look like real gravity.
    Dahrooj waits by your hand: grab with the trigger (or a pinch), swing and let go, or pull him back in
-   the slingshot. Flip or raise the left hand for the menu. */
+   the slingshot, and grab again at once for the next throw. Flip or raise the left hand for the menu. */
 (() => {
   'use strict';
   const VR_SCALE=2, AR_SCALE=8, AR_MIN=3, AR_MAX=24, REAL_G=9.8;
@@ -10,7 +10,8 @@
   const GAIN=1.5, SLING_K=17, SLING_MIN=.06, SLING_MAX=.65, MIN_THROW=1, MAX_SPEED=34, SPAN=.04;
   // Duel runs on the server in game time: its shots use game speed per real metre per second.
   const DUEL_GAIN=2;
-  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب'],['opponent','مبارزة']];
+  // Duel is paused in the headset for now.
+  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب']];
   const STYLES=[['jelly','جيلي'],['fabric','قماش'],['clay','صلصال'],['fur','فرو'],['bubble','فقاعة']];
   const XR_MODES=new Set(MODES.map(m=>m[0]));
   const LABEL=Object.fromEntries(MODES);
@@ -26,9 +27,12 @@
     const scaleNow=()=>rig.scale.x;
     // Game seconds per real second, so a ball falls at 9.8 m/s² in the room. Duel keeps the server's clock.
     const timeK=()=>g.stage().networked?1:Math.sqrt(REAL_G*scaleNow()/g.GRAV);
+    // The eyes in world space, from the last headset pose. Three r128 stores the XR camera's world pose
+    // in its local position, so getWorldPosition would apply the rig twice; matrixWorld is right.
+    const eyeNow=()=>eye.setFromMatrixPosition(camera.matrixWorld);
     // Where the eyes are and which way they look, in room metres.
     function headLocal(){
-      camera.getWorldPosition(eye);camera.getWorldDirection(fwd);
+      eyeNow();fwd.set(0,0,-1).transformDirection(camera.matrixWorld);
       const a=rig.worldToLocal(eye.clone()),dir=rig.worldToLocal(eye.clone().add(fwd)).sub(a);
       dir.y=0;if(dir.lengthSq()<1e-6)dir.set(0,0,-1);dir.normalize();
       return {pos:a,dir};
@@ -48,7 +52,7 @@
     function makeSprite(){const s=new T.Sprite(new T.SpriteMaterial({transparent:true,depthWrite:false}));s.visible=false;s.renderOrder=2;scene.add(s);return s;}
     const ballSprite=makeSprite(),actorSprites=[];
     const models=window.createDahrooj3D?window.createDahrooj3D(T,{radius:BR,drawFace:g.drawFace,renderer}):null;
-    let ballModel=null;const actorModels=[];
+    let ballModel=null;const actorModels=[],volleyModels=[];
     function model(slot,style,face){
       if(!slot||slot.style!==style||slot.face!==face){
         if(slot)scene.remove(slot.group);
@@ -167,9 +171,10 @@
       c.beginPath();c.moveTo(300,300);c.lineTo(300,370);c.lineTo(352,335);c.closePath();c.fill();
       start.tex.needsUpdate=true;
     }
-    function beginIntro(){
+    function beginIntro(){intro={t:0,frames:0,balls:[],ready:false,leaving:0};}
+    // Spawn around the player once the headset has reported a few poses.
+    function spawnIntro(){
       const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);
-      intro={t:0,balls:[],ready:false,leaving:0};
       for(let i=0;i<14;i++){
         const a=yaw+(Math.random()-.5)*2.6,dist=.6+Math.random()*1.3,style=INTRO_STYLES[i%5];
         const m=models?models.make(style):null;if(m)introGroup.add(m.group);
@@ -184,7 +189,9 @@
     }
     // Simple room physics in metres: gravity, the floor, and the balls pushing each other.
     function stepIntro(dt){
-      const I=intro;I.t+=dt;
+      const I=intro;
+      if(!I.balls.length&&!I.leaving){if(++I.frames>=3)spawnIntro();return;}
+      I.t+=dt;
       if(I.leaving){
         I.leaving+=dt;const k=Math.max(0,1-I.leaving/.35);introGroup.scale.setScalar(INTRO_R/BR*Math.max(.001,k));
         if(k<=0){for(const b of I.balls)if(b.m)introGroup.remove(b.m.group);intro=null;introGroup.scale.setScalar(INTRO_R/BR);}
@@ -212,11 +219,11 @@
         I.ready=true;const {pos,dir}=headLocal();
         start.mesh.position.set(pos.x+dir.x*1.05,pos.y-.12,pos.z+dir.z*1.05);start.mesh.visible=true;
       }
-      if(I.ready){camera.getWorldPosition(eye);start.mesh.lookAt(eye);}
+      if(I.ready){eyeNow();start.mesh.lookAt(eye);}
     }
     function drawIntro(){
       if(!intro)return;
-      camera.getWorldPosition(eye);
+      eyeNow();
       for(const b of intro.balls){
         if(!b.m)continue;
         b.m.group.visible=intro.t>=b.delay;
@@ -295,7 +302,8 @@
         return;
       }
       if(h===forkHand())return; // this hand holds the slingshot
-      if(S.shot)g.recall(); // the trigger mid-flight calls Dahrooj straight back
+      // Dahrooj in flight keeps going and a fresh one comes to the hand: throw them back to back.
+      if(S.shot&&!g.another())g.recall();
       if(!holder&&g.canHold()){holder=h;holdT=0;parked=false;S.held=true;S.vel.set(0,0,0);S.shot=false;}
     }
     function release(h,lost){
@@ -322,7 +330,7 @@
     function recall(){
       const st=g.stage();
       if(st.networked){st.xrRecall?.();return;}
-      if(S.shot){holder=null;g.recall();}
+      g.clearVolley();if(S.shot){holder=null;g.recall();}
     }
 
     /* ---------- placing the world ---------- */
@@ -390,12 +398,12 @@
       renderer.setAnimationLoop(null);
       for(const s of hitSources.values())s.cancel?.();hitSources.clear();
       if(intro){for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);intro=null;}start.mesh.visible=false;
-      holder=null;parked=false;placing=false;S.held=false;g.respawn();
+      holder=null;parked=false;placing=false;S.held=false;g.clearVolley();g.respawn();
       session=null;kind=null;
       rig.remove(camera);scene.remove(rig);
       scene.background=null;floor.visible=false;ballSprite.visible=false;
       for(const a of actorSprites)a.visible=false;for(const d of dots)d.visible=false;
-      if(ballModel)ballModel.group.visible=false;for(const m of actorModels)if(m)m.group.visible=false;
+      if(ballModel)ballModel.group.visible=false;for(const m of [...actorModels,...volleyModels])if(m)m.group.visible=false;
       renderer.xr.enabled=false;
       g.resize();g.onExit?.();
     }
@@ -415,7 +423,7 @@
         L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y,y=L.grip.position.y,hy=headLocal().pos.y;
         // Flipped palm-up or raised to the face; a little slack to close so it doesn't flicker.
         want=menuOpen?(up<.15||y>hy-.25):(up<-.3||y>hy-.15);
-        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.2,0));camera.getWorldPosition(eye);menu.mesh.lookAt(eye);}
+        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.2,0));eyeNow();menu.mesh.lookAt(eye);}
       }
       menuOpen=want;
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
@@ -459,7 +467,7 @@
       drawMenu(hover);drawHud();if(start.mesh.visible)drawStart(startHot);
       if(intro){stepIntro(dt);drawIntro();}
       hud.mesh.visible=!intro;
-      camera.getWorldPosition(eye);hud.mesh.lookAt(eye);
+      eyeNow();hud.mesh.lookAt(eye);
       // Dahrooj waits by your hand (or in the slingshot) between throws.
       if(st.networked){if(parked||(S.held&&!holder)){parked=false;S.held=false;}}
       else if(!S.shot&&!holder&&!placing&&!intro)parked=true;
@@ -500,6 +508,13 @@
           m.update({pos:a.pos,toward:eye,faceName:a.face,blink:a.blink,squash:[k,k]});
         });
         for(let i=actors.length;i<actorModels.length;i++)if(actorModels[i])actorModels[i].group.visible=false;
+        // Earlier throws still in the air.
+        const flying=g.volley();
+        flying.forEach((b,i)=>{
+          const m=volleyModels[i]=model(volleyModels[i],g.style(),true);
+          m.update({pos:b.pos,toward:eye,faceName:b.hitT>0?'closed':b.mood&&b.moodT>0?b.mood:'wide',blink:false,squash:[1+b.d*.75,1-b.d]});
+        });
+        for(let i=flying.length;i<volleyModels.length;i++)if(volleyModels[i])volleyModels[i].group.visible=false;
       }else{
         showSprite(ballSprite,S.pos,BR,g.style(),face,S.blink>0,1+d*.75,1-d);ballSprite.visible=shown;
         while(actorSprites.length<actors.length)actorSprites.push(makeSprite());

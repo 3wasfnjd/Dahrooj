@@ -1535,8 +1535,8 @@ function make3D(){
         const cx=Math.max(-TW/2,Math.min(TW/2,P.x)), cy=Math.max(0,Math.min(TY,P.y)), cz=Math.max(TZ-TD/2,Math.min(TZ+TD/2,P.z));
         pointCollide(V(cx,cy,cz),0,0.4);
       },
-      update(dt){
-        // ball vs cans (wakes the pile)
+      // ball vs cans (wakes the pile); also used for extra balls in a headset volley
+      ballContact(){
         for(const c of cans){
           inv.copy(c.q).invert(); lp.copy(S.pos).sub(c.x).applyQuaternion(inv);
           const rad=Math.hypot(lp.x,lp.z);
@@ -1550,6 +1550,9 @@ function make3D(){
             if(j>0){ hit(n,Math.max(0,-before)*0.7,wp.clone()); clang(Math.min(1,j/4)); if(!touched && S.shot){ touched=true; fullShot=cans.every(onTable); react('joy',1.3); } }
           }
         }
+      },
+      update(dt){
+        this.ballContact();
         if(cans.every(c=>c.sleep)) return;
         for(const c of cans){
           if(c.sleep) continue;
@@ -2026,7 +2029,7 @@ function make3D(){
 
   const builders={goal:buildGoal,hoop:buildHoop,cans:buildCans,padel:buildPadel,window:buildWindow,opponent:buildOpponent};
   const stages={}; let stage=null, stageName='';
-  function leaveStage(){if(stage&&stage.leave)stage.leave();cancelAim();}
+  function leaveStage(){if(stage&&stage.leave)stage.leave();cancelAim();volley.length=0;}
   function setStage(name){
     leaveStage();
     if(!stages[name]) stages[name]=builders[name]();
@@ -2111,10 +2114,10 @@ function make3D(){
   gcv.addEventListener('pointercancel',cancelPointer);
   gcv.addEventListener('lostpointercapture',cancelPointer);
 
-  function update3(dt){
-    if(stage.timeScale) dt*=stage.timeScale();
-    const P=S.pos, v=S.vel;
-    if(stage.networked){stage.update(dt);}else if(S.held){stage.update(dt);}else{
+  // One ball's flight: physics, the stage's collisions and its scoring. Extra balls (headset volleys)
+  // share the stage but leave its animation to the main ball, and vanish instead of respawning.
+  function ballStep(dt,extra){
+    const P=S.pos, v=S.vel, end=()=>{ if(extra) return true; respawn(); return false; };
     S.prevZ=P.z; S.prevY=P.y;
     if(!S.grounded){ v.y-=GRAV*dt; v.x+=S.side.x*dt; v.z+=S.side.z*dt; }
     v.multiplyScalar(Math.pow(0.9,dt));
@@ -2126,19 +2129,51 @@ function make3D(){
     } else if(S.grounded && P.y>BR+0.01) S.grounded=false;
     if(S.grounded){ v.x*=Math.pow(0.35,dt); v.z*=Math.pow(0.35,dt); S.side.set(0,0,0); }
     stage.collide();
-    stage.update(dt);
+    if(extra){ if(stage.ballContact) stage.ballContact(); } else stage.update(dt);
     if(S.shot){
       S.shotT+=dt;
       const still=S.grounded && v.length()<0.35;
       S.restT=still?S.restT+dt:0;
       if(!xrOn()&&outsideView()){
         if(S.scoredT<=0) miss(); // Keep each mode's miss bookkeeping.
-        respawn();
+        return end();
       }
-      else if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) respawn(); }
-      else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) respawn(); }
+      else if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) return end(); }
+      else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) return end(); }
       else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>16 || P.z<-34 || P.z>6) miss();
     }
+    return false;
+  }
+  // Headset volleys: a thrown Dahrooj keeps flying while a fresh one comes to the hand.
+  const VOLLEY_KEYS=['shot','shotT','scoredT','missT','mood','moodT','moodNext','idle','restT','hitT','blink','nextBlink','grounded','lastHit','prevZ','prevY','d','dv'];
+  const VOLLEY_VECS=['pos','vel','side','axis'], volley=[], VOLLEY_MAX=6;
+  function snapBall(){ const o={}; for(const k of VOLLEY_KEYS) o[k]=S[k]; for(const k of VOLLEY_VECS) o[k]=S[k].clone(); return o; }
+  function loadBall(o){ for(const k of VOLLEY_KEYS) S[k]=o[k]; for(const k of VOLLEY_VECS) S[k].copy(o[k]); }
+  function another(){
+    if(stage.networked||!S.shot) return false;
+    if(volley.length>=VOLLEY_MAX) volley.shift();
+    volley.push(snapBall());
+    S.missT=0; S.mood=null; S.moodT=0; S.idle=0; S.shot=false; S.scoredT=0; S.restT=0; S.d=0; S.dv=0; S.vel.set(0,0,0); S.side.set(0,0,0);
+    return true;
+  }
+  function stepVolley(dt){
+    if(!volley.length) return;
+    const main=snapBall(), held=S.held; S.held=false;
+    for(let i=volley.length-1;i>=0;i--){
+      loadBall(volley[i]);
+      const done=ballStep(dt,true);
+      S.dv+=((0-S.d)*420-S.dv*13)*dt; S.d=Math.max(-0.3,Math.min(0.5,S.d+S.dv*dt));
+      if(S.moodT>0) S.moodT-=dt; S.hitT=Math.max(0,S.hitT-dt);
+      if(done) volley.splice(i,1); else volley[i]=snapBall();
+    }
+    loadBall(main); S.held=held;
+  }
+  function update3(dt){
+    if(stage.timeScale) dt*=stage.timeScale();
+    const P=S.pos, v=S.vel;
+    if(stage.networked){stage.update(dt);}else if(S.held){stage.update(dt);stepVolley(dt);}else{
+    ballStep(dt,false);
+    stepVolley(dt);
     }
     if(S.moodT>0){ S.moodT-=dt; if(S.moodT<=0){ if(S.moodNext){ react(S.moodNext,1.4); } else S.mood=null; } }
     if(!stage.networked && S.mood==='joy' && S.grounded && S.vel.y===0 && S.moodT>0.5){ S.vel.y=3.6; S.grounded=false; }
@@ -2239,6 +2274,7 @@ function make3D(){
     stage:()=>stage, stageName:()=>stageName,
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s),
+    another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
     onExit:()=>{if(XR_ENTRY)document.getElementById('xr-gate').hidden=false;},
     recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),

@@ -10,7 +10,7 @@ const iwer=readFileSync(require.resolve('iwer/build/iwer.min.js'),'utf8');
 const app=await startLocal({port:0,transformHTML:html=>html
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')
   .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};',
-    'window.__g={S,get stage(){return stage;},get stageName(){return stageName;},get xr(){return xr;},scene};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
+    'window.__g={S,volley,get stage(){return stage;},get stageName(){return stageName;},get xr(){return xr;},scene};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
   .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,')});
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],
   ...(process.env.DAHROOJ_CHROMIUM?{executablePath:process.env.DAHROOJ_CHROMIUM}:{})});
@@ -29,6 +29,7 @@ try{
   const state=()=>p.evaluate(()=>{const g=window.__g,S=g.S;return {presenting:g.xr.presenting,kind:g.xr.kind,mode:g.stageName,shot:S.shot,held:!!S.held,parked:g.xr.parked,placing:g.xr.placing};});
   const ctl=(hand,pos,q=[0,0,0,1])=>p.evaluate(([hand,pos,q])=>{const c=window.__dev.controllers[hand];c.position.set(...pos);c.quaternion.set(...q);},[hand,pos,q]);
   const trigger=(v,hand='right')=>p.evaluate(([v,hand])=>window.__dev.controllers[hand].updateButtonValue('trigger',v),[v,hand]);
+  const tracked=()=>p.waitForFunction(()=>window.__g.xr.inspect().every(h=>h.connected),null,{timeout:8000});
   const parked=()=>p.waitForFunction(()=>window.__g.xr.parked&&!window.__g.S.shot,null,{timeout:8000});
   const FLIP=[0,0,1,0];
   async function openMenu(){
@@ -76,16 +77,25 @@ try{
   check(await p.evaluate(()=>window.__g.scene.background!==null&&window.__g.scene.getObjectByName('xr-rig').scale.x===2),'VR shows the paper world at half size');
   check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&o.visible&&o.material?.isMeshPhysicalMaterial&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
   await parked();
-  check(await p.evaluate(()=>{const S=window.__g.S,eye=new THREE.Vector3();window.__g.scene.getObjectByName('xr-rig').children.find(o=>o.isCamera).getWorldPosition(eye);return S.pos.distanceTo(eye)<2.2;}),'Dahrooj waits in front of the player');
+  // Compare with the emulated headset itself (room metres), not with the game's own camera maths.
+  const nearHead=()=>p.evaluate(()=>{const rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
+    const b=rig.worldToLocal(window.__g.S.pos.clone());return Math.hypot(b.x-h.x,b.y-h.y,b.z-h.z);});
+  const dHead=await nearHead();check(dHead<1,'Dahrooj waits within reach of the real head ('+dHead.toFixed(2)+' m)');
   check(await throwBall(),'The trigger takes Dahrooj into the hand');
   s=await state();check(s.shot&&!s.held,'Letting go throws with the hand velocity');
   const v=await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up');
   // A or X brings Dahrooj straight back.
   await aButton();
   s=await state();check(!s.shot&&s.parked,'The A button calls Dahrooj back');
+  // Back to back: grabbing while Dahrooj flies keeps that throw going and brings a fresh one.
   await throwBall();await trigger(1);await p.waitForTimeout(150);
-  check(await p.evaluate(()=>window.__g.xr.holding&&!window.__g.S.shot),'The trigger mid-flight catches Dahrooj again');
-  await trigger(0);await parked();
+  check(await p.evaluate(()=>window.__g.xr.holding&&!window.__g.S.shot&&window.__g.volley.length===1),'A second Dahrooj is ready while the first still flies');
+  for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
+  await trigger(0);await p.waitForTimeout(80);
+  check(await p.evaluate(()=>window.__g.S.shot&&window.__g.volley.length===1&&window.__g.volley[0].shot),'Two throws fly at once');
+  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:12000});
+  check(true,'Earlier throws finish on their own');
+  await aButton();await parked();
 
   check(!(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-menu').visible)),'The menu stays hidden with the hand down');
   await pick(...button('mode',1));check((await state()).mode==='hoop','The left-hand menu switches to hoop');
@@ -111,6 +121,7 @@ try{
 
   await p.evaluate(()=>document.getElementById('btn-ar').click());
   await p.waitForFunction(()=>window.__g?.xr?.presenting,null,{timeout:8000});
+  await tracked();
   s=await state();check(s.kind==='immersive-ar'&&s.placing,'AR starts by choosing a surface');
   check(await p.evaluate(()=>window.__g.scene.background===null),'AR shows the room');
   // Point at the floor about two metres ahead and pin the court there.
@@ -131,22 +142,16 @@ try{
   await p.evaluate(()=>window.__dev.activeSession.end());
   await p.waitForFunction(()=>!window.__g.xr.presenting,null,{timeout:5000});
 
-  // Duel against the server: the swing becomes a shot the server accepts.
+  // Duel is paused in the headset: entering from it starts the goal.
   await p.evaluate(()=>document.querySelector('[data-mode="opponent"]').click());
-  await p.waitForFunction(()=>window.__g.stage.testClient?.state,null,{timeout:15000});
   await p.evaluate(()=>document.getElementById('btn-vr').click());
-  await p.waitForFunction(()=>window.__g.xr.presenting&&window.__g.stage.testClient.canShoot(),null,{timeout:15000});
-  const own=()=>p.evaluate(()=>{const c=window.__g.stage.testClient;return c.state.balls[c.slot];});
-  const before=(await own()).seq;
-  await ctl('right',[.2,1.2,-.3]);
-  await p.waitForTimeout(200);await trigger(1);await p.waitForTimeout(250);
-  for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.06,-.3-i*.2),i);await p.waitForTimeout(14);}
-  await trigger(0);
-  await p.waitForFunction(seq=>{const c=window.__g.stage.testClient,b=c.state.balls[c.slot];return b.seq>seq&&b.shot;},before,{timeout:3000});
-  check(true,'A Duel swing is accepted by the server');
+  await p.waitForFunction(()=>window.__g.xr.presenting,null,{timeout:8000});
+  check((await state()).mode==='goal','Duel stays out of the headset for now');
+  await tracked();
   check(await p.evaluate(()=>window.__g.xr.inspect().every(h=>h.connected)),'Both controllers are tracked');
   // dahrooj/vr/: one tap enters AR, Dahrooj balls rain into the room, then a start panel begins the game.
   {
+    await p.close();
     const q=await context.newPage();q.on('pageerror',e=>errors.push(String(e)));
     await q.goto(app.url+'?xr');
     await q.waitForFunction(()=>!document.getElementById('xr-gate').hidden&&!document.getElementById('xr-gate-ar').hidden,null,{timeout:15000});
@@ -154,11 +159,16 @@ try{
     await q.evaluate(()=>document.getElementById('xr-gate-ar').click());
     await q.waitForFunction(()=>window.__g?.xr?.presenting&&window.__g.xr.opening,null,{timeout:8000});
     check(await q.evaluate(()=>window.__g.xr.kind==='immersive-ar'&&document.getElementById('xr-gate').hidden),'One tap enters AR with the opening');
-    await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:8000});
+    // The emulator runs few frames a second and each frame advances at most 50 ms, so allow time.
+    await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:30000});
     const landed=await q.evaluate(()=>{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
       return group?group.children.filter(m=>m.position.y<.24*1.6).length:0;});
     check(landed>=10,'Dahrooj balls fall onto the floor ('+landed+')');
+    const spread=await q.evaluate(()=>{
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;
+      return Math.max(...group.children.map(m=>{const p=rig.worldToLocal(group.localToWorld(m.position.clone()));return Math.hypot(p.x-h.x,p.z-h.z);}));});
+    check(spread<2.6,'They land around the player in the room ('+spread.toFixed(2)+' m)');
     await q.evaluate(()=>{
       const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),panel=window.__g.scene.getObjectByName('xr-start');
       const spot=rig.worldToLocal(panel.localToWorld(new T.Vector3(0,-.05,0)));
