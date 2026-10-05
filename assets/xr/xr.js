@@ -31,6 +31,17 @@
     }
     function makeSprite(){const s=new T.Sprite(new T.SpriteMaterial({transparent:true,depthWrite:false}));s.visible=false;s.renderOrder=2;scene.add(s);return s;}
     const ballSprite=makeSprite(),actorSprites=[];
+    // Real 3D Dahrooj models (sprites remain as a fallback).
+    const models=window.createDahrooj3D?window.createDahrooj3D(T,{radius:BR,drawFace:g.drawFace}):null;
+    let ballModel=null;const actorModels=[];
+    const eye=V(0,0,0);
+    function model(slot,style,face){
+      if(!slot||slot.style!==style||slot.face!==face){
+        if(slot)scene.remove(slot.group);
+        slot=models.make(style,{face});slot.face=face;scene.add(slot.group);
+      }
+      slot.group.visible=true;return slot;
+    }
     function showSprite(s,pos,r,style,face,blink,sx=1,sy=1){
       const map=texture(style,face,blink);
       if(s.material.map!==map){s.material.map=map;s.material.needsUpdate=true;}
@@ -194,6 +205,7 @@
       rig.remove(camera);scene.remove(rig);
       scene.background=null;floor.visible=false;ballSprite.visible=false;
       for(const a of actorSprites)a.visible=false;
+      if(ballModel)ballModel.group.visible=false;for(const m of actorModels)if(m)m.group.visible=false;
       renderer.xr.enabled=false;
       g.resize();
     }
@@ -213,7 +225,7 @@
         h.hover=hit?menuHit(hit.uv):-1;if(h.hover>=0)hover.push(h.hover);
         h.line.scale.z=(hit?hit.distance:.6*scaleNow())/scaleNow();
         h.line.visible=!!h.source&&holder!==h;
-        h.racket.visible=racket&&!!h.source;h.dot.visible=!!h.source&&!racket;
+        h.racket.visible=racket&&!!h.source;h.dot.visible=!!h.source&&!racket&&holder!==h;
         // Padel: a fast forward swing hits when the ball is in reach.
         if(racket&&h.source&&clock-h.lastSwing>.45){
           const v=velocity(h).divideScalar(scaleNow()),forward=-v.z;
@@ -235,13 +247,23 @@
         S.pos.lerp(target,holdT<.15?.35:1);S.vel.set(0,0,0);S.grounded=false;
       }
       g.step(dt);
-      // Sprites for Dahrooj, the Duel opponent and small balls.
-      const d=S.d;
-      showSprite(ballSprite,S.pos,BR,g.style(),g.ballFace(),S.blink>0,1+d*.75,1-d);
-      ballSprite.visible=!st.playerVisible||st.playerVisible();
-      const actors=st.xrActors?st.xrActors():[];
-      while(actorSprites.length<actors.length)actorSprites.push(makeSprite());
-      actorSprites.forEach((s,i)=>{const a=actors[i];if(a)showSprite(s,a.pos,a.r,a.style,a.face,a.blink);else s.visible=false;});
+      // Dahrooj, the Duel opponent and small balls: 3D models facing you (sprites as a fallback).
+      const d=S.d,shown=!st.playerVisible||st.playerVisible(),actors=st.xrActors?st.xrActors():[];
+      if(models){
+        camera.getWorldPosition(eye);
+        ballModel=model(ballModel,g.style(),true);
+        ballModel.update({pos:S.pos,toward:eye,faceName:g.ballFace(),blink:S.blink>0,squash:[1+d*.75,1-d]});
+        ballModel.group.visible=shown;
+        actors.forEach((a,i)=>{
+          const m=actorModels[i]=model(actorModels[i],a.style,a.face!=='none'),k=a.r/BR;
+          m.update({pos:a.pos,toward:eye,faceName:a.face,blink:a.blink,squash:[k,k]});
+        });
+        for(let i=actors.length;i<actorModels.length;i++)if(actorModels[i])actorModels[i].group.visible=false;
+      }else{
+        showSprite(ballSprite,S.pos,BR,g.style(),g.ballFace(),S.blink>0,1+d*.75,1-d);ballSprite.visible=shown;
+        while(actorSprites.length<actors.length)actorSprites.push(makeSprite());
+        actorSprites.forEach((s,i)=>{const a=actors[i];if(a)showSprite(s,a.pos,a.r,a.style,a.face,a.blink);else s.visible=false;});
+      }
       g.render();
     }
 

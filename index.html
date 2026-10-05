@@ -270,6 +270,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./assets/duel-online/client.js?v=settle-1"></script>
 <script src="./assets/duel-online/distractions.js"></script>
 <script src="./assets/climb/climb.js"></script>
+<script src="./assets/xr/dahrooj3d.js"></script>
 <script src="./assets/xr/xr.js"></script>
 <script>
 (() => {
@@ -2216,6 +2217,7 @@ function make3D(){
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh,
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),
     sprite:(style,face,blink)=>makeStartBallSprite(style,face,blink,{t:0,parts:[]}),
+    drawFace(c,Rr,face,lx,ly,blush,blink,style){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink);}finally{ballStyle=prev;}},
     style:()=>ballStyle, setMode:m=>setMode(m), setStyle:v=>setStyle(v), mode:()=>mode,
     texts:()=>({count:elCount.textContent,turn:elCount.dataset.turn||'',toast:elToast.classList.contains('show')?elToast.textContent:'',title:elTitle.classList.contains('show')?elTitle.textContent:''}),
     paper:()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#ddd2c1'});

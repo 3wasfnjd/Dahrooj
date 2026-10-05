@@ -54,6 +54,7 @@ try{
   await p.waitForFunction(()=>window.__g?.xr?.presenting,null,{timeout:8000});
   let s=await state();check(s.kind==='immersive-vr'&&s.mode==='goal','VR starts in a 3D mode');
   check(await p.evaluate(()=>window.__g.scene.background!==null),'VR shows the paper world');
+  check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&o.visible&&o.material?.isMeshPhysicalMaterial&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
   await settle();
   check(await throwBall(),'The trigger takes Dahrooj into the hand');
   s=await state();check(s.shot&&!s.held,'Letting go throws with the hand velocity');
