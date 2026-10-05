@@ -2269,7 +2269,7 @@ function setMode(m){
   if(intro) return;
   if(m===mode&&m==='opponent')return;
   if(m==='climb'){
-    if(!climb){ climb=makeClimb(); if(climb) setTimeout(()=>toast('يسار الشاشة للحركة ◀ ▶ ويمينها للقفز'),1200); }
+    if(!climb){ climb=makeClimb(); if(climb) setTimeout(()=>toast('يسار الشاشة للحركة، ويمينها للقفز والرمي'),1200); }
     if(!climb) return;
     if(G3)G3.leaveStage(); climb.enter();
   }else if(m!=='free'){

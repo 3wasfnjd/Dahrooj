@@ -103,7 +103,7 @@ for(const width of [13.3,16.25,18]){
   C.jump(s);C.step(s,1/60);
   check(!s.ball.grounded&&s.ball.vy>0,'A tap jumps');
   const height=s.ball.y;let top=0;for(let t=0;t<1.2;t+=1/240){C.step(s,1/240);top=Math.max(top,s.ball.y);}
-  check(top-1>4.6&&top-1<5.6,'Jump height clears one platform step');
+  check(top-1>6.2&&top-1<6.9,'A stronger jump: about six and a half ball heights');
   C.jump(s);for(let t=0;t<.25;t+=1/240)C.step(s,1/240);
   const vy=s.ball.vy;C.jump(s);C.step(s,1/240);
   check(!s.ball.grounded&&s.ball.vy<vy,'No double jump in the air');
@@ -117,5 +117,23 @@ for(const width of [13.3,16.25,18]){
 for(const width of [13.3,16.25,18]){
   const bats=C.createState(width).monsters.filter(m=>m.type==='bat'&&m.y0>36&&m.y0<72);
   for(const bat of bats)check(Math.max(bat.x0,width-bat.x1)-.45>=4,`width ${width}: bat at ${bat.y0} leaves a safe lane`);
+}
+// Throwing defeats monsters, aims at the nearest one ahead, and has a cooldown.
+{
+  const s=C.createState(16.25);C.restart(s);
+  const bat=s.monsters.find(m=>m.type==='bat');bat.speed=0;C.step(s,1/240);
+  Object.assign(s.ball,{x:Math.max(1,bat.x-5),y:bat.y-2,vx:0,vy:0,grounded:false,on:null,facing:1,inv:5});
+  s.monsters=[bat];s.icicles=[];s.platforms=s.platforms.filter(p=>p.full);
+  check(C.throwBall(s),'Throw');
+  check(!C.throwBall(s),'Cooldown between throws');
+  for(let t=0;t<.6&&bat.alive;t+=1/240)C.step(s,1/240);
+  check(!bat.alive&&s.events.some(e=>e.type==='kill'),'A thrown ball aims up at a bat ahead and defeats it');
+}
+{
+  const s=C.createState(16.25);C.restart(s);s.monsters=[];s.icicles=[];
+  C.setDir(s,-1);C.step(s,1/60);C.setDir(s,0);
+  check(C.throwBall(s)&&s.shots[0].vx<0&&Math.abs(s.shots[0].vy)<4,'With no monster ahead, it flies straight the way Dahrooj faces');
+  for(let k=0;k<5;k++){s.ball.cool=0;C.throwBall(s);}
+  check(s.shots.length===C.SHOT_MAX,'At most three balls in the air');
 }
 console.log(`PASS ${checks} climb checks.`);

@@ -5,7 +5,9 @@
   const G=60, MAX_HEARTS=3, MAX_WIDTH=18;
   // Touch controls like the other modes: drag sideways to roll, tap to jump.
   const HIT=.82; // hazard contact radius, smaller than the drawn ball
-  const RUN=10, JUMP=25, ACCEL=70, ACCEL_ICE=14, ACCEL_AIR=34, COYOTE=.1, BUFFER=.13;
+  const RUN=10, JUMP=28, ACCEL=70, ACCEL_ICE=14, ACCEL_AIR=34, COYOTE=.1, BUFFER=.13;
+  // Small thrown balls: aim at the nearest monster ahead, otherwise fly straight ahead.
+  const SHOT_SPEED=18, SHOT_LIFE=1.1, SHOT_COOL=.32, SHOT_MAX=3, SHOT_R=.32, AIM_RANGE=10;
   const THEMES=[
     {name:'meadow',top:'#7f9a5b'},{name:'cliffs',top:'#a38b74'},
     {name:'caves',top:'#77728a'},{name:'snow',top:'#e8f1f5'}
@@ -60,8 +62,8 @@
   function createState(width){
     const level=buildLevel(width);
     return {...level,time:0,events:[],checkpoint:0,won:false,wonAt:0,startedAt:0,
-      input:{dir:0,buffer:0},
-      ball:{x:width/2,y:1,vx:0,vy:0,grounded:true,on:level.platforms[0],hearts:MAX_HEARTS,inv:0,dead:0,d:0,dv:0,best:0,coyote:0,stun:0}};
+      input:{dir:0,buffer:0},shots:[],
+      ball:{x:width/2,y:1,vx:0,vy:0,grounded:true,on:level.platforms[0],hearts:MAX_HEARTS,inv:0,dead:0,d:0,dv:0,best:0,coyote:0,stun:0,facing:1,cool:0}};
   }
   function solid(p){return !p.crumble||p.crumble.state!=='fallen';}
   function checkpointPlatform(state){return state.platforms.find(p=>p.checkpoint===state.checkpoint);}
@@ -69,7 +71,7 @@
     for(const p of state.platforms)if(p.crumble){p.crumble.state='solid';p.crumble.t=0;}
     for(const m of state.monsters){m.alive=true;m.t=0;if(m.type==='crawler')m.x=(m.plat.x0+m.plat.x1)/2;}
     for(const i of state.icicles){i.state='hang';i.y=i.y0;i.vy=0;i.t=0;}
-    state.seeds.length=0;
+    state.seeds.length=0;state.shots.length=0;
   }
   function respawn(state){
     const b=state.ball,p=checkpointPlatform(state);
@@ -90,6 +92,20 @@
   // dir: -1 left, 0 stop, 1 right (fractions allowed). jump() is buffered briefly before landing.
   function setDir(state,dir){state.input.dir=clamp(Number(dir)||0,-1,1);}
   function jump(state){if(!state.ball.dead&&!state.won)state.input.buffer=BUFFER;}
+  function monsterY(m){return m.type==='crawler'?m.plat.y+.6:m.y;}
+  function throwBall(state){
+    const b=state.ball;
+    if(b.dead||state.won||b.cool>0||state.shots.length>=SHOT_MAX)return false;
+    let vx=b.facing*SHOT_SPEED,vy=3,best=AIM_RANGE;
+    for(const m of state.monsters){
+      if(!m.alive)continue;
+      const dx=m.x-b.x,dy=monsterY(m)-b.y,d=Math.hypot(dx,dy);
+      // Ahead of Dahrooj, within about 70 degrees of the facing direction; lead for the shot's drop.
+      if(d<best&&dx*b.facing>0&&Math.abs(dy)<Math.abs(dx)*2.8){best=d;vx=dx/d*SHOT_SPEED;vy=dy/d*SHOT_SPEED+G*.125*d/SHOT_SPEED;}
+    }
+    state.shots.push({x:b.x+Math.sign(vx||b.facing)*.9,y:b.y+.2,vx,vy,t:0});
+    b.cool=SHOT_COOL;state.events.push({type:'throw'});return true;
+  }
   function approach(v,target,rate){return v<target?Math.min(target,v+rate):Math.max(target,v-rate);}
   function land(state,p,impact){
     const b=state.ball;
@@ -156,7 +172,8 @@
     if(b.dead){b.dead+=dt;if(b.dead>1.1)respawn(state);return;}
     b.stun=Math.max(0,b.stun-dt);b.coyote=Math.max(0,b.coyote-dt);
     const input=state.input,dir=b.stun>0||state.won?0:input.dir;
-    input.buffer=Math.max(0,input.buffer-dt);
+    input.buffer=Math.max(0,input.buffer-dt);b.cool=Math.max(0,b.cool-dt);
+    if(dir)b.facing=Math.sign(dir);
     if(b.grounded){
       const p=b.on;
       if(!p||!solid(p)){b.grounded=false;b.on=null;b.coyote=COYOTE;}
@@ -201,6 +218,18 @@
       }else hurt(state,m.x);
     }
     for(const s of state.seeds)if(!b.dead&&Math.hypot(b.x-s.x,b.y-s.y)<HIT+.2){s.t=99;hurt(state,s.x);}
+    // Thrown balls: one hit defeats any monster and knocks seeds out of the air.
+    for(const shot of state.shots){
+      shot.t+=dt;shot.vy-=G*.25*dt;shot.x+=shot.vx*dt;shot.y+=shot.vy*dt;
+      if(shot.x<0||shot.x>W)shot.t=SHOT_LIFE;
+      for(const m of state.monsters){
+        if(!m.alive||shot.t>=SHOT_LIFE)continue;
+        const r=m.type==='bat'?.55:.75;
+        if(Math.hypot(shot.x-m.x,shot.y-monsterY(m))<r+SHOT_R){m.alive=false;m.t=0;shot.t=SHOT_LIFE;state.events.push({type:'kill',x:m.x,y:monsterY(m)});}
+      }
+      for(const seed of state.seeds)if(shot.t<SHOT_LIFE&&Math.hypot(shot.x-seed.x,shot.y-seed.y)<.3+SHOT_R){seed.t=99;shot.t=SHOT_LIFE;}
+    }
+    state.shots=state.shots.filter(shot=>shot.t<SHOT_LIFE);
     for(const i of state.icicles)if(i.state==='fall'&&!b.dead&&Math.hypot(b.x-i.x,b.y-(i.y-.6))<HIT+.2){i.state='gone';i.t=0;hurt(state,i.x);}
   }
 
@@ -210,7 +239,7 @@
   }
 
   // Exported for logic tests (reachability and rules) without a browser.
-  const api={G,RUN,JUMP,MAX_HEARTS,MAX_WIDTH,TOP,SECTIONS,buildLevel,createState,step,setDir,jump,hurt,respawn,restart,solid};
+  const api={G,RUN,JUMP,SHOT_COOL,SHOT_MAX,MAX_HEARTS,MAX_WIDTH,TOP,SECTIONS,buildLevel,createState,step,setDir,jump,throwBall,hurt,respawn,restart,solid};
   globalThis.DahroojClimbCore=api;
   if(typeof document==='undefined')return;
 
@@ -239,7 +268,8 @@
     let showPad=coarse;
     function pad(){
       const {W,H}=view(),r=clamp(Math.min(W,H)*.085,26,40),y=H-Math.max(150,H*.2);
-      return {r,y,left:W*.06+r,right:W*.06+r*3.4,jump:W-W*.06-r*1.15,split:W/2};
+      const jumpX=W-W*.06-r*1.15;
+      return {r,y,left:W*.06+r,right:W*.06+r*3.4,jump:jumpX,shoot:jumpX-r*2.5,split:W/2};
     }
     function steer(){
       let dir=0;
@@ -253,9 +283,11 @@
       e.preventDefault();canvas.setPointerCapture?.(e.pointerId);sounds.wake?.();
       if(e.pointerType==='touch')showPad=true;
       if(state.won){if(state.time-state.wonAt>1.2)restart(state);return;}
-      const p=point(e),g=pad(),t={x:p.x,y:p.y,side:p.x<g.split?'move':'jump',dir:0};
+      const p=point(e),g=pad();
+      const side=p.x<g.split?'move':Math.abs(p.x-g.shoot)<Math.abs(p.x-g.jump)?'shoot':'jump';
+      const t={x:p.x,y:p.y,side,dir:0};
       touches.set(e.pointerId,t);
-      if(t.side==='move'){aimDir(t);steer();}else jump(state);
+      if(side==='move'){aimDir(t);steer();}else if(side==='jump')jump(state);else throwBall(state);
     }
     function move(e){
       const t=touches.get(e.pointerId);if(!t)return;
@@ -270,6 +302,7 @@
     function key(e,pressed){
       if(!active||e.target?.closest?.('input,textarea'))return;
       if(KEYS[e.code]){keys[KEYS[e.code]]=pressed;steer();e.preventDefault();}
+      else if(e.code==='KeyX'||e.code==='KeyJ'){e.preventDefault();if(pressed&&!e.repeat&&!state.won){sounds.wake?.();throwBall(state);}}
       else if(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){
         e.preventDefault();
         if(pressed&&!e.repeat){sounds.wake?.();if(state.won){if(state.time-state.wonAt>1.2)restart(state);}else jump(state);}
@@ -287,7 +320,8 @@
         else if(e.type==='launch')sounds.launch?.(e.power);
         else if(e.type==='hurt')sounds.hurt?.();
         else if(e.type==='pop'){sounds.pop?.();burst(e.x,e.y,[ink,'#fffaf2','#c8584b'],18,9);}
-        else if(e.type==='stomp'){sounds.pop?.();burst(e.x,e.y,['#5b3a59','#fffaf2'],12,7);}
+        else if(e.type==='stomp'||e.type==='kill'){sounds.pop?.();burst(e.x,e.y,['#5b3a59','#fffaf2',ink],12,7);}
+        else if(e.type==='throw')sounds.launch?.(.25);
         else if(e.type==='checkpoint'){sounds.checkpoint?.();onCheckpoint(e.index);}
         else if(e.type==='summit'){sounds.checkpoint?.();burst(state.ball.x,state.ball.y+1,['#c8584b','#e2b04a','#7f9a5b','#5b8bb5','#fffaf2'],40,14);onSummit(e.time);}
       }
@@ -374,7 +408,7 @@
         c.fillStyle='#5b3a59';c.beginPath();c.ellipse(x,y-r*.45,r,r*.5+wob,0,Math.PI,0);c.lineTo(x+r,y);c.lineTo(x-r,y);c.fill();
         eyes(c,x+m.dir*r*.15,y-r*.42,r*.9,m.dir,true);
       }else if(m.type==='bat'){
-        if(!m.alive)return;
+        if(!m.alive){if(m.t>.5)return;c.globalAlpha=1-m.t/.5;}
         const x=g.sx(m.x),y=g.sy(m.y),r=R*.5,flap=Math.sin(m.t*16);
         c.fillStyle=ink;
         for(const s of [-1,1]){c.beginPath();c.moveTo(x+s*r*.5,y);c.quadraticCurveTo(x+s*r*1.6,y-r*(.6+flap*.9),x+s*r*2.1,y+r*.1*flap);
@@ -383,6 +417,7 @@
         c.beginPath();c.moveTo(x-r*.55,y-r*.45);c.lineTo(x-r*.35,y-r*1.05);c.lineTo(x-r*.1,y-r*.6);c.moveTo(x+r*.55,y-r*.45);c.lineTo(x+r*.35,y-r*1.05);c.lineTo(x+r*.1,y-r*.6);c.fill();
         c.fillStyle='#fffaf2';const lx=clamp(b.x-m.x,-1,1)*r*.08;
         for(const s of [-1,1]){c.beginPath();c.arc(x+s*r*.3+lx,y-r*.08,r*.17,0,Math.PI*2);c.fill();}
+        c.globalAlpha=1;
       }else if(m.type==='spitter'){
         const x=g.sx(m.x),y=g.sy(m.plat.y),r=R*.62;
         if(!m.alive){if(m.t>.6)return;c.globalAlpha=1-m.t/.6;}
@@ -425,8 +460,8 @@
     // On-screen buttons for touch screens.
     function drawTouch(c){
       if(!showPad)return;
-      const g=pad(),held={left:false,right:false,jump:false};
-      for(const t of touches.values()){if(t.side==='jump')held.jump=true;else held[t.dir<0?'left':'right']=true;}
+      const g=pad(),held={left:false,right:false,jump:false,shoot:false};
+      for(const t of touches.values()){if(t.side==='move')held[t.dir<0?'left':'right']=true;else held[t.side]=true;}
       const button=(x,on,shape)=>{
         c.fillStyle=on?'rgba(44,45,61,.42)':'rgba(255,252,246,.42)';c.strokeStyle='rgba(44,45,61,.28)';c.lineWidth=1.5;
         c.beginPath();c.arc(x,g.y,g.r,0,Math.PI*2);c.fill();c.stroke();
@@ -435,6 +470,7 @@
       button(g.left,held.left,(x,y,s)=>{c.moveTo(x-s,y);c.lineTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);});
       button(g.right,held.right,(x,y,s)=>{c.moveTo(x+s,y);c.lineTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);});
       button(g.jump,held.jump,(x,y,s)=>{c.moveTo(x,y-s);c.lineTo(x+s,y+s*.7);c.lineTo(x-s,y+s*.7);});
+      button(g.shoot,held.shoot,(x,y,s)=>{c.arc(x,y,s*.75,0,Math.PI*2);c.moveTo(x+s*1.25,y-s*.2);c.arc(x+s*1.05,y-s*.2,s*.2,0,Math.PI*2);});
     }
     function heart(c,x,y,s,full){
       c.beginPath();c.moveTo(x,y+s*.35);c.bezierCurveTo(x-s*.9,y-s*.25,x-s*.35,y-s*.95,x,y-s*.42);c.bezierCurveTo(x+s*.35,y-s*.95,x+s*.9,y-s*.25,x,y+s*.35);
@@ -464,6 +500,7 @@
       for(const p of state.platforms)drawPlatform(c,g,p);
       for(const m of state.monsters)drawMonster(c,g,m);
       drawHazards(c,g);
+      for(const shot of state.shots)paintBall(c,g.sx(shot.x),g.sy(shot.y),g.R*SHOT_R*1.3,1,1,'none',0,0,0,shot.vx*g.R,-shot.vy*g.R);
       drawBall(c,g);
       for(const p of parts){c.globalAlpha=1-p.t/p.max;c.fillStyle=p.c;c.beginPath();c.arc(g.sx(p.x),g.sy(p.y),g.R*p.s,0,Math.PI*2);c.fill();}
       c.globalAlpha=1;
