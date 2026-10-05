@@ -20,7 +20,7 @@
   window.createDahroojXR=g=>{
     const {T,renderer,scene,camera,S,BR,V}=g;
     let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE;
-    let throwStyle='hand',parked=false,placing=false,anchor=null,placedFor='',menuOpen=false;
+    let throwStyle='hand',parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
     const rig=new T.Group();rig.name='xr-rig';
     const ray=new T.Raycaster(),wp=V(0,0,0),wq=new T.Quaternion(),fwd=V(0,0,0),eye=V(0,0,0),UP=V(0,1,0);
     const scaleNow=()=>rig.scale.x;
@@ -153,6 +153,79 @@
     const planesGroup=new T.Group();rig.add(planesGroup);
     const planeLines=new Map(),hitSources=new Map();
 
+    /* ---------- the opening: Dahrooj balls rain into the room, then a start button ---------- */
+    const INTRO_R=.11,INTRO_STYLES=['jelly','fabric','clay','fur','bubble'];
+    const introGroup=new T.Group();introGroup.scale.setScalar(INTRO_R/BR);rig.add(introGroup);
+    const start=panel(.56,.28,1024,512);start.mesh.name='xr-start';start.mesh.visible=false;rig.add(start.mesh);
+    function drawStart(hot){
+      const key='start|'+hot;if(start.key===key)return;start.key=key;
+      const c=start.ctx;c.clearRect(0,0,1024,512);c.textAlign='center';c.direction='rtl';
+      c.fillStyle='rgba(255,252,246,.94)';round(c,6,6,1012,500,70);c.fill();
+      c.fillStyle=INK;c.font=font(800,120);c.fillText('دحروج',512,170);
+      c.fillStyle=hot?'#44465a':INK;round(c,212,250,600,170,85);c.fill();
+      c.fillStyle=PAPER;c.font=font(800,66);c.fillText('بدء اللعبة',540,358);
+      c.beginPath();c.moveTo(300,300);c.lineTo(300,370);c.lineTo(352,335);c.closePath();c.fill();
+      start.tex.needsUpdate=true;
+    }
+    function beginIntro(){
+      const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);
+      intro={t:0,balls:[],ready:false,leaving:0};
+      for(let i=0;i<14;i++){
+        const a=yaw+(Math.random()-.5)*2.6,dist=.6+Math.random()*1.3,style=INTRO_STYLES[i%5];
+        const m=models?models.make(style):null;if(m)introGroup.add(m.group);
+        intro.balls.push({m,p:V(pos.x+Math.sin(a)*dist,pos.y+.9+Math.random()*.9,pos.z-Math.cos(a)*dist),v:V((Math.random()-.5)*.6,0,(Math.random()-.5)*.6),
+          delay:i*.16,d:0,dv:0,hit:0,blink:0,next:1+Math.random()*3});
+      }
+    }
+    function endIntro(){
+      if(!intro||intro.leaving)return;
+      intro.leaving=.001;start.mesh.visible=false;
+      placing=kind==='immersive-ar';g.respawn();
+    }
+    // Simple room physics in metres: gravity, the floor, and the balls pushing each other.
+    function stepIntro(dt){
+      const I=intro;I.t+=dt;
+      if(I.leaving){
+        I.leaving+=dt;const k=Math.max(0,1-I.leaving/.35);introGroup.scale.setScalar(INTRO_R/BR*Math.max(.001,k));
+        if(k<=0){for(const b of I.balls)if(b.m)introGroup.remove(b.m.group);intro=null;introGroup.scale.setScalar(INTRO_R/BR);}
+        return;
+      }
+      const live=I.balls.filter(b=>I.t>=b.delay);
+      for(const b of live){
+        b.v.y-=REAL_G*dt;b.v.multiplyScalar(Math.pow(.8,dt));b.p.addScaledVector(b.v,dt);
+        if(b.p.y<INTRO_R){
+          const sp=-b.v.y;b.p.y=INTRO_R;
+          if(sp>.6){b.v.y=sp*.55;b.v.x*=.85;b.v.z*=.85;b.dv-=sp*2.2;b.hit=.25;if(g.bump)g.bump(Math.min(1,sp/6)*.6);}
+          else{b.v.y=0;b.v.x*=Math.pow(.2,dt);b.v.z*=Math.pow(.2,dt);}
+        }
+        b.dv+=(-b.d*320-b.dv*12)*dt;b.d=clamp(b.d+b.dv*dt,-.3,.45);
+        b.hit=Math.max(0,b.hit-dt);b.next-=dt;if(b.next<=0){b.blink=.14;b.next=2+Math.random()*3;}b.blink=Math.max(0,b.blink-dt);
+      }
+      for(let i=0;i<live.length;i++)for(let j=i+1;j<live.length;j++){
+        const a=live[i],b=live[j],n=b.p.clone().sub(a.p),l=n.length();
+        if(l>0&&l<INTRO_R*2){
+          n.divideScalar(l);const push=(INTRO_R*2-l)/2;a.p.addScaledVector(n,-push);b.p.addScaledVector(n,push);
+          const rel=b.v.clone().sub(a.v).dot(n);if(rel<0){a.v.addScaledVector(n,rel*.8);b.v.addScaledVector(n,-rel*.8);}
+        }
+      }
+      if(!I.ready&&I.t>3.2){
+        I.ready=true;const {pos,dir}=headLocal();
+        start.mesh.position.set(pos.x+dir.x*1.05,pos.y-.12,pos.z+dir.z*1.05);start.mesh.visible=true;
+      }
+      if(I.ready){camera.getWorldPosition(eye);start.mesh.lookAt(eye);}
+    }
+    function drawIntro(){
+      if(!intro)return;
+      camera.getWorldPosition(eye);
+      for(const b of intro.balls){
+        if(!b.m)continue;
+        b.m.group.visible=intro.t>=b.delay;
+        const falling=b.p.y>INTRO_R+.02&&b.v.y<-1.5;
+        b.m.update({pos:V(b.p.x,b.p.y-INTRO_R*Math.max(0,b.d),b.p.z).multiplyScalar(BR/INTRO_R),toward:eye,
+          faceName:b.hit>0?'closed':falling?'wide':'open',blink:b.blink>0,squash:[1+b.d*.75,1-b.d]});
+      }
+    }
+
     /* ---------- controllers and hands ---------- */
     const hands=[0,1].map(i=>{
       const target=renderer.xr.getController(i),grip=renderer.xr.getControllerGrip(i);
@@ -212,6 +285,7 @@
     function press(h){
       if(!session)return;
       if(h.hover>=0){menuAction(h.hover);return;}
+      if(intro){if(h.onStart)endIntro();return;}
       if(menuOpen&&h===leftHand())return;
       if(placing){if(anchor){placing=false;g.respawn();}return;}
       const st=g.stage();
@@ -295,7 +369,7 @@
     }
 
     /* ---------- session ---------- */
-    async function enter(mode){
+    async function enter(mode,{opening=false}={}){
       if(session||!navigator.xr)return;
       if(!XR_MODES.has(g.mode()))g.setMode('goal');
       const options=mode==='immersive-ar'
@@ -310,10 +384,12 @@
       await renderer.xr.setSession(s);
       lastTime=0;renderer.setAnimationLoop(loop);
       g.respawn();
+      if(opening){placing=false;beginIntro();}
     }
     function onEnd(){
       renderer.setAnimationLoop(null);
       for(const s of hitSources.values())s.cancel?.();hitSources.clear();
+      if(intro){for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);intro=null;}start.mesh.visible=false;
       holder=null;parked=false;placing=false;S.held=false;g.respawn();
       session=null;kind=null;
       rig.remove(camera);scene.remove(rig);
@@ -321,7 +397,7 @@
       for(const a of actorSprites)a.visible=false;for(const d of dots)d.visible=false;
       if(ballModel)ballModel.group.visible=false;for(const m of actorModels)if(m)m.group.visible=false;
       renderer.xr.enabled=false;
-      g.resize();
+      g.resize();g.onExit?.();
     }
 
     /* ---------- per frame ---------- */
@@ -360,13 +436,14 @@
         }
       }else reticle.visible=false;
       if(kind==='immersive-ar')showPlanes(frame);
-      const hover=[],F=forkHand();
+      const hover=[],F=forkHand();let startHot=false;
       for(const h of hands){
         h.grip.getWorldPosition(wp);h.hist.push({p:wp.clone(),t:clock});
         while(h.hist.length&&clock-h.hist[0].t>.25)h.hist.shift();
         const r=rayOf(h);ray.set(r.origin,r.dir);
         const hit=menu.mesh.visible&&h!==leftHand()?ray.intersectObject(menu.mesh,false)[0]:null;
         h.hover=hit?menuHit(hit.uv):-1;if(h.hover>=0)hover.push(h.hover);
+        h.onStart=!hit&&start.mesh.visible&&!!ray.intersectObject(start.mesh,false)[0];if(h.onStart)startHot=true;
         h.line.scale.z=(hit?hit.distance:.6*scaleNow())/scaleNow();
         h.line.visible=h.dot.visible=!!h.source&&holder!==h&&h!==F;
         const pad=h.source?.gamepad,axes=pad?.axes;
@@ -379,11 +456,13 @@
         }
       }
       fork.visible=!!F?.source;if(F?.source&&fork.parent!==F.grip)F.grip.add(fork);
-      drawMenu(hover);drawHud();
+      drawMenu(hover);drawHud();if(start.mesh.visible)drawStart(startHot);
+      if(intro){stepIntro(dt);drawIntro();}
+      hud.mesh.visible=!intro;
       camera.getWorldPosition(eye);hud.mesh.lookAt(eye);
       // Dahrooj waits by your hand (or in the slingshot) between throws.
       if(st.networked){if(parked||(S.held&&!holder)){parked=false;S.held=false;}}
-      else if(!S.shot&&!holder&&!placing)parked=true;
+      else if(!S.shot&&!holder&&!placing&&!intro)parked=true;
       if(parked){S.held=true;S.pos.lerp(updateParkSpot(F),1-Math.exp(-dt*10));S.vel.set(0,0,0);S.grounded=false;}
       // The held ball rides in front of the hand (in the pouch with the slingshot), easing in.
       if(holder){
@@ -410,7 +489,7 @@
       }else for(const d of dots)d.visible=false;
       g.step(dt*timeK());
       // Dahrooj, the Duel opponent and small balls.
-      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!(placing&&!st.networked),actors=st.xrActors?st.xrActors():[];
+      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro)&&!st.networked),actors=st.xrActors?st.xrActors():[];
       const face=parked&&!(S.mood&&S.moodT>0)?'open':g.ballFace();
       if(models){
         ballModel=model(ballModel,g.style(),true);
@@ -430,7 +509,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get opening(){return !!intro;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

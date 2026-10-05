@@ -145,6 +145,36 @@ try{
   await p.waitForFunction(seq=>{const c=window.__g.stage.testClient,b=c.state.balls[c.slot];return b.seq>seq&&b.shot;},before,{timeout:3000});
   check(true,'A Duel swing is accepted by the server');
   check(await p.evaluate(()=>window.__g.xr.inspect().every(h=>h.connected)),'Both controllers are tracked');
+  // dahrooj/vr/: one tap enters AR, Dahrooj balls rain into the room, then a start panel begins the game.
+  {
+    const q=await context.newPage();q.on('pageerror',e=>errors.push(String(e)));
+    await q.goto(app.url+'?xr');
+    await q.waitForFunction(()=>!document.getElementById('xr-gate').hidden&&!document.getElementById('xr-gate-ar').hidden,null,{timeout:15000});
+    check(await q.evaluate(()=>!document.getElementById('start-screen')),'The headset link skips the phone start screen');
+    await q.evaluate(()=>document.getElementById('xr-gate-ar').click());
+    await q.waitForFunction(()=>window.__g?.xr?.presenting&&window.__g.xr.opening,null,{timeout:8000});
+    check(await q.evaluate(()=>window.__g.xr.kind==='immersive-ar'&&document.getElementById('xr-gate').hidden),'One tap enters AR with the opening');
+    await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:8000});
+    const landed=await q.evaluate(()=>{
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
+      return group?group.children.filter(m=>m.position.y<.24*1.6).length:0;});
+    check(landed>=10,'Dahrooj balls fall onto the floor ('+landed+')');
+    await q.evaluate(()=>{
+      const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),panel=window.__g.scene.getObjectByName('xr-start');
+      const spot=rig.worldToLocal(panel.localToWorld(new T.Vector3(0,-.05,0)));
+      const eye=new T.Vector3(.15,1.2,-.05),q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(eye,spot,new T.Vector3(0,1,0)));
+      const c=window.__dev.controllers.right;c.position.set(eye.x,eye.y,eye.z);c.quaternion.set(q.x,q.y,q.z,q.w);
+    });
+    await q.waitForTimeout(250);
+    await q.evaluate(()=>window.__dev.controllers.right.updateButtonValue('trigger',1));await q.waitForTimeout(150);
+    await q.evaluate(()=>window.__dev.controllers.right.updateButtonValue('trigger',0));
+    await q.waitForFunction(()=>!window.__g.xr.opening,null,{timeout:3000});
+    check(await q.evaluate(()=>window.__g.xr.placing),'The start panel begins the game by choosing a surface');
+    await q.evaluate(()=>window.__dev.activeSession.end());
+    await q.waitForFunction(()=>!document.getElementById('xr-gate').hidden,null,{timeout:5000});
+    check(true,'Leaving the headset shows the entry page again');
+    await q.close();
+  }
   check(errors.length===0,'No page errors: '+errors.join(' | '));
   console.log(`PASS ${checks} Quest VR/AR checks on the IWER Quest 3 emulator.`);
 }finally{
