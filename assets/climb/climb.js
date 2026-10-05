@@ -243,7 +243,10 @@
   globalThis.DahroojClimbCore=api;
   if(typeof document==='undefined')return;
 
-  window.createDahroojClimb=({canvas,ctx,view,drawPaper,paintBall,sounds={},onSummit=()=>{},onCheckpoint=()=>{}})=>{
+  window.createDahroojClimb=({canvas,ctx,view,drawPaper,paintBall,makeShotSprite,currentStyle=()=>'jelly',sounds={},onSummit=()=>{},onCheckpoint=()=>{}})=>{
+    // Thrown balls use the same eyeless sprites as Duel, in the style chosen at the moment of the throw.
+    const shotSprites=new Map();
+    const shotSprite=style=>{if(!shotSprites.has(style))shotSprites.set(style,makeShotSprite(style));return shotSprites.get(style);};
     let state=null,active=false,cam=0,parts=[],clouds=[],ridge=[];
     const touches=new Map(),keys={left:false,right:false};
     const ink='#2c2d3d';
@@ -500,7 +503,12 @@
       for(const p of state.platforms)drawPlatform(c,g,p);
       for(const m of state.monsters)drawMonster(c,g,m);
       drawHazards(c,g);
-      for(const shot of state.shots)paintBall(c,g.sx(shot.x),g.sy(shot.y),g.R*SHOT_R*1.3,1,1,'none',0,0,0,shot.vx*g.R,-shot.vy*g.R);
+      for(const shot of state.shots){
+        shot.style??=currentStyle();
+        const r=g.R*SHOT_R*1.3,x=g.sx(shot.x),y=g.sy(shot.y);
+        if(makeShotSprite)c.drawImage(shotSprite(shot.style),x-r*1.4,y-r*1.4,r*2.8,r*2.8);
+        else paintBall(c,x,y,r,1,1,'none',0,0,0,0,0);
+      }
       drawBall(c,g);
       for(const p of parts){c.globalAlpha=1-p.t/p.max;c.fillStyle=p.c;c.beginPath();c.arc(g.sx(p.x),g.sy(p.y),g.R*p.s,0,Math.PI*2);c.fill();}
       c.globalAlpha=1;
@@ -510,7 +518,7 @@
     return {
       enter(){setup();active=true;touches.clear();keys.left=keys.right=false;setDir(state,0);cam=Math.max(0,state.ball.y-view().H*.28/view().R);},
       leave(){active=false;touches.clear();keys.left=keys.right=false;if(state)setDir(state,0);},
-      resize(){if(state)setup();},
+      resize(){shotSprites.clear();if(state)setup();},
       update,render,
       get state(){return state;}
     };
