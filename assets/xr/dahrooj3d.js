@@ -78,13 +78,69 @@
       return o;
     }
     const knit=surface('knit-normal.webp',[6,3],.9),clayDents=surface('clay-normal.webp',[3,1.5],1.8);
+    /* ---------- jelly: light refracted through the ball from a probe of the real surroundings ---------- */
+    // A small cube capture of the world around Dahrooj (refreshed every half second, without the jelly
+    // balls in it) is looked up along the path light takes through a sphere of index 1.35: in through
+    // the near side, out through the far side, a little apart per colour. The jelly absorbs more the
+    // longer that path (Beer-Lambert), takes a Fresnel reflection of the same capture and a glossy
+    // highlight from the sun. Without a capture (AR, the first frame) a soft sky stands in.
+    const probeRT=T.WebGLCubeRenderTarget?new T.WebGLCubeRenderTarget(128,{generateMipmaps:true,minFilter:T.LinearMipmapLinearFilter}):null;
+    const probeCam=probeRT?new T.CubeCamera(.05,150,probeRT):null;
+    const jellyU={uProbe:{value:probeRT?probeRT.texture:null},uHasProbe:{value:0},uIor:{value:1.35},uRadius:{value:r},
+      uAbsorb:{value:new T.Vector3(.55,.5,.4)},uTint:{value:new T.Color(0x5d616e)},
+      uLightDir:{value:V(.4,.8,.45).normalize()},uLightColor:{value:new T.Color(1,1,1)},
+      uSky:{value:new T.Color(0xcfe3ff)},uGround:{value:new T.Color(0x8a7d6c)}};
+    const jellyMaterial=new T.ShaderMaterial({uniforms:jellyU,
+      vertexShader:`varying vec3 vW,vN,vC;varying float vS;
+        void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vN=normalize(mat3(modelMatrix)*normal);
+          vC=(modelMatrix*vec4(0.,0.,0.,1.)).xyz;vS=length(modelMatrix[0].xyz);gl_Position=projectionMatrix*viewMatrix*w;}`,
+      fragmentShader:`uniform samplerCube uProbe;uniform float uHasProbe,uIor,uRadius;uniform vec3 uAbsorb,uTint,uLightDir,uLightColor,uSky,uGround;
+        varying vec3 vW,vN,vC;varying float vS;
+        vec3 world(vec3 d){
+          vec3 sky=mix(uGround,uSky,smoothstep(-.25,.35,d.y));
+          return uHasProbe>.5?textureCube(uProbe,d).rgb:sky;}
+        // The direction light leaves the sphere after entering at p along t, for index n.
+        vec3 through(vec3 p,vec3 v,vec3 nrm,float n,float R,out float len){
+          vec3 t=refract(v,nrm,1./n);
+          vec3 oc=p-vC;float b=dot(oc,t);len=max(0.,-2.*b);
+          vec3 q=p+t*len,nx=normalize(q-vC);
+          vec3 o=refract(t,-nx,n);
+          if(dot(o,o)<.01)o=reflect(t,-nx); // total internal reflection
+          return o;}
+        void main(){
+          vec3 N=normalize(vN),V=normalize(cameraPosition-vW),I=-V;float R=uRadius*vS,len;
+          vec3 oR=through(vW,I,N,uIor-.012,R,len),oG=through(vW,I,N,uIor,R,len),oB=through(vW,I,N,uIor+.014,R,len);
+          vec3 seen=vec3(world(oR).r,world(oG).g,world(oB).b);
+          // Beer-Lambert: the thicker the path, the deeper the colour.
+          vec3 trans=seen*exp(-uAbsorb*(len/(2.*R)))*mix(vec3(1.),uTint*2.4,.5)*1.05;
+          float f=.022+(1.-.022)*pow(1.-max(dot(N,V),0.),5.);
+          vec3 refl=world(reflect(I,N));
+          vec3 H=normalize(uLightDir+V);float nh=max(dot(N,H),0.);
+          vec3 spec=uLightColor*(pow(nh,260.)*2.2+pow(nh,40.)*.12);
+          // A soft glow where light passes near the rim, as in a gummy sweet.
+          float rim=pow(1.-max(dot(N,V),0.),2.)*max(dot(N,uLightDir)*.5+.5,0.);
+          vec3 col=mix(trans,refl,f)+spec+uTint*rim*.35;
+          gl_FragColor=vec4(col,1.);}`});
+    let probeT=1e9;const probeAt=V(0,0,0),hiddenWhile=[];
+    // Called from the headset loop: keep the capture of the world around the ball fresh.
+    function updateProbe(renderer,scene,pos,{sun,on=true,dt=0}={}){
+      if(!probeCam||!renderer)return;
+      if(sun){sun.getWorldPosition(probeAt);const tgt=sun.target?sun.target.getWorldPosition(V(0,0,0)):V(0,0,0);jellyU.uLightDir.value.copy(probeAt).sub(tgt).normalize();
+        jellyU.uLightColor.value.copy(sun.color).multiplyScalar(Math.min(1.4,.6+sun.intensity));}
+      if(!on){jellyU.uHasProbe.value=0;return;}
+      probeT+=dt;if(probeT<.5)return;probeT=0;
+      // The jelly balls stay out of their own picture.
+      hiddenWhile.length=0;for(const m of jellyModels)if(m.visible){m.visible=false;hiddenWhile.push(m);}
+      probeCam.position.copy(pos);probeCam.update(renderer,scene);
+      for(const m of hiddenWhile)m.visible=true;
+      jellyU.uHasProbe.value=1;
+    }
+    const jellyModels=new Set();
     // The bubble's film swirls; all bubbles share one clock.
     const bubbleTime={value:0};
     const MATERIALS={
-      // Jelly: a clear, glossy skin (transmission lets the light through, the highlights stay bright)
-      // over a denser core, like a gummy sweet; the core and a few air bubbles show through.
-      jelly:()=>new T.MeshPhysicalMaterial({color:0x5d616e,roughness:.06,metalness:0,clearcoat:1,clearcoatRoughness:.02,
-        transmission:.36,transparent:true,depthWrite:false,envMap:env,envMapIntensity:1.1}),
+      // Jelly: see jellyMaterial below. All jelly balls share it.
+      jelly:()=>jellyMaterial,
       fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:knit.tex||feltNormal,roughness:1,envMap:env,envMapIntensity:.35});knit.mats.add(m);
         m.normalScale.set(.9,.9);if(m.sheen!==undefined)m.sheen=new T.Color(0xc77d93);return m;},
       clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayDents.tex||clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(clayDents.tex?1.8:.7,clayDents.tex?1.8:.7);clayDents.mats.add(m);return m;},
@@ -200,27 +256,13 @@
       }};
     }
 
-    // The jelly's insides: a soft dark core, the skin's inner wall for depth, and trapped air bubbles.
-    const jellyCore=new T.MeshStandardMaterial({color:0x3c3f49,roughness:.45,metalness:0,emissive:0x202229,envMap:env,envMapIntensity:.25});
-    const jellyWall=new T.MeshPhysicalMaterial({color:0x4b4e56,roughness:.2,side:T.BackSide,transparent:true,opacity:.8,depthWrite:false,envMap:env,envMapIntensity:.5});
-    const airMat=new T.MeshPhysicalMaterial({color:0xffffff,roughness:.05,transparent:true,opacity:.45,clearcoat:1,envMap:env,envMapIntensity:1.2,depthWrite:false});
-    const airGeo=new T.SphereGeometry(1,12,8);
-    function jellyInside(lite){
-      const g=new T.Group();
-      const core=new T.Mesh(lite?liteSphere:sphere,jellyCore);core.scale.setScalar(.86);g.add(core);
-      const wall=new T.Mesh(lite?liteSphere:sphere,jellyWall);wall.scale.setScalar(.985);wall.renderOrder=-1;g.add(wall);
-      if(!lite)for(const [x,y,z,s] of [[.42,.38,.55,.07],[-.5,-.2,.56,.05],[.15,-.55,.6,.045],[-.3,.5,.62,.04],[.6,-.1,.5,.035]]){
-        const b=new T.Mesh(airGeo,airMat);b.position.set(x*r,y*r,z*r);b.scale.setScalar(s*r);g.add(b);
-      }
-      return g;
-    }
 
     // lite: for crowds (the opening balls and shots), fewer triangles and fur layers.
     function make(style,{face=true,lite=false}={}){
       const outer=new T.Group(),inner=new T.Group();outer.add(inner);
       const body=new T.Mesh(lite?liteSphere:sphere,MATERIALS[style]?.()||MATERIALS.jelly());
       body.castShadow=style!=='bubble';inner.add(body);
-      if(style==='jelly'){inner.add(jellyInside(lite));inner.add(bandaid());body.renderOrder=.5;}
+      if(style==='jelly'){inner.add(bandaid());jellyModels.add(outer);}
       if(style==='fabric')inner.add(stitches());
       if(style==='fur'){inner.add(furShells(lite));inner.add(bow());}
       let cap=null,eye=null;
@@ -245,6 +287,6 @@
         dispose(){outer.traverse(o=>{if(o.isMesh&&o.material!==undefined&&!o.geometry.isShared)o.material.dispose?.();});}
       };
     }
-    return {make};
+    return {make,updateProbe,forget(group){jellyModels.delete(group);}};
   };
 })();

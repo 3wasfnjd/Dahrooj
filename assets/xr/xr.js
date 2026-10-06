@@ -64,7 +64,7 @@
     let ballModel=null;const actorModels=[],volleyModels=[];
     function model(slot,style,face){
       if(!slot||slot.style!==style||slot.face!==face){
-        if(slot)scene.remove(slot.group);
+        if(slot){scene.remove(slot.group);models.forget?.(slot.group);}
         slot=models.make(style,{face});slot.face=face;scene.add(slot.group);
       }
       slot.group.visible=true;return slot;
@@ -493,7 +493,7 @@
         s.m.position.copy(s.p);s.m.quaternion.copy(s.q);
         // What it touches pops.
         const near=p=>p.distanceTo(s.p)<BR+R;let hit=false;
-        for(let j=rests.length-1;j>=0;j--)if(near(rests[j].p)){const r=rests[j];burst(r.p,r.style);if(r.m)scene.remove(r.m.group);rests.splice(j,1);hit=true;}
+        for(let j=rests.length-1;j>=0;j--)if(near(rests[j].p)){const r=rests[j];burst(r.p,r.style);if(r.m){scene.remove(r.m.group);models.forget?.(r.m.group);}rests.splice(j,1);hit=true;}
         const vol=g.volley();for(let j=vol.length-1;j>=0;j--)if(near(vol[j].pos)){burst(vol[j].pos,g.style());vol.splice(j,1);hit=true;}
         if(S.shot&&!S.held&&near(S.pos)){burst(S.pos,g.style());holder=null;g.recall();hit=true;}
         if(hit)s.v.multiplyScalar(.6);
@@ -641,9 +641,9 @@
       if(!session||g.stage().networked||climbOn)return;
       const m=models?models.make(g.style(),{lite:true}):null;if(m)scene.add(m.group);
       rests.push({m,style:g.style(),p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3});
-      if(rests.length>RESTS_MAX){const o=rests.shift();if(o.m)scene.remove(o.m.group);}
+      if(rests.length>RESTS_MAX){const o=rests.shift();if(o.m){scene.remove(o.m.group);models.forget?.(o.m.group);}}
     });
-    function clearRests(){for(const r of rests)if(r.m)scene.remove(r.m.group);rests.length=0;}
+    function clearRests(){for(const r of rests)if(r.m){scene.remove(r.m.group);models.forget?.(r.m.group);}rests.length=0;}
     // Tracks on the grass, snow and ground wherever a ball touches down or rolls.
     function markBall(p,v){
       if(!natureOn()||p.y>BR*1.2)return;
@@ -708,6 +708,8 @@
       const st=g.stage();
       if(natureOn()){eyeNow();nature.setPitch?.(g.stage().farZ??targetPoint().z);nature.update(dt,eye);}
       else if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
+      // Jelly Dahroojs show the world around them: refresh their capture of it (VR only; AR has no world to capture).
+      models?.updateProbe?.(renderer,scene,S.pos,{sun:g.sun,on:natureOn()&&g.style()==='jelly',dt});
       if(placedFor!==g.mode())place();
       updateMenu(dt);
       // AR placement: aim at a surface and the court follows; the trigger pins it.
