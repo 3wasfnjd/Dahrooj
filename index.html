@@ -2123,7 +2123,8 @@ function make3D(){
   // One ball's flight: physics, the stage's collisions and its scoring. Extra balls (headset volleys)
   // share the stage but leave its animation to the main ball, and vanish instead of respawning.
   function ballStep(dt,extra){
-    const P=S.pos, v=S.vel, end=()=>{ if(extra) return true; respawn(); return false; };
+    // In the headset a finished throw can stay in the world (restHook) instead of vanishing.
+    const P=S.pos, v=S.vel, end=()=>{ if(restHook&&xrOn()) restHook(P.clone(),v.clone()); if(extra) return true; respawn(); return false; };
     S.prevZ=P.z; S.prevY=P.y;
     if(!S.grounded){ v.y-=GRAV*dt; v.x+=S.side.x*dt; v.z+=S.side.z*dt; }
     v.multiplyScalar(Math.pow(0.9,dt));
@@ -2133,7 +2134,8 @@ function make3D(){
       if(v.y<-1.4){ hit(UP,-v.y,V(P.x,0,P.z)); v.y=-v.y*0.55; v.x*=0.85; v.z*=0.85; S.side.set(0,0,0); }
       else { v.y=0; S.grounded=true; }
     } else if(S.grounded && P.y>BR+0.01) S.grounded=false;
-    if(S.grounded){ v.x*=Math.pow(0.35,dt); v.z*=Math.pow(0.35,dt); S.side.set(0,0,0); }
+    // In the headset Dahrooj rolls on longer before he settles.
+    if(S.grounded){ const f=Math.pow(xrOn()?0.7:0.35,dt); v.x*=f; v.z*=f; S.side.set(0,0,0); }
     stage.collide();
     if(extra){ if(stage.ballContact) stage.ballContact(); } else stage.update(dt);
     if(S.shot){
@@ -2153,6 +2155,7 @@ function make3D(){
   // Headset volleys: a thrown Dahrooj keeps flying while a fresh one comes to the hand.
   const VOLLEY_KEYS=['zMax','xMax','shot','shotT','scoredT','missT','mood','moodT','moodNext','idle','restT','hitT','blink','nextBlink','grounded','lastHit','prevZ','prevY','d','dv'];
   const VOLLEY_VECS=['pos','vel','side','axis'], volley=[], VOLLEY_MAX=6;
+  let restHook=null;
   function snapBall(){ const o={}; for(const k of VOLLEY_KEYS) o[k]=S[k]; for(const k of VOLLEY_VECS) o[k]=S[k].clone(); return o; }
   function loadBall(o){ for(const k of VOLLEY_KEYS) S[k]=o[k]; for(const k of VOLLEY_VECS) S[k].copy(o[k]); }
   function another(){
@@ -2285,7 +2288,7 @@ function make3D(){
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s),
     popSound:()=>startPopSound(),
     another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
-    climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e),
+    climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e), setRestHook:fn=>{restHook=fn;},
     onExit:()=>{if(XR_ENTRY)document.getElementById('xr-gate').hidden=false;},
     recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),

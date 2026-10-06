@@ -92,6 +92,20 @@ try{
   // A or X brings Dahrooj straight back.
   await aButton();
   s=await state();check(!s.shot&&s.parked,'The A button calls Dahrooj back');
+  // A finished throw stays in the world, rolling on, and leaves tracks where it went.
+  {
+    const before=await p.evaluate(()=>window.__g.xr.rests.length);
+    await throwBall();
+    await p.waitForFunction(n=>window.__g.xr.rests.length>n,before,{timeout:70000});
+    check(true,'A thrown Dahrooj stays in the world after the throw');
+    // It may stop on top of the goal first; give it time to roll down and touch the grass.
+    const pressedFn=()=>{const r=window.__g.xr.rests.at(-1).p,N=window.__g.xr.nature;let best=0;
+      for(let dx=-2;dx<=2;dx+=.25)for(let dz=-2;dz<=2;dz+=.25)best=Math.max(best,N.trackAt(r.x+dx,r.z+dz));return best;};
+    await p.waitForFunction(`(${pressedFn})()>.05`,null,{timeout:30000}).catch(()=>{});
+    const pressed=await p.evaluate(`(${pressedFn})()`);
+    check(pressed>.05,'It leaves tracks on the grass ('+pressed.toFixed(2)+')');
+    await parked();
+  }
   // Back to back: grabbing while Dahrooj flies keeps that throw going and brings a fresh one.
   await throwBall();await p.waitForTimeout(150);const plans=await p.evaluate(()=>window.__g.keeper().plans||0);
   await trigger(1);await p.waitForTimeout(150);
@@ -209,8 +223,8 @@ try{
     const countLanded=()=>{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
       return group?group.children.filter(m=>m.visible&&m.position.y<.24*1.6).length:0;};
-    await q.waitForFunction(`(${countLanded})()>=5`,null,{timeout:40000}).catch(()=>{});
-    const landed=await q.evaluate(`(${countLanded})()`);
+    // They keep hopping, so take the count at the moment enough of them are down.
+    const landed=await q.waitForFunction(`(()=>{const n=(${countLanded})();return n>=5?n:0;})()`,null,{timeout:40000}).then(h=>h.jsonValue(),()=>q.evaluate(`(${countLanded})()`));
     check(landed>=5,'Dahrooj balls fall onto the floor ('+landed+')');
     const spread=await q.evaluate(()=>{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;

@@ -540,8 +540,59 @@
       scene.background=null;floor.visible=false;ballSprite.visible=false;
       for(const a of actorSprites)a.visible=false;for(const d of dots)d.visible=false;
       if(ballModel)ballModel.group.visible=false;for(const m of [...actorModels,...volleyModels])if(m)m.group.visible=false;
+      clearRests();
       renderer.xr.enabled=false;
       g.resize();g.onExit?.();
+    }
+
+    /* ---------- thrown balls stay in the world ---------- */
+    // When a throw is over, that Dahrooj stays where he stopped instead of vanishing: he rolls on,
+    // bumps into the others and now and then sets off on his own. The oldest go when there are many.
+    const RESTS_MAX=36,REST_ROOM=26,rests=[];
+    g.setRestHook?.((pos,vel)=>{
+      if(!session||g.stage().networked||climbOn)return;
+      const m=models?models.make(g.style(),{lite:true}):null;if(m)scene.add(m.group);
+      rests.push({m,p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3});
+      if(rests.length>RESTS_MAX){const o=rests.shift();if(o.m)scene.remove(o.m.group);}
+    });
+    function clearRests(){for(const r of rests)if(r.m)scene.remove(r.m.group);rests.length=0;}
+    // Tracks on the grass, snow and ground wherever a ball touches down or rolls.
+    function markBall(p,v){
+      if(!natureOn()||p.y>BR*1.2)return;
+      const sp=Math.hypot(v.x,v.z),hit=Math.abs(v.y);
+      if(sp<.25&&hit<1)return;
+      nature.mark(p.x,p.z,BR*(.85+Math.min(.8,hit*.08)),Math.min(.6,.12+sp*.04+hit*.06));
+    }
+    function stepRests(dt){
+      const G=g.GRAV,cx=0,cz=-10;
+      for(const r of rests){
+        const p=r.p,v=r.v;v.y-=G*dt;p.addScaledVector(v,dt);
+        let grounded=false;
+        if(p.y<BR){p.y=BR;if(v.y<-1.4){r.dv-=Math.min(8,-v.y);v.y*=-.45;}else{v.y=0;grounded=true;}}
+        if(grounded){
+          const f=Math.pow(.75,dt);v.x*=f;v.z*=f;
+          // A life of their own: every few seconds a roll in a random direction, sometimes a hop.
+          r.wander-=dt;
+          if(r.wander<=0){const a=Math.random()*Math.PI*2,sp=.6+Math.random()*1.8;v.x+=Math.cos(a)*sp;v.z+=Math.sin(a)*sp;if(Math.random()<.35){v.y=2+Math.random()*2;r.dv-=3;}r.wander=3+Math.random()*7;}
+        }
+        // Stay on the field.
+        const ox=p.x-cx,oz=p.z-cz,od=Math.hypot(ox,oz);if(od>REST_ROOM){v.x-=ox/od*dt*4;v.z-=oz/od*dt*4;}
+        r.dv+=(-r.d*300-r.dv*12)*dt;r.d=clamp(r.d+r.dv*dt,-.3,.45);
+        r.next-=dt;if(r.next<=0){r.blink=.14;r.next=2+Math.random()*3;}r.blink=Math.max(0,r.blink-dt);
+        markBall(p,v);
+      }
+      for(let i=0;i<rests.length;i++)for(let j=i+1;j<rests.length;j++){
+        const a=rests[i],b=rests[j],n=b.p.clone().sub(a.p),l=n.length();
+        if(l>0&&l<BR*2){n.divideScalar(l);const push=(BR*2-l)/2;a.p.addScaledVector(n,-push);b.p.addScaledVector(n,push);
+          const rel=b.v.clone().sub(a.v).dot(n);if(rel<0){a.v.addScaledVector(n,rel*.9);b.v.addScaledVector(n,-rel*.9);}}
+      }
+    }
+    function drawRests(){
+      for(const r of rests){
+        if(!r.m)continue;r.m.group.visible=!climbOn&&!intro;
+        const sp=Math.hypot(r.v.x,r.v.z);
+        r.m.update({pos:V(r.p.x,r.p.y-BR*Math.max(0,r.d),r.p.z),toward:eye,faceName:sp>5?'wide':'open',blink:r.blink>0,squash:[1+r.d*.75,1-r.d]});
+      }
     }
 
     /* ---------- per frame ---------- */
@@ -650,7 +701,12 @@
         }
       }else for(const d of dots)d.visible=false;
       if(climbOn){eyeNow();climb3.update(dt,{style:g.style(),eye,onEvent:climbEvent});}
-      else g.step(dt*timeK());
+      else{
+        g.step(dt*timeK());
+        stepRests(dt*timeK());
+        if(!S.held)markBall(S.pos,S.vel);
+        for(const b of g.volley())markBall(b.pos,b.vel);
+      }
       // Dahrooj, the Duel opponent and small balls.
       const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn||!(parked||holder||S.shot))&&!st.networked),actors=st.xrActors?st.xrActors():[];
       const face=parked&&!(S.mood&&S.moodT>0)?'open':g.ballFace();
@@ -666,6 +722,7 @@
         });
         for(let i=actors.length;i<actorModels.length;i++)if(actorModels[i])actorModels[i].group.visible=false;
         // Earlier throws still in the air.
+        drawRests();
         const flying=g.volley();
         flying.forEach((b,i)=>{
           const m=volleyModels[i]=model(volleyModels[i],g.style(),true);
@@ -681,7 +738,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

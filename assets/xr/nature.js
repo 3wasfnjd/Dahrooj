@@ -97,11 +97,26 @@
         'col=mix(col,uHorizon,step(d.y,.0));gl_FragColor=vec4(col,1.);}'].join('\n')}));
     sky.renderOrder=-10;sky.frustumCulled=false;root.add(sky);
 
+    /* ---------- tracks: where Dahrooj rolls and lands, as Motri's Tracks.js does for the wheels ---------- */
+    // A black canvas over the field; white where a ball pressed the grass, dug the snow or marked the ground.
+    // It fades back slowly, so old tracks heal.
+    const TRACK_PX=512,TRACK_SIZE=64,trackCanvas=document.createElement('canvas');trackCanvas.width=trackCanvas.height=TRACK_PX;
+    const tctx=trackCanvas.getContext('2d');tctx.fillStyle='#000';tctx.fillRect(0,0,TRACK_PX,TRACK_PX);
+    const trackTex=new T.CanvasTexture(trackCanvas);trackTex.minFilter=trackTex.magFilter=T.LinearFilter;trackTex.generateMipmaps=false;
+    U.uTracks={value:trackTex};U.uTrackArea={value:V(court.x,court.z,TRACK_SIZE)};
+    let tracksDirty=false,tracksFade=0,tracksUpload=0;
+    const TRACK=`
+      uniform sampler2D uTracks;uniform vec3 uTrackArea;
+      float trackAt(vec2 p){vec2 uv=(p-uTrackArea.xy)/uTrackArea.z+.5;
+        if(uv.x<0.||uv.y<0.||uv.x>1.||uv.y>1.)return 0.;return texture2D(uTracks,vec2(uv.x,1.-uv.y)).r;}`;
+    const dirtColor=C('#7a4a22');
+
     /* ---------- ground: Terrain.js grass colour, lit like everything else ---------- */
     const grassColor=C('#b8b62e');
-    const groundMat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor}},
-      vertexShader:'varying vec4 vClip;varying float vDist;void main(){vec3 p=position;'+OUT+'}',
-      fragmentShader:SHADE+'uniform vec3 uColor;void main(){gl_FragColor=vec4(motriShade(uColor,vec3(0.,1.,0.),0.),1.);}'});
+    const groundMat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor}},
+      vertexShader:'varying vec4 vClip;varying float vDist;varying vec2 vWorld;void main(){vec3 p=position;vWorld=(modelMatrix*vec4(p,1.)).xz;'+OUT+'}',
+      // Marks: the ground shows dirt where balls rolled.
+      fragmentShader:SHADE+TRACK+'uniform vec3 uColor,uDirt;varying vec2 vWorld;void main(){vec3 c=mix(uColor,uDirt,clamp(trackAt(vWorld)*1.4,0.,.9));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),0.),1.);}'});
     const ground=new T.Mesh(new T.CircleGeometry(300,64).rotateX(-Math.PI/2),groundMat);ground.position.y=-.02;root.add(ground);
 
     /* ---------- Grass.js: three vertices per blade, turned to the camera, bent by the wind ---------- */
@@ -115,16 +130,18 @@
       }
       const geo=new T.BufferGeometry();
       geo.setAttribute('position',new T.BufferAttribute(position,3));geo.setAttribute('heightRandomness',new T.BufferAttribute(heightRandomness,1));geo.setAttribute('corner',new T.BufferAttribute(corner,1));
-      const mat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uPitch:{value:new T.Vector4(court.x,court.z+1,11,17)},bladeWidth:{value:.1},bladeHeight:{value:.6},bladeHeightRandomness:{value:.6}},side:T.DoubleSide,
+      const mat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor},uPitch:{value:new T.Vector4(court.x,court.z+1,11,17)},bladeWidth:{value:.1},bladeHeight:{value:.6},bladeHeightRandomness:{value:.6}},side:T.DoubleSide,
         vertexShader:WIND+`
           attribute float heightRandomness,corner;uniform float bladeWidth,bladeHeight,bladeHeightRandomness;uniform vec3 uCam;uniform vec4 uPitch;
-          varying vec4 vClip;varying float vDist;varying float vTip;
+          varying vec4 vClip;varying float vDist;varying float vTip;varying float vTrack;`+TRACK+`
           void main(){
             vec3 p=position;float tip=corner<.5?1.:0.;vTip=tip;
             float heightVariation=texture2D(uPerlin,p.xz*.0321).r+.5;
             float h=bladeHeight*(bladeHeightRandomness*heightRandomness+(1.-bladeHeightRandomness))*heightVariation;
             // On the pitch the grass is mown short so Dahrooj and the lines stay visible; Motri's height around it.
             vec2 q=abs(p.xz-uPitch.xy)-uPitch.zw;h*=mix(.28,1.,smoothstep(0.,3.,max(q.x,q.y)));
+            // Pressed flat where a ball rolled.
+            vTrack=trackAt(p.xz);h*=1.-vTrack*.85;
             vec2 shape=corner<.5?vec2(0.,1.):corner<1.5?vec2(1.,0.):vec2(-1.,0.);
             vec3 offset=vec3(shape.x*bladeWidth,shape.y*h,0.);
             float a=atan(p.z-uCam.z,p.x-uCam.x)-1.5707963;
@@ -132,7 +149,7 @@
             vec2 w=windOffset(p.xz)*tip*h*2.;p+=offset;p.xz+=w;
             ${OUT}
           }`,
-        fragmentShader:SHADE+'uniform vec3 uColor;varying float vTip;void main(){gl_FragColor=vec4(motriShade(uColor,vec3(0.,1.,0.),1.-vTip),1.);}'});
+        fragmentShader:SHADE+'uniform vec3 uColor,uDirt;varying float vTip;varying float vTrack;void main(){vec3 c=mix(uColor,uDirt,clamp(vTrack*1.2,0.,.8));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),1.-vTip),1.);}'});
       const grass=new T.Mesh(geo,mat);grass.frustumCulled=false;root.add(grass);
     }
 
@@ -263,9 +280,10 @@
             // Drifts stay low so Dahrooj can still roll: a quarter of Motri's height.
             p.y=max(e,0.)*.25+.01;${OUT}}`,
         fragmentShader:SHADE+`
-          uniform sampler2D uPerlin;uniform float uTime;varying float vDelta;varying vec2 vWorld;
+          uniform sampler2D uPerlin;uniform float uTime;varying float vDelta;varying vec2 vWorld;`+TRACK+`
           float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-          void main(){float alpha=smoothstep(.022,.5,vDelta);if(alpha<.1)discard;
+          // Dug out where balls rolled through.
+          void main(){float alpha=smoothstep(.022,.5,vDelta)*(1.-trackAt(vWorld)*.9);if(alpha<.1)discard;
             vec3 col=motriShade(vec3(1.),vec3(0.,1.,0.),0.);
             float glitter=abs(mod(hash(floor(vWorld*.2*64.))*2.+uTime*.024,2.)-1.)*clamp(texture2D(uPerlin,vWorld*.05).r*2.,0.,1.);
             col+=pow(glitter,1000.)*2.;gl_FragColor=vec4(col,alpha);}`});
@@ -277,8 +295,20 @@
     const state={time:'auto',weather:'auto',day:{},year:{},w:{}};
     const FIXED={day:.08,dusk:.25,night:.47,dawn:.8};
     let saved=null,lastDay=Date.now()/1000/DAY_SECONDS;
+    // Night lights: moonlight from above and a soft warm lantern that follows the player.
+    const moon=new T.DirectionalLight(0xc9d4ff,0);moon.position.set(-6,14,6);root.add(moon,moon.target);
+    const lantern=new T.PointLight(0xffd9a0,0,16,1.6);root.add(lantern);
     const api={
       root,
+      // Press a track at (x, z): radius in metres, strength 0–1.
+      mark(x,z,radius,strength){
+        const u=(x-court.x)/TRACK_SIZE+.5,v=(z-court.z)/TRACK_SIZE+.5;if(u<0||v<0||u>1||v>1)return;
+        const px=u*TRACK_PX,py=v*TRACK_PX,r=Math.max(1.5,radius/TRACK_SIZE*TRACK_PX);
+        const gr=tctx.createRadialGradient(px,py,0,px,py,r);gr.addColorStop(0,`rgba(255,255,255,${clamp(strength,0,1)})`);gr.addColorStop(1,'rgba(255,255,255,0)');
+        tctx.fillStyle=gr;tctx.fillRect(px-r,py-r,r*2,r*2);tracksDirty=true;
+      },
+      // How pressed the ground is at (x, z), 0–1 (for tests).
+      trackAt(x,z){const u=(x-court.x)/TRACK_SIZE+.5,v=(z-court.z)/TRACK_SIZE+.5;if(u<0||v<0||u>1||v>1)return 0;return tctx.getImageData(u*TRACK_PX|0,v*TRACK_PX|0,1,1).data[0]/255;},
       get settings(){return {time:state.time,weather:state.weather};},
       get weather(){return state.w;},
       get treesLoaded(){return treesLoaded;},
@@ -296,6 +326,9 @@
       },
       update(dt,eye){
         if(!root.visible)return;
+        // Tracks heal over about a minute; upload the canvas a few times a second at most.
+        tracksFade+=dt;if(tracksFade>.5){tracksFade=0;tctx.fillStyle='rgba(0,0,0,.02)';tctx.fillRect(0,0,TRACK_PX,TRACK_PX);tracksDirty=true;}
+        tracksUpload+=dt;if(tracksDirty&&tracksUpload>.08){tracksUpload=0;tracksDirty=false;trackTex.needsUpdate=true;}
         const now=Date.now()/1000,dayAbs=now/DAY_SECONDS,progressDelta=Math.max(0,dayAbs-lastDay);lastDay=dayAbs;
         const dayP=state.time==='auto'?dayAbs%1:FIXED[state.time],yearP=(now/(60*60*24*365))%1;
         const d=blend(DAY_KEYS,dayP,state.day),y=blend(YEAR_KEYS,yearP,state.year),w=state.w;
@@ -311,7 +344,7 @@
         else if(state.weather==='rain'){w.rain=.8;w.snow=-1;w.wind=Math.max(w.wind,.6);}
         else if(state.weather==='snow'){w.rain=.8;w.snow=1;}
         // Lighting and fog.
-        U.uLightColor.value.copy(d.lightColor);U.uLightIntensity.value=d.lightIntensity;U.uShadowColor.value.copy(d.shadowColor);
+        U.uLightColor.value.copy(d.lightColor);U.uShadowColor.value.copy(d.shadowColor);
         U.uFogA.value.copy(d.fogColorA);U.uFogB.value.copy(d.fogColorB);
         // A gentler sky than the raw fog colours: a pale horizon and a deep top, greyer when it rains.
         const cloud=clamp(w.rain*1.2,0,1),grey=C('#9aa0b0');
@@ -323,9 +356,15 @@
         const near=20,amplitude=25;U.uFogNear.value=near+d.fogNearRatio*amplitude;U.uFogFar.value=near+d.fogFarRatio*amplitude;
         scene.fog.color.copy(U.uHorizon.value);scene.fog.near=Math.max(1,U.uFogNear.value);scene.fog.far=U.uFogFar.value+10;
         // The game's own objects take Motri's light too.
-        const k=d.lightIntensity>2?1/3:1;
-        if(hemi){hemi.color.copy(d.lightColor);hemi.groundColor.copy(d.shadowColor).lerp(grassColor,.5);hemi.intensity=.6*d.lightIntensity*k;}
-        if(sun){sun.color.copy(d.lightColor);sun.intensity=.5*d.lightIntensity*k;}
+        // The game's own models (Dahrooj, the goal, the keeper) take Motri's light, but never go dark:
+        // at night a pale moonlight and a warm lantern around the player keep them readable.
+        const k=d.lightIntensity>2?1/3:1,night=clamp(Math.min((dayP-.22)/.08,(.75-dayP)/.08),0,1);
+        if(hemi){hemi.color.copy(d.lightColor).lerp(C('#ffffff'),.35+night*.25);hemi.groundColor.copy(d.shadowColor).lerp(grassColor,.5).lerp(C('#8c8aa8'),night*.4);
+          hemi.intensity=Math.max(.75,.6*d.lightIntensity*k);}
+        if(sun){sun.color.copy(d.lightColor).lerp(C('#c9d4ff'),night*.6);sun.intensity=Math.max(.35,.5*d.lightIntensity*k);}
+        moon.intensity=night*.45;lantern.intensity=night*1.1;if(eye)lantern.position.set(eye.x,eye.y+.5,eye.z-1.5);
+        // Motri's own pieces are lit a little brighter at night too.
+        U.uLightIntensity.value=d.lightIntensity*(1-night*.35)+night*.6;
         // Wind.js
         U.uWindStrength.value=remapClamp(w.wind,0,1,.1,1);U.uWindTime.value+=dt*.1*U.uWindStrength.value;
         U.uTime.value+=dt;
@@ -340,7 +379,7 @@
         if(eye)rainU.center.value.set(eye.x,eye.z);
         rainU.localTime.value+=dt*rainSpeed;
         // Snow.js: the ground layer rises while it snows and melts away otherwise.
-        const forced=state.weather==='snow'?dt*.02:state.weather==='clear'||state.weather==='rain'?-dt*.05:0;
+        const forced=state.weather==='snow'?dt*.045:state.weather==='clear'||state.weather==='rain'?-dt*.05:0;
         snowU.snowElevation.value=clamp(snowU.snowElevation.value+w.snow*progressDelta*10+forced,-1,.5);
         snowGround.visible=snowU.snowElevation.value>-.9;
         if(eye)snowU.center.value.set(Math.round(eye.x/.375)*.375,Math.round(eye.z/.375)*.375);
