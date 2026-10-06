@@ -132,7 +132,7 @@
         const tail=new T.Mesh(new T.ConeGeometry(r*.06,r*.26,10),dark);tail.position.set(s*r*.08,-r*.17,0);tail.rotation.z=s*.35;g.add(tail);
       }
       g.add(new T.Mesh(new T.SphereGeometry(r*.07,12,10),dark));
-      onSurface(g,V(.25,.92,.25),r*FUR_LEN);return g;
+      onSurface(g,V(.24,.78,.58),r*FUR_LEN);return g;
     }
     // Shell fur: stacked layers keep only the longer strands further out, so hairs taper and
     // the roots are shaded. The outer layers droop a little.
