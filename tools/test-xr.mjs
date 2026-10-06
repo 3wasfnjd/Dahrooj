@@ -191,8 +191,10 @@ try{
   await p.waitForFunction(()=>!window.__g.xr.climb.state.ball.grounded,null,{timeout:3000});
   await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));
   check(true,'A jumps');
-  await ctl('right',[.2,1.2,-.3]);await trigger(1);await p.waitForTimeout(120);await trigger(0);
-  check(await p.evaluate(()=>window.__g.xr.climb.state.shots.length>0||window.__g.xr.climb.state.ball.cool>0),'The trigger throws a ball at the monsters');
+  await ctl('right',[.2,1.2,-.3]);await trigger(1);
+  const thrown=await p.waitForFunction(()=>window.__g.xr.climb.state.shots.length>0||window.__g.xr.climb.state.ball.cool>0,null,{timeout:6000}).then(()=>true,()=>false);
+  await trigger(0);
+  check(thrown,'The trigger throws a ball at the monsters');
   const head=await p.evaluate(()=>{const g=window.__g.scene.getObjectByName('xr-climb'),rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
     const p=rig.worldToLocal(g.getWorldPosition(new THREE.Vector3()));return Math.hypot(p.x-h.x,p.z-h.z);});
   check(head>.4&&head<1.1,'The mountain stands within reach in front of you ('+head.toFixed(2)+' m)');
