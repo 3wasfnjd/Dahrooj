@@ -572,11 +572,23 @@
       const src=hitSources.get(h),space=renderer.xr.getReferenceSpace();
       if(frame&&src&&space){
         const res=frame.getHitTestResults(src);
-        if(res.length){const p=res[0].getPose(space)?.transform.position;if(p)return V(p.x,p.y,p.z);}
+        if(res.length){const tf=res[0].getPose(space)?.transform;
+          if(tf){const q=tf.orientation,n=V(0,1,0).applyQuaternion(new T.Quaternion(q.x,q.y,q.z,q.w));return {P:V(tf.position.x,tf.position.y,tf.position.z),n};}}
       }
       const o=h.target.position,d=V(0,0,-1).applyQuaternion(h.target.quaternion);
-      if(d.y<-.05){const t=-o.y/d.y;if(t<8)return o.clone().addScaledVector(d,t);}
+      if(d.y<-.05){const t=-o.y/d.y;if(t<8)return {P:o.clone().addScaledVector(d,t),n:V(0,1,0)};}
       return null;
+    }
+    // Where the court goes for a spot on a surface. On a wall (its normal lies flat) the court stands on
+    // the floor below with its back against the wall: the goal's net or the hoop's board touches it.
+    function anchorFrom(P,n){
+      if(Math.abs(n.y)<.5){
+        const f=V(n.x,0,n.z).normalize(),st=g.stage(),box=new T.Box3().setFromObject(st.grp);
+        const back=Math.max(0,((st.aimZ||-10)-box.min.z))/arScale+.03;
+        return {P:V(P.x,0,P.z).addScaledVector(f,back),theta:Math.atan2(-f.x,f.z),wall:true};
+      }
+      const {pos}=headLocal(),dx=P.x-pos.x,dz=P.z-pos.z;
+      return {P,theta:Math.hypot(dx,dz)>.05?Math.atan2(dx,-dz):anchor?.theta||0};
     }
     // Outline the surfaces the headset found while choosing a spot.
     /* ---------- mixed reality: the real room's walls and furniture as colliders (AR) ---------- */
@@ -829,11 +841,10 @@
       updateMenu(dt);
       // AR placement: aim at a surface and the court follows; the trigger pins it.
       if(placing){
-        const P=aimAtSurface(frame);
-        if(P){
-          const {pos}=headLocal(),dx=P.x-pos.x,dz=P.z-pos.z;
-          anchor={P,theta:Math.hypot(dx,dz)>.05?Math.atan2(dx,-dz):anchor?.theta||0};place();
-          reticle.position.copy(P);reticle.visible=true;
+        const hit=aimAtSurface(frame);
+        if(hit){
+          anchor=anchorFrom(hit.P,hit.n);place();
+          reticle.position.copy(hit.P);reticle.quaternion.setFromUnitVectors(V(0,1,0),hit.n);reticle.visible=true;
         }
       }else reticle.visible=false;
       if(kind==='immersive-ar')showPlanes(frame);
@@ -962,7 +973,9 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get lang(){return lang;},get roomPlanes(){return roomPlanes.size;},addTestPlane,get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get lang(){return lang;},get roomPlanes(){return roomPlanes.size;},addTestPlane,
+      // For tests: pin the court as if the hit test found this spot and surface normal.
+      testPin(P,n){anchor=anchorFrom(V(...P),V(...n));place();placing=false;g.respawn();},get anchor(){return anchor;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

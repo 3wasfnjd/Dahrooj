@@ -271,6 +271,15 @@ try{
   await trigger(0);await p.waitForTimeout(300);
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.S.missT===0),'A throw from far away stays in play');
   await aButton();await p.evaluate(()=>{window.__dev.position.z-=1.5;});await ctl('right',[.2,1.2,-.3]);await ctl('left',[-.18,1.05,-.32]);await parked();
+  // Mixed reality: aiming at a wall puts the court on the floor with its back against that wall.
+  {
+    const w=await p.evaluate(()=>{const x=window.__g.xr;const keep=x.anchor;x.testPin([.3,1.2,-1.6],[0,0,1]);
+      const rig=window.__g.scene.getObjectByName('xr-rig'),box=new THREE.Box3().setFromObject(window.__g.stage.grp);
+      const back=rig.worldToLocal(new THREE.Vector3((box.min.x+box.max.x)/2,box.min.y,box.min.z));
+      const r={wall:x.anchor.wall,backZ:back.z,floorY:x.anchor.P.y};x.testPin([keep.P.x,keep.P.y,keep.P.z],[0,1,0]);return r;});
+    check(w.wall&&Math.abs(w.backZ+1.6)<.12&&w.floorY===0,'On a wall the court backs onto it (back at '+w.backZ.toFixed(2)+' m, wall at -1.60)');
+  }
+  await parked();
   // Mixed reality: a real wall a metre ahead (a stand-in plane here) stops Dahrooj, who bounces back.
   await p.evaluate(()=>window.__g.xr.addTestPlane(new THREE.Matrix4().makeRotationX(Math.PI/2).setPosition(0,1,-.9).toArray(),[[-2,-2],[2,-2],[2,2],[-2,2]]));
   await ctl('right',[.2,1.2,-.3]);await p.waitForTimeout(150);await trigger(1);
