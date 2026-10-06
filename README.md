@@ -1,18 +1,35 @@
 # دحروج — Dahrooj
 
-## فكرة المستودع
-لعبة كرة تفاعلية مرنة بشخصية مرحة، تعتمد على السحب والرمي والقفز لإصابة الأهداف وخوض تحديات قصيرة من المتصفح.
+لعبة كرة مرنة بشخصية مرحة: تسحب دحروج وترميه لتصيب الأهداف، من المتصفح مباشرة.
 
-## الخدمات والمزايا
-- أنماط الحر والمرمى والسلة والبادل والشباك والعلب والبولينغ (بأقماع Motri).
-- مرحلة القمة: تسلّق الجبل بين منصات متحركة ومتكسرة وجليد، وتجنّب الوحوش والأشواك والجليد المتساقط.
-- نمط Duel ضد لاعب آخر أو خصم آلي عند غياب المنافس.
-- ميتا كويست ٣ عبر رابط [dahrooj/vr](https://3wasfnjd.github.io/Dahrooj/vr/): الأنماط الثلاثية الأبعاد في VR، وفي AR على سطح تختاره من الغرفة، برمي متتابع باليد أو بالنبيطة، ومرحلة القمة كمجسّم جبل على الطاولة، وقائمة على اليد اليسرى.
-- استايلات الجيلي والقماش والصلصال والفرو والفقاعات.
-- تعابير وحركات تفاعلية وموسيقى ومؤثرات صوتية.
+**العب:** https://3wasfnjd.github.io/Dahrooj/
 
-## التراخيص
-- **رخصة دحروج — عبودين قيمز:** شروط الاستخدام ونسبة العمل إلى **Aboden Games** مع رابط المستودع وإبقاء إشعار الحقوق موضحة في [LICENSE](LICENSE).
-- **الموسيقى:** Carefree — **Kevin MacLeod (incompetech.com)** بترخيص **CC BY 4.0**؛ [المصدر ونسبة العمل والتعديلات](assets/audio/credits.html).
-- **المكتبات والخطوط:** Three.js وMatter.js بترخيص **MIT**، وخطا Grandstander وBaloo Bhaijaan 2 بترخيص **SIL OFL**؛ [تفاصيل التراخيص](vendor/README.md).
-- حركة قصاصات الاحتفال، وعالم النظارة (العشب والأشجار والشجيرات والريح والمطر والثلج ودورة النهار والليل والإضاءة والأرضية الحجرية وأعمدة الإنارة والفوانيس والكراسي والصناديق المتفجرة وأقماع البولينغ)، منقولة من [Motri](https://github.com/3wasfnjd/Motri) المبني على [Folio 2025](https://github.com/brunosimon/folio-2025) لـ **Bruno Simon** بترخيص **MIT**؛ [الأصول المنقولة](assets/xr/motri/README.md). حقوق دحروج © 2026 Aboden Games.
+## الأنماط
+الحر، والمرمى، والسلة، والبادل، والشباك، والعلب، والبولينغ، ومرحلة القمة (تسلّق الجبل بين المنصات والوحوش)، والمبارزة ضد لاعب آخر.
+
+## الستايلات
+جيلي، وقماش، وصلصال، وفرو، وفقاعة.
+
+## الحقوق
+© 2026 Aboden Games. جميع الحقوق محفوظة. لا يُسمح بنسخ اللعبة أو كودها أو شخصيتها أو أصولها أو إعادة نشرها أو استخدامها دون إذن كتابي. التفاصيل في [LICENSE](LICENSE).
+
+الأجزاء المأخوذة من أطراف أخرى تحتفظ بتراخيصها، وقائمتها في [صفحة الحقوق](credits.html).
+
+---
+
+# Dahrooj
+
+A squishy ball with a cheerful personality: drag Dahrooj and throw him at targets, right in the browser.
+
+**Play:** https://3wasfnjd.github.io/Dahrooj/
+
+## Modes
+Free, Goal, Hoop, Padel, Window, Cans, Bowling, the Summit (climb the mountain past platforms and monsters), and Duel against another player.
+
+## Styles
+Jelly, Fabric, Clay, Fur and Bubble.
+
+## Rights
+© 2026 Aboden Games. All rights reserved. The game, its code, character and assets may not be copied, republished or used without written permission. See [LICENSE](LICENSE).
+
+Third-party parts keep their own licenses, listed on the [credits page](credits.html).
