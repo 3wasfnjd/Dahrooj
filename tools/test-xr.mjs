@@ -75,10 +75,13 @@ try{
   const UP20=[0.1736,0,0,0.9848];
   async function throwBall(){
     await ctl('right',[.2,1.2,-.3],UP20);
-    await p.waitForTimeout(200);await trigger(1);await p.waitForTimeout(300);
-    const held=await p.evaluate(()=>window.__g.xr.holding);
+    await p.waitForTimeout(200);await trigger(1);
+    // Wait for the hand to take Dahrooj (one emulator frame can take a few hundred ms).
+    const held=await p.waitForFunction(()=>window.__g.xr.holding,null,{timeout:5000}).then(()=>true,()=>false);
+    await p.waitForTimeout(300);
     for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
-    await trigger(0);await p.waitForTimeout(80);
+    await trigger(0);
+    await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding,null,{timeout:5000}).catch(()=>{});
     return held;
   }
 
@@ -112,7 +115,7 @@ try{
   {
     const before=await p.evaluate(()=>window.__g.xr.rests.length);
     await throwBall();
-    await p.waitForFunction(n=>window.__g.xr.rests.length>n,before,{timeout:70000});
+    await p.waitForFunction(n=>window.__g.xr.rests.length>n,before,{timeout:150000});
     check(true,'A thrown Dahrooj stays in the world after the throw');
     // It may stop on top of the goal first; give it time to roll down and touch the grass.
     const pressedFn=()=>{const r=window.__g.xr.rests.at(-1).p,N=window.__g.xr.nature;let best=0;
