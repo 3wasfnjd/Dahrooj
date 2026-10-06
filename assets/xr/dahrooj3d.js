@@ -3,8 +3,7 @@
    shell fur and a thin-film bubble. The face is the game's own face drawing, laid on the front. */
 (() => {
   'use strict';
-  const MAT_BASE=(document.currentScript&&document.currentScript.src)?new URL('./materials/',document.currentScript.src).href:'./assets/xr/materials/';
-  window.createDahrooj3D=(T,{radius,drawFace,renderer})=>{
+    window.createDahrooj3D=(T,{radius,drawFace,renderer})=>{
     const r=radius,V=(x,y,z)=>new T.Vector3(x,y,z);
     const canvas=(w,h,draw)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new T.CanvasTexture(c);t.anisotropy=4;return t;};
     let seed=7;const rand=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -35,16 +34,6 @@
     const feltMap=canvas(512,256,(c,w,h)=>{c.fillStyle='#7c2941';c.fillRect(0,0,w,h);
       for(let i=0;i<14000;i++){c.strokeStyle=rand()<.5?'rgba(255,215,228,.07)':'rgba(40,0,15,.1)';c.lineWidth=1;
         const x=rand()*w,y=rand()*h,a=rand()*Math.PI;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*(2+rand()*5),y+Math.sin(a)*(2+rand()*5));c.stroke();}});
-    const feltNormal=normalMap(512,256,(c,w,h)=>{c.fillStyle='#808080';c.fillRect(0,0,w,h);
-      for(let i=0;i<20000;i++){c.strokeStyle=rand()<.5?'rgba(255,255,255,.18)':'rgba(0,0,0,.18)';const x=rand()*w,y=rand()*h,a=rand()*Math.PI;
-        c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*(2+rand()*6),y+Math.sin(a)*(2+rand()*6));c.stroke();}},2.2);
-    // Clay: thumb dents and faint fingerprints from being shaped by hand.
-    const clayNormal=normalMap(512,256,(c,w,h)=>{c.fillStyle='#808080';c.fillRect(0,0,w,h);
-      for(let i=0;i<70;i++){const x=rand()*w,y=rand()*h,s=8+rand()*26,gr=c.createRadialGradient(x,y,0,x,y,s);
-        gr.addColorStop(0,rand()<.6?'rgba(0,0,0,.35)':'rgba(255,255,255,.3)');gr.addColorStop(1,'rgba(128,128,128,0)');c.fillStyle=gr;c.fillRect(x-s,y-s,s*2,s*2);}
-      for(let f=0;f<6;f++){const x=rand()*w,y=h*.2+rand()*h*.6;c.strokeStyle='rgba(0,0,0,.16)';c.lineWidth=1.2;
-        for(let k=2;k<14;k++){c.beginPath();c.ellipse(x,y,k*1.6,k*1.1,rand()*.4,Math.PI*.9,Math.PI*2.1);c.stroke();}}
-      for(let i=0;i<9000;i++){c.fillStyle=rand()<.5?'rgba(255,255,255,.08)':'rgba(0,0,0,.08)';c.fillRect(rand()*w,rand()*h,1+rand()*2,1+rand()*2);}},3);
     const clayMap=canvas(256,128,(c,w,h)=>{c.fillStyle='#825637';c.fillRect(0,0,w,h);
       for(let i=0;i<40;i++){const x=rand()*w,y=rand()*h,s=10+rand()*30,gr=c.createRadialGradient(x,y,0,x,y,s);
         gr.addColorStop(0,rand()<.5?'rgba(160,110,75,.35)':'rgba(95,60,38,.3)');gr.addColorStop(1,'rgba(130,86,55,0)');c.fillStyle=gr;c.fillRect(x-s,y-s,s*2,s*2);}});
@@ -69,15 +58,38 @@
       }
       x.putImageData(img,0,0);const t=new T.CanvasTexture(c);t.anisotropy=4;return t;
     })();
-    // Real surface detail (CC0 normal maps from @pmndrs/assets, see materials/README.md): knitted wool for
-    // fabric and finger presses for clay. Until they load, the drawn ones stand in.
-    function surface(file,repeat,strength){
-      const o={tex:null,mats:new Set()};
-      new T.TextureLoader().load(MAT_BASE+file,t=>{t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(...repeat);t.anisotropy=4;o.tex=t;
-        for(const m of o.mats){m.normalMap=t;m.normalScale.set(strength,strength);m.needsUpdate=true;}});
-      return o;
+    // Surface detail drawn here, no outside files: knitted wool for fabric, finger presses for clay.
+    function surface(w,h,repeat,strength,draw){
+      const t=normalMap(w,h,draw,strength);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(...repeat);
+      return {tex:t,mats:new Set()};
     }
-    const knit=surface('knit-normal.webp',[6,3],.9),clayDents=surface('clay-normal.webp',[3,1.5],1.8);
+    // Knit: rows of V stitches, each leg a soft raised loop leaning left or right.
+    const knit=surface(256,256,[6,3],4,(c,w,h)=>{
+      c.fillStyle='#000';c.fillRect(0,0,w,h);
+      const cw=16,ch=20;
+      for(let row=-1;row<=h/ch+1;row++)for(let col=0;col<w/cw;col++)for(const s of [-1,1]){
+        const x=col*cw+cw/2+s*cw*.24,y=row*ch+ch/2+(col%2?0:0);
+        c.save();c.translate(x,y);c.rotate(s*.5);
+        const gr=c.createRadialGradient(0,0,0,0,0,ch*.6);gr.addColorStop(0,'rgba(255,255,255,.95)');gr.addColorStop(.7,'rgba(160,160,160,.5)');gr.addColorStop(1,'rgba(0,0,0,0)');
+        c.fillStyle=gr;c.beginPath();c.ellipse(0,0,cw*.3,ch*.58,0,0,Math.PI*2);c.fill();c.restore();
+      }
+      // A little fuzz across the yarn.
+      for(let k=0;k<4000;k++){c.fillStyle=`rgba(${rand()<.5?255:0},${rand()<.5?255:0},${rand()<.5?255:0},.05)`;c.fillRect(rand()*w,rand()*h,1,1);}
+    });
+    // Clay: soft round presses of fingertips and thumbs, and a few smears.
+    const clayDents=surface(256,128,[3,1.5],3,(c,w,h)=>{
+      c.fillStyle='#909090';c.fillRect(0,0,w,h);
+      for(let k=0;k<26;k++){
+        const x=rand()*w,y=rand()*h,rx=6+rand()*14,ry=rx*(.6+rand()*.4),a=rand()*Math.PI;
+        for(const [dx,dy] of [[0,0],[w,0],[-w,0],[0,h],[0,-h]]){
+          c.save();c.translate(x+dx,y+dy);c.rotate(a);
+          const gr=c.createRadialGradient(0,0,0,0,0,rx);gr.addColorStop(0,'rgba(20,20,20,.55)');gr.addColorStop(.75,'rgba(60,60,60,.25)');gr.addColorStop(.92,'rgba(255,255,255,.18)');gr.addColorStop(1,'rgba(255,255,255,0)');
+          c.fillStyle=gr;c.scale(1,ry/rx);c.beginPath();c.arc(0,0,rx,0,Math.PI*2);c.fill();c.restore();
+        }
+      }
+      for(let k=0;k<10;k++){c.strokeStyle=`rgba(${rand()<.5?40:220},${rand()<.5?40:220},${rand()<.5?40:220},.12)`;c.lineWidth=2+rand()*4;c.beginPath();
+        const x=rand()*w,y=rand()*h;c.moveTo(x,y);c.quadraticCurveTo(x+rand()*30-15,y+rand()*20-10,x+rand()*40-20,y+rand()*24-12);c.stroke();}
+    });
     /* ---------- jelly: light refracted through the ball from a probe of the real surroundings ---------- */
     // A small cube capture of the world around Dahrooj (refreshed every half second, without the jelly
     // balls in it) is looked up along the path light takes through a sphere of index 1.35: in through
@@ -141,9 +153,9 @@
     const MATERIALS={
       // Jelly: see jellyMaterial below. All jelly balls share it.
       jelly:()=>jellyMaterial,
-      fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:knit.tex||feltNormal,roughness:1,envMap:env,envMapIntensity:.35});knit.mats.add(m);
+      fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:knit.tex,roughness:1,envMap:env,envMapIntensity:.35});
         m.normalScale.set(.9,.9);if(m.sheen!==undefined)m.sheen=new T.Color(0xc77d93);return m;},
-      clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayDents.tex||clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(clayDents.tex?1.8:.7,clayDents.tex?1.8:.7);clayDents.mats.add(m);return m;},
+      clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayDents.tex,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(1.1,1.1);return m;},
       // The skin is the colour of the hair roots and lit like them, so gaps between hairs read as deeper fur.
       fur:()=>new T.MeshStandardMaterial({map:furMap,color:new T.Color(.74,.72,.69),roughness:1}),
       bubble:()=>new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:bubbleTime},

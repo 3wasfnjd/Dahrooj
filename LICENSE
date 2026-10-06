@@ -18,9 +18,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT
 SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
 FROM THE SOFTWARE OR ITS USE.
 
-Third-party parts:
-- three.js (r128), MIT License, loaded from cdnjs.
-- Confetti motion ported from the Motri project by the same author.
+Third-party parts keep their own licenses (full list in credits.html):
+- three.js r128 and GLTFLoader, MIT License (vendor/three/LICENSE).
+- Matter.js 0.20.0, MIT License (vendor/matter/LICENSE).
+- Motri's world, models and confetti motion, from Folio 2025 by Bruno Simon,
+  MIT License (assets/xr/motri/LICENSE).
+- Baloo Bhaijaan 2 and Grandstander fonts, SIL Open Font License 1.1 (vendor/fonts).
+- "Carefree" by Kevin MacLeod, CC BY 4.0 (assets/audio).
 
 ---
 

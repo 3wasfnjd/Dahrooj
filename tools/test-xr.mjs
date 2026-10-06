@@ -73,6 +73,7 @@ try{
   }
   // Trigger throws go along the hand's ray: aim 20 degrees up.
   const UP20=[0.1736,0,0,0.9848];
+  let lastVel=null;
   async function throwBall(){
     await ctl('right',[.2,1.2,-.3],UP20);
     await p.waitForTimeout(200);await trigger(1);
@@ -81,7 +82,8 @@ try{
     await p.waitForTimeout(300);
     for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
     await trigger(0);
-    await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding,null,{timeout:5000}).catch(()=>{});
+    // The velocity right as he leaves the hand (the emulator may take a while to the next check).
+    lastVel=await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding?window.__g.S.vel.toArray():false,null,{timeout:5000}).then(h=>h.jsonValue(),()=>null);
     return held;
   }
 
@@ -109,7 +111,7 @@ try{
   check(await throwBall(),'The trigger takes Dahrooj into the hand');
   check(await p.evaluate(()=>window.__g.xr.ballShown),'He shows once the trigger takes him, and in flight');
   s=await state();check(s.shot&&!s.held,'Letting go throws with the hand velocity');
-  const v=await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up');
+  const v=lastVel||await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up '+JSON.stringify(v.map(x=>+x.toFixed(2))));
   // A or X brings Dahrooj straight back.
   await aButton();
   s=await state();check(!s.shot&&s.parked,'The A button calls Dahrooj back');
@@ -275,20 +277,20 @@ try{
     // The emulator runs few frames a second and each frame advances at most 50 ms, so allow time.
     await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:30000});
     const countLanded=()=>{
-      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro');
       return group?group.children.filter(m=>m.visible&&m.position.y<.24*1.6).length:0;};
     // They keep hopping, so take the count at the moment enough of them are down.
     const landed=await q.waitForFunction(`(()=>{const n=(${countLanded})();return n>=5?n:0;})()`,null,{timeout:40000}).then(h=>h.jsonValue(),()=>q.evaluate(`(${countLanded})()`));
     check(landed>=5,'Dahrooj balls fall onto the floor ('+landed+')');
     const spread=await q.evaluate(()=>{
-      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro'),h=window.__dev.position;
       return Math.max(...group.children.map(m=>{const p=rig.worldToLocal(group.localToWorld(m.position.clone()));return Math.hypot(p.x-h.x,p.z-h.z);}));});
     check(spread<3.1,'They land around the player in the room ('+spread.toFixed(2)+' m)');
     // Shoot at the nearest ball until one pops.
     let popped=0;
     for(let k=0;k<8&&!popped;k++){
       await q.evaluate(()=>{
-        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=5);
+        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro');
         const eye=new T.Vector3(.15,1.2,-.05);let best=null,bd=9;
         for(const m of group.children){const p=rig.worldToLocal(group.localToWorld(m.position.clone()));const d=p.distanceTo(eye);if(m.visible&&d<bd){bd=d;best=p;}}
         const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(eye,best,new T.Vector3(0,1,0)));
