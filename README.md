@@ -15,4 +15,4 @@
 - **رخصة دحروج — عبودين قيمز:** شروط الاستخدام ونسبة العمل إلى **Aboden Games** مع رابط المستودع وإبقاء إشعار الحقوق موضحة في [LICENSE](LICENSE).
 - **الموسيقى:** Carefree — **Kevin MacLeod (incompetech.com)** بترخيص **CC BY 4.0**؛ [المصدر ونسبة العمل والتعديلات](assets/audio/credits.html).
 - **المكتبات والخطوط:** Three.js وMatter.js بترخيص **MIT**، وخطا Grandstander وBaloo Bhaijaan 2 بترخيص **SIL OFL**؛ [تفاصيل التراخيص](vendor/README.md).
-- حركة قصاصات الاحتفال مقتبسة من [Motri](https://github.com/3wasfnjd/Motri). حقوق دحروج © 2026 Aboden Games.
+- حركة قصاصات الاحتفال، وعالم النظارة (العشب والأشجار والشجيرات والريح والمطر والثلج ودورة النهار والليل والإضاءة)، منقولة من [Motri](https://github.com/3wasfnjd/Motri) المبني على [Folio 2025](https://github.com/brunosimon/folio-2025) لـ **Bruno Simon** بترخيص **MIT**؛ [الأصول المنقولة](assets/xr/motri/README.md). حقوق دحروج © 2026 Aboden Games.

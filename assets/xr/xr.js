@@ -41,6 +41,11 @@
       return {pos:a,dir};
     }
 
+    // VR: grass, trees, sky, day and night, rain and snow (paper floor as a fallback). AR shows the room.
+    let nature=null;
+    const natureOn=()=>!!nature&&kind==='immersive-vr';
+    const TIMES=[['auto','تلقائي'],['day','نهار'],['dusk','غروب'],['night','ليل'],['dawn','فجر']];
+    const WEATHERS=[['auto','تلقائي'],['clear','صافي'],['rain','مطر'],['snow','ثلج']];
     // A paper floor for VR; AR shows the room through passthrough instead.
     const floor=new T.Mesh(new T.CircleGeometry(40,64),new T.MeshBasicMaterial({color:0xddd2c1}));
     floor.rotation.x=-Math.PI/2;floor.position.y=-.004;floor.visible=false;scene.add(floor);
@@ -105,8 +110,8 @@
     }
 
     // The menu rides on the left hand: flip it palm-up or raise it. Point with the right hand to pick.
-    const MENU_W=.46,MENU_H=MENU_W*720/1024;
-    const menu=panel(MENU_W,MENU_H,1024,720);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
+    const MENU_W=.46,MENU_H=MENU_W*820/1024;
+    const menu=panel(MENU_W,MENU_H,1024,820);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
     const buttons=[];
     MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:24+i*197,y:80,w:185,h:112}));
     STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:24+i*197,y:272,w:185,h:112}));
@@ -114,24 +119,30 @@
     buttons.push({kind:'throw',id:'sling',label:'نبيطة',x:268,y:472,w:232,h:104});
     buttons.push({kind:'place',id:'place',label:'',x:524,y:472,w:232,h:104});
     buttons.push({kind:'exit',id:'exit',label:'خروج',x:768,y:472,w:232,h:104});
+    buttons.push({kind:'time',id:'time',label:'',x:24,y:612,w:476,h:100});
+    buttons.push({kind:'weather',id:'weather',label:'',x:524,y:612,w:476,h:100});
     function drawMenu(hover){
-      const key=[modeNow(),g.style(),throwStyle,kind,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
-      const c=menu.ctx;c.clearRect(0,0,1024,720);
-      c.fillStyle='rgba(255,252,246,.94)';round(c,4,4,1016,712,46);c.fill();
+      const sky=nature?nature.settings:{time:'auto',weather:'auto'};
+      const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
+      const c=menu.ctx;c.clearRect(0,0,1024,820);
+      c.fillStyle='rgba(255,252,246,.94)';round(c,4,4,1016,812,46);c.fill();
       c.strokeStyle='rgba(44,45,61,.18)';c.lineWidth=4;c.stroke();
       c.textAlign='center';c.direction='rtl';c.fillStyle='rgba(44,45,61,.55)';c.font=font(700,34);
       c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',262,454);
-      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي':'الزناد وهو طاير يعطيك دحروج ثاني · A أو X يرجّعه',512,650);
+      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي':'الزناد وهو طاير يعطيك دحروج ثاني · A أو X يرجّعه',512,770);
       buttons.forEach((b,i)=>{
-        const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط'):b.label;
+        const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
+          :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
+        // Time and weather belong to the VR world; the room has its own.
+        if((b.kind==='time'||b.kind==='weather')&&!natureOn())c.globalAlpha=.35;
         const on=(b.kind==='mode'&&b.id===modeNow())||(b.kind==='style'&&b.id===g.style())||(b.kind==='throw'&&b.id===throwStyle),hot=hover.includes(i);
         c.fillStyle=on?INK:hot?'rgba(44,45,61,.14)':'rgba(44,45,61,.05)';round(c,b.x,b.y,b.w,b.h,b.h/2);c.fill();
-        c.fillStyle=on?PAPER:INK;c.font=font(800,label.length>8?32:40);c.fillText(label,b.x+b.w/2,b.y+b.h/2+14);
+        c.fillStyle=on?PAPER:INK;c.font=font(800,label.length>8&&b.w<400?32:40);c.fillText(label,b.x+b.w/2,b.y+b.h/2+14);c.globalAlpha=1;
       });
       menu.tex.needsUpdate=true;
     }
     function menuHit(uv){
-      const x=uv.x*1024,y=(1-uv.y)*720;
+      const x=uv.x*1024,y=(1-uv.y)*820;
       return buttons.findIndex(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     }
     function menuAction(i){
@@ -140,6 +151,8 @@
       else if(b.kind==='style')g.setStyle(b.id);
       else if(b.kind==='throw'){holder=null;throwStyle=b.id;}
       else if(b.kind==='exit')session?.end();
+      else if(b.kind==='time'&&natureOn()){const i=TIMES.findIndex(t=>t[0]===nature.settings.time);nature.set({time:TIMES[(i+1)%TIMES.length][0]});}
+      else if(b.kind==='weather'&&natureOn()){const i=WEATHERS.findIndex(t=>t[0]===nature.settings.weather);nature.set({weather:WEATHERS[(i+1)%WEATHERS.length][0]});}
       else if(b.kind==='place'){if(kind==='immersive-ar'){holder=null;placing=true;}else{climbSpot=null;place();}}
     }
 
@@ -181,15 +194,16 @@
       c.fillStyle='rgba(44,45,61,.6)';c.font=font(700,34);c.fillText(popped?`فجّرت ${popped}`:'وجّه يدك واضغط الزناد لتفجير الكور',512,470);
       start.tex.needsUpdate=true;
     }
-    function beginIntro(){intro={t:0,frames:0,balls:[],shots:[],sparks:[],ready:false,leaving:0,popped:0,spawned:false,gap:0};}
-    const INTRO_COUNT=28,ROOM=2.3,SPARK=new T.SphereGeometry(1,8,6),SHOT_GEO=new T.SphereGeometry(.018,12,8);
-    const SHOT_MAT=new T.MeshBasicMaterial({color:0xfffaf2}),STYLE_COLORS={jelly:0x4b4e56,fabric:0x7c2941,clay:0x825637,fur:0xf1ebe1,bubble:0xcfe8ff};
+    function beginIntro(){const st=g.stage();if(st&&st.grp)st.grp.visible=false;intro={t:0,frames:0,balls:[],shots:[],sparks:[],ready:false,leaving:0,popped:0,spawned:false,gap:0};}
+    const INTRO_COUNT=40,ROOM=2.6,FRONT=1.1,SHOT_R=.035,SPARK=new T.SphereGeometry(1,8,6);
+    const STYLE_COLORS={jelly:0x4b4e56,fabric:0x7c2941,clay:0x825637,fur:0xf1ebe1,bubble:0xcfe8ff};
     // A wave of balls rains all around the player once the headset has reported a few poses.
     function spawnIntro(){
-      const {pos}=headLocal();intro.center=pos.clone();intro.spawned=true;intro.gap=0;
+      const {pos,dir}=headLocal(),yaw=Math.atan2(dir.x,-dir.z);intro.spawned=true;intro.gap=0;intro.wall=intro.wall||performance.now();
       for(let i=0;i<INTRO_COUNT;i++){
-        const a=Math.random()*Math.PI*2,dist=.5+Math.random()*1.7,style=INTRO_STYLES[i%5],sp=.25+Math.random()*.45,dirA=Math.random()*Math.PI*2;
-        const m=models?models.make(style):null;if(m)introGroup.add(m.group);
+        // In front of the player, across the room.
+        const a=yaw+(Math.random()-.5)*FRONT*2,dist=.6+Math.random()*2,style=INTRO_STYLES[i%5],sp=.25+Math.random()*.45,dirA=Math.random()*Math.PI*2;
+        const m=models?models.make(style,{lite:true}):null;if(m)introGroup.add(m.group);
         intro.balls.push({m,style,p:V(pos.x+Math.sin(a)*dist,pos.y+.7+Math.random()*1.1,pos.z-Math.cos(a)*dist),v:V(0,0,0),
           born:intro.t+i*.09,gx:Math.cos(dirA)*sp,gz:Math.sin(dirA)*sp,hop:.5+Math.random()*2.5,d:0,dv:0,hit:0,blink:0,next:1+Math.random()*3});
       }
@@ -199,19 +213,24 @@
       intro.leaving=.001;start.mesh.visible=false;
       for(const s of [...intro.shots,...intro.sparks])rig.remove(s.m);intro.shots.length=intro.sparks.length=0;
       placing=kind==='immersive-ar';g.respawn();
+      const st=g.stage();if(st&&st.grp&&!climbOn)st.grp.visible=true;
     }
     function clearIntro(){
       if(!intro)return;
       for(const b of intro.balls)if(b.m)introGroup.remove(b.m.group);
       for(const s of [...intro.shots,...intro.sparks])rig.remove(s.m);
       intro=null;introGroup.scale.setScalar(INTRO_R/BR);
+      const st=g.stage();if(st&&st.grp&&!climbOn)st.grp.visible=true;
     }
     // The trigger fires a small shot along the hand's ray; a hit pops the ball.
     function fireIntro(h){
       const I=intro;if(!I||I.leaving||clock-(h.lastShot||0)<.12)return;h.lastShot=clock;
       const d=V(0,0,-1).applyQuaternion(h.target.quaternion).normalize();
-      const m=new T.Mesh(SHOT_GEO,SHOT_MAT);rig.add(m);
-      I.shots.push({m,p:h.target.position.clone().addScaledVector(d,.06),v:d.multiplyScalar(9),t:0});
+      // Each shot is a small eyeless Dahrooj in the next style; it rolls once it lands.
+      const style=INTRO_STYLES[(I.fired=(I.fired||0)+1)%INTRO_STYLES.length];
+      const model=models?models.make(style,{face:false,lite:true}):null,m=model?model.group:new T.Mesh(SPARK,new T.MeshBasicMaterial({color:STYLE_COLORS[style]}));
+      if(!model)m.scale.setScalar(SHOT_R);rig.add(m);
+      I.shots.push({m,model,style,p:h.target.position.clone().addScaledVector(d,.08),v:d.multiplyScalar(9),t:0,q:new T.Quaternion()});
       g.whoosh(.2);
     }
     function popBall(b){
@@ -235,7 +254,7 @@
       I.t+=dt;
       // All popped: a new wave a moment later.
       if(!I.balls.length){I.gap+=dt;if(I.gap>1)spawnIntro();}
-      const live=I.balls.filter(b=>I.t>=b.born);
+      const live=I.balls.filter(b=>I.t>=b.born),{pos:head,dir:face}=headLocal();
       for(const b of live){
         const grounded=b.p.y<=INTRO_R+.001&&Math.abs(b.v.y)<.01;
         b.v.y-=REAL_G*dt;
@@ -250,9 +269,14 @@
           if(sp>.6){b.v.y=sp*.5;b.dv-=sp*2.2;b.hit=.2;if(sp>2&&g.bump)g.bump(Math.min(1,sp/6)*.4);}
           else b.v.y=0;
         }
-        // Stay within the room around where the player stood; turn back at the edge.
-        const ox=b.p.x-I.center.x,oz=b.p.z-I.center.z,od=Math.hypot(ox,oz);
-        if(od>ROOM){b.p.x=I.center.x+ox/od*ROOM;b.p.z=I.center.z+oz/od*ROOM;b.gx=-ox/od*Math.abs(b.gx||.3);b.gz=-oz/od*Math.abs(b.gz||.3);b.v.x*=-.5;b.v.z*=-.5;}
+        // Wander in front of the player: past the edge of the view or the room, head back in.
+        const ox=b.p.x-head.x,oz=b.p.z-head.z,od=Math.hypot(ox,oz)||1;
+        const off=Math.atan2(ox*face.z-oz*face.x,ox*face.x+oz*face.z);
+        if(od>ROOM||od<.45||Math.abs(off)>FRONT){
+          const a=Math.atan2(face.x,-face.z)+(Math.random()-.5)*FRONT,r=.7+Math.random()*1.6,sp=.3+Math.random()*.4;
+          const tx=head.x+Math.sin(a)*r-b.p.x,tz=head.z-Math.cos(a)*r-b.p.z,tl=Math.hypot(tx,tz)||1;b.gx=tx/tl*sp;b.gz=tz/tl*sp;
+        }
+        if(od>ROOM+.4){b.p.x=head.x+ox/od*(ROOM+.4);b.p.z=head.z+oz/od*(ROOM+.4);}
         b.dv+=(-b.d*320-b.dv*12)*dt;b.d=clamp(b.d+b.dv*dt,-.3,.45);
         b.hit=Math.max(0,b.hit-dt);b.next-=dt;if(b.next<=0){b.blink=.14;b.next=2+Math.random()*3;}b.blink=Math.max(0,b.blink-dt);
       }
@@ -263,18 +287,23 @@
           const rel=b.v.clone().sub(a.v).dot(n);if(rel<0){a.v.addScaledVector(n,rel*.8);b.v.addScaledVector(n,-rel*.8);}
         }
       }
-      // Shots fly with a little drop and pop the first ball they touch.
+      // Shots fly, bounce and roll like Dahrooj, popping the balls they touch.
       for(let k=I.shots.length-1;k>=0;k--){
-        const s=I.shots[k];s.t+=dt;s.v.y-=1.5*dt;s.p.addScaledVector(s.v,dt);s.m.position.copy(s.p);
-        const hit=live.find(b=>I.balls.includes(b)&&b.p.distanceTo(s.p)<INTRO_R+.03);
-        if(hit)popBall(hit);
-        if(hit||s.t>1.2||s.p.y<0){rig.remove(s.m);I.shots.splice(k,1);}
+        const s=I.shots[k];s.t+=dt;s.v.y-=REAL_G*dt*(s.t<.3?.12:1);s.p.addScaledVector(s.v,dt); // flies true along the ray, then drops
+        if(s.p.y<SHOT_R){s.p.y=SHOT_R;if(s.v.y<-.8)s.v.y*=-.45;else s.v.y=0;s.v.x*=Math.pow(.55,dt);s.v.z*=Math.pow(.55,dt);}
+        const sp=Math.hypot(s.v.x,s.v.z);
+        if(sp>.01){const axis=V(s.v.z,0,-s.v.x).normalize();s.q.premultiply(new T.Quaternion().setFromAxisAngle(axis,sp/SHOT_R*dt));}
+        if(s.model){s.model.update({pos:s.p.clone().multiplyScalar(1)});s.m.scale.setScalar(SHOT_R/BR);}
+        s.m.position.copy(s.p);s.m.quaternion.copy(s.q);
+        const hit=live.find(b=>I.balls.includes(b)&&b.p.distanceTo(s.p)<INTRO_R+SHOT_R);
+        if(hit){popBall(hit);s.v.multiplyScalar(.6);}
+        if(s.t>5){rig.remove(s.m);I.shots.splice(k,1);}
       }
       for(let k=I.sparks.length-1;k>=0;k--){
         const s=I.sparks[k];s.t+=dt;s.v.y-=REAL_G*.5*dt;s.p.addScaledVector(s.v,dt);s.m.position.copy(s.p);s.m.material.opacity=1-s.t/s.max;
         if(s.t>=s.max){rig.remove(s.m);s.m.material.dispose();I.sparks.splice(k,1);}
       }
-      if(!I.ready&&I.t>3.2){
+      if(!I.ready&&(I.t>3.2||performance.now()-I.wall>3200)){
         I.ready=true;const {pos,dir}=headLocal();
         start.mesh.position.set(pos.x+dir.x*1.05,pos.y-.12,pos.z+dir.z*1.05);start.mesh.visible=true;
       }
@@ -480,7 +509,9 @@
       session=s;kind=mode;anchor=null;placing=mode==='immersive-ar';
       renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local-floor');
       scene.add(rig);rig.add(camera);place();
-      floor.visible=mode==='immersive-vr';
+      if(mode==='immersive-vr'&&!nature&&window.createDahroojNature)nature=window.createDahroojNature(T,{scene,hemi:g.hemi,sun:g.sun,lineMat:g.lineMat});
+      if(nature)nature.enable(mode==='immersive-vr');
+      floor.visible=mode==='immersive-vr'&&!nature;
       s.addEventListener('end',onEnd);
       await renderer.xr.setSession(s);
       lastTime=0;frames=0;renderer.setAnimationLoop(loop);
@@ -495,6 +526,7 @@
       setClimb(false);holder=null;parked=false;placing=false;S.held=false;g.clearVolley();g.respawn();
       session=null;kind=null;
       rig.remove(camera);scene.remove(rig);
+      if(nature)nature.enable(false);
       scene.background=null;floor.visible=false;ballSprite.visible=false;
       for(const a of actorSprites)a.visible=false;for(const d of dots)d.visible=false;
       if(ballModel)ballModel.group.visible=false;for(const m of [...actorModels,...volleyModels])if(m)m.group.visible=false;
@@ -525,7 +557,8 @@
     function loop(time,frame){
       const dt=lastTime?clamp((time-lastTime)/1000,0,.05):1/72;lastTime=time;clock+=dt;frames++;
       const st=g.stage();
-      if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
+      if(natureOn()){eyeNow();nature.update(dt,eye);}
+      else if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
       if(placedFor!==g.mode())place();
       updateMenu(dt);
       // AR placement: aim at a surface and the court follows; the trigger pins it.
@@ -635,7 +668,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

@@ -30,7 +30,7 @@
     }
 
     /* ---------- shared surfaces ---------- */
-    const sphere=new T.SphereGeometry(r,64,40);
+    const sphere=new T.SphereGeometry(r,64,40),liteSphere=new T.SphereGeometry(r,24,16);
     const feltMap=canvas(512,256,(c,w,h)=>{c.fillStyle='#7c2941';c.fillRect(0,0,w,h);
       for(let i=0;i<14000;i++){c.strokeStyle=rand()<.5?'rgba(255,215,228,.07)':'rgba(40,0,15,.1)';c.lineWidth=1;
         const x=rand()*w,y=rand()*h,a=rand()*Math.PI;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*(2+rand()*5),y+Math.sin(a)*(2+rand()*5));c.stroke();}});
@@ -118,13 +118,15 @@
     }
     // Shell fur: stacked layers keep only the longer strands further out, so hairs taper and
     // the roots are shaded. The outer layers droop a little.
-    function furShells(){
+    // One material per layer, shared by every fur ball; a lite ball uses every fourth layer.
+    const furLayers=Array.from({length:FUR_SHELLS},(_,i)=>{const t=(i+1)/FUR_SHELLS,shade=.4+.7*t;
+      return {t,mat:new T.MeshStandardMaterial({map:furMap,alphaMap:hairMap,alphaTest:Math.min(.97,.08+t*.9),color:new T.Color(Math.min(1,shade),Math.min(1,shade*.97),Math.min(1,shade*.93)),roughness:1})};});
+    function furShells(lite){
       const g=new T.Group();
-      for(let k=1;k<=FUR_SHELLS;k++){
-        const t=k/FUR_SHELLS,shade=.4+.7*t;
-        const m=new T.Mesh(sphere,new T.MeshStandardMaterial({map:furMap,alphaMap:hairMap,alphaTest:Math.min(.97,.08+t*.9),color:new T.Color(Math.min(1,shade),Math.min(1,shade*.97),Math.min(1,shade*.93)),roughness:1}));
-        m.scale.setScalar(1+t*FUR_LEN);m.position.y=-r*.035*t*t;g.add(m);
-      }
+      furLayers.forEach(({t,mat},i)=>{
+        if(lite&&i%4!==3)return;
+        const m=new T.Mesh(lite?liteSphere:sphere,mat);m.scale.setScalar(1+t*FUR_LEN);m.position.y=-r*.035*t*t;g.add(m);
+      });
       return g;
     }
 
@@ -144,13 +146,14 @@
       return faces.get(key);
     }
 
-    function make(style,{face=true}={}){
+    // lite: for crowds (the opening balls and shots), fewer triangles and fur layers.
+    function make(style,{face=true,lite=false}={}){
       const outer=new T.Group(),inner=new T.Group();outer.add(inner);
-      const body=new T.Mesh(sphere,MATERIALS[style]?.()||MATERIALS.jelly());
+      const body=new T.Mesh(lite?liteSphere:sphere,MATERIALS[style]?.()||MATERIALS.jelly());
       body.castShadow=style!=='bubble';inner.add(body);
       if(style==='jelly')inner.add(bandaid());
       if(style==='fabric')inner.add(stitches());
-      if(style==='fur'){inner.add(furShells());inner.add(bow());}
+      if(style==='fur'){inner.add(furShells(lite));inner.add(bow());}
       let cap=null;
       if(face){
         cap=new T.Mesh(style==='fur'?furFaceGeo:faceGeo,new T.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));

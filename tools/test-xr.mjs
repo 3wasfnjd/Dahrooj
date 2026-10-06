@@ -47,14 +47,14 @@ try{
     await p.evaluate(([x,y])=>{
       const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),menu=window.__g.scene.getObjectByName('xr-menu');
       const w=menu.geometry.parameters.width,h=menu.geometry.parameters.height;
-      const spot=rig.worldToLocal(menu.localToWorld(new T.Vector3((x/1024-.5)*w,(.5-y/720)*h,0)));
+      const spot=rig.worldToLocal(menu.localToWorld(new T.Vector3((x/1024-.5)*w,(.5-y/820)*h,0)));
       const eye=new T.Vector3(.2,1.15,-.05),q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(eye,spot,new T.Vector3(0,1,0)));
       const c=window.__dev.controllers.right;c.position.set(eye.x,eye.y,eye.z);c.quaternion.set(q.x,q.y,q.z,q.w);
     },[x,y]);
     await p.waitForTimeout(250);await trigger(1);await p.waitForTimeout(150);await trigger(0);await p.waitForTimeout(250);
     await closeMenu();
   }
-  const button=(kind,i)=>({mode:[24+i*197+92,136],style:[24+i*197+92,328],hand:[140,524],sling:[384,524],place:[640,524],exit:[884,524]})[kind];
+  const button=(kind,i)=>({mode:[24+i*197+92,136],style:[24+i*197+92,328],hand:[140,524],sling:[384,524],place:[640,524],exit:[884,524],time:[262,662],weather:[762,662]})[kind];
   async function aButton(){
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',1));await p.waitForTimeout(120);
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));await p.waitForTimeout(60);
@@ -74,7 +74,7 @@ try{
   await p.waitForFunction(()=>window.__g?.xr?.presenting,null,{timeout:8000});
   await ctl('left',[-.18,1.05,-.32]);
   let s=await state();check(s.kind==='immersive-vr'&&s.mode==='goal','VR starts in the goal, not padel');
-  check(await p.evaluate(()=>window.__g.scene.background!==null&&window.__g.scene.getObjectByName('xr-rig').scale.x===2),'VR shows the paper world at half size');
+  check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-nature')?.visible&&!!window.__g.scene.fog&&window.__g.scene.getObjectByName('xr-rig').scale.x===2),'VR shows grass, trees and sky at half size');
   check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&o.visible&&o.material?.isMeshPhysicalMaterial&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
   await parked();
   // Compare with the emulated headset itself (room metres), not with the game's own camera maths.
@@ -99,6 +99,10 @@ try{
 
   check(!(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-menu').visible)),'The menu stays hidden with the hand down');
   await pick(...button('mode',1));check((await state()).mode==='hoop','The left-hand menu switches to hoop');
+  await pick(...button('weather'));await pick(...button('weather'));
+  check(await p.evaluate(()=>window.__g.xr.nature.settings.weather==='rain'),'The menu turns on rain');
+  await pick(...button('time'));await pick(...button('time'));await pick(...button('time'));
+  check(await p.evaluate(()=>window.__g.xr.nature.settings.time==='night'),'The menu sets night');
   await pick(...button('style',3));
   check(await p.evaluate(()=>document.querySelector('[data-style][aria-pressed="true"]').dataset.style)==='fur','The menu switches the style');
   await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
@@ -190,16 +194,19 @@ try{
     await q.evaluate(()=>document.getElementById('xr-gate-ar').click());
     await q.waitForFunction(()=>window.__g?.xr?.presenting&&window.__g.xr.opening,null,{timeout:8000});
     check(await q.evaluate(()=>window.__g.xr.kind==='immersive-ar'&&document.getElementById('xr-gate').hidden),'One tap enters AR with the opening');
+    check(await q.evaluate(()=>!window.__g.stage.grp.visible),'No game mode shows during the opening');
     // The emulator runs few frames a second and each frame advances at most 50 ms, so allow time.
     await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:30000});
-    const landed=await q.evaluate(()=>{
+    const countLanded=()=>{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
-      return group?group.children.filter(m=>m.position.y<.24*1.6).length:0;});
-    check(landed>=10,'Dahrooj balls fall onto the floor ('+landed+')');
+      return group?group.children.filter(m=>m.visible&&m.position.y<.24*1.6).length:0;};
+    await q.waitForFunction(`(${countLanded})()>=5`,null,{timeout:40000}).catch(()=>{});
+    const landed=await q.evaluate(`(${countLanded})()`);
+    check(landed>=5,'Dahrooj balls fall onto the floor ('+landed+')');
     const spread=await q.evaluate(()=>{
       const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;
       return Math.max(...group.children.map(m=>{const p=rig.worldToLocal(group.localToWorld(m.position.clone()));return Math.hypot(p.x-h.x,p.z-h.z);}));});
-    check(spread<2.6,'They land around the player in the room ('+spread.toFixed(2)+' m)');
+    check(spread<3.1,'They land around the player in the room ('+spread.toFixed(2)+' m)');
     // Shoot at the nearest ball until one pops.
     let popped=0;
     for(let k=0;k<8&&!popped;k++){

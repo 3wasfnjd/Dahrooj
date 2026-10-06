@@ -294,6 +294,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./assets/duel-online/distractions.js"></script>
 <script src="./assets/climb/climb.js"></script>
 <script src="./assets/xr/dahrooj3d.js"></script>
+<script src="./vendor/three/GLTFLoader-r128.js"></script>
+<script src="./assets/xr/nature.js"></script>
 <script src="./assets/xr/climb3d.js"></script>
 <script src="./assets/xr/xr.js"></script>
 <script>
@@ -1059,7 +1061,7 @@ function make3D(){
   const scene=new T.Scene();
   const camera=new T.PerspectiveCamera(45,1,0.1,120);
 
-  scene.add(new T.HemisphereLight(0xfff8ee,0xd8cbb8,0.95));
+  const hemi=new T.HemisphereLight(0xfff8ee,0xd8cbb8,0.95); scene.add(hemi);
   const sun=new T.DirectionalLight(0xffffff,0.75);
   sun.position.set(3,10,-4); sun.target.position.set(0,0,-9);
   sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
@@ -2273,7 +2275,7 @@ function make3D(){
     if(S.shot && !S.grounded && S.vel.length()>9) return 'wide';
     return 'open';
   }
-  if(window.createDahroojXR) xr=window.createDahroojXR({T,renderer,scene,camera,S,BR,GRAV,V,UP,ground,
+  if(window.createDahroojXR) xr=window.createDahroojXR({T,renderer,scene,camera,S,BR,GRAV,V,UP,ground,hemi,sun,lineMat,
     stage:()=>stage, stageName:()=>stageName,
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
     render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s),
