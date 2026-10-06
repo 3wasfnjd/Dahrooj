@@ -362,10 +362,24 @@
             v.x-=nx*vn*1.5;v.z-=nz*vn*1.5;hit=true;
           }
         }
+        // Crates are solid boxes: Dahrooj bounces off their sides and can land on top. Until the
+        // fuse burns down they stay where they are; then they're gone.
         for(const c of out.crates){
-          if(c.exploded)continue;const half=.53*CRATE;
-          const dx=p.x-c.x,dy=p.y-(c.y+half),dz=p.z-c.z;
-          if(Math.abs(dx)<half+r&&Math.abs(dy)<half+r&&Math.abs(dz)<half+r)explode(c);
+          if(c.exploded&&!(c.fuse>0))continue;const half=.53*CRATE*(c.k??1);
+          const cs=Math.cos(c.rot),sn=Math.sin(c.rot),dx=p.x-c.x,dy=p.y-(c.y+half),dz=p.z-c.z;
+          const lx=dx*cs-dz*sn,lz=dx*sn+dz*cs;
+          const qx=clamp(lx,-half,half),qy=clamp(dy,-half,half),qz=clamp(lz,-half,half);
+          let ex=lx-qx,ey=dy-qy,ez=lz-qz,d=Math.hypot(ex,ey,ez);if(d>=r)continue;
+          if(d<1e-4){
+            // Centre inside the box: out through the nearest face.
+            const fx=half-Math.abs(lx),fy=half-Math.abs(dy),fz=half-Math.abs(lz),m=Math.min(fx,fy,fz);
+            ex=m===fx?Math.sign(lx)||1:0;ey=m===fy?Math.sign(dy)||1:0;ez=m===fz&&m!==fx&&m!==fy?Math.sign(lz)||1:0;d=-m;
+          }else{ex/=d;ey/=d;ez/=d;}
+          const nx=ex*cs+ez*sn,nz=-ex*sn+ez*cs,ny=ey,push=r-d;
+          p.x+=nx*push;p.y+=ny*push;p.z+=nz*push;
+          const vn=v.x*nx+v.y*ny+v.z*nz;
+          if(vn<0){const k=ny>.7&&vn>-1.4?1:1.4;v.x-=nx*vn*k;v.y-=ny*vn*k;v.z-=nz*vn*k;hit=true;}
+          explode(c);
         }
         return hit;
       };

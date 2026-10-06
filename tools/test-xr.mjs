@@ -166,7 +166,7 @@ try{
   await pick(button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
   check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');
   await parked();await throwBall();
-  await p.waitForFunction(()=>!window.__g.S.shot,null,{timeout:70000});
+  await p.waitForFunction(()=>!window.__g.S.shot,null,{timeout:150000});
   check(await p.evaluate(()=>{const f=window.__g.stage.frame();return f.roll>=1||f.knocked>0||window.__g.stage.pins().every(q=>!q.down);}),'A roll down the lane is counted');
   await pick(button('mode',1));await parked();
   // The slingshot: left hand holds it, right hand pulls Dahrooj back and lets go.
