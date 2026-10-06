@@ -27,7 +27,8 @@
     /* ---------- the mountain itself: a rough rock slab, coloured by section ---------- */
     {
       const H=TOP+16,geo=new T.BoxGeometry(W+5,H,5,14,Math.round(H*.55),3),pos=geo.attributes.position,cols=[],c=new T.Color();
-      const rock=new T.Color(0x8f867d),dark=new T.Color(0x5e5650);
+      // A muddy clay mountain: warm brown earth, darker in the hollows.
+      const rock=new T.Color(0x7b5536),dark=new T.Color(0x4a2f1f);
       for(let i=0;i<pos.count;i++){
         let x=pos.getX(i),y=pos.getY(i)+H/2-3,z=pos.getZ(i);
         // Jagged sides, a bumpy face and a peak that narrows above the summit.
@@ -36,7 +37,7 @@
         z+=noise(x*.5,y*.5)*.9+(z>0?noise(x*1.3,y*1.1)*.2:0);
         pos.setXYZ(i,x,y,z);
         const theme=THEMES[Math.max(0,Math.min(3,Math.floor(y/36)))];
-        c.copy(rock).lerp(new T.Color(theme),.35).lerp(dark,Math.max(0,noise(x*2,y*2))*.35);
+        c.copy(rock).lerp(new T.Color(theme),.15).lerp(dark,Math.max(0,noise(x*2,y*2))*.45);
         if(y>TOP-10)c.lerp(new T.Color(0xf4f8fa),Math.min(1,(y-TOP+10)/6));
         cols.push(c.r,c.g,c.b);
       }
@@ -69,14 +70,14 @@
     function lookAt(list,dx,dy){const l=Math.hypot(dx,dy)||1;for(const {p,r} of list)p.position.set(dx/l*r*.35,dy/l*r*.35,r*.55);}
 
     /* ---------- ledges ---------- */
-    const ledgeRock=std(0x6d645d,{flatShading:true}),plank=std(0x9c6b3f),metal=std(0x6a6c74,{metalness:.5,roughness:.4});
+    const ledgeRock=std(0x5e3f29,{flatShading:true}),mud=std(0x6e4a2f,{flatShading:true}),plank=std(0x9c6b3f),metal=std(0x6a6c74,{metalness:.5,roughness:.4});
     const grass=std(0x7fa35a),dirt=std(0xa58a6c),cave=std(0x8a84a0),snowTop=std(0xf2f6f8),ice=std(0xbfe3f0,{roughness:.15,metalness:.1}),sand=std(0xb48d62,{flatShading:true});
     const tops=[grass,dirt,cave,snowTop];
     function ledge(p){
       const g=new T.Group(),w=p.x1-p.x0,h=p.full?(p.ground?1.6:1):.8;
       const body=new T.Mesh(new T.BoxGeometry(1,1,1,4,1,2),p.move?plank:p.crumble?sand:ledgeRock);
       body.scale.set(1,h,DEPTH);body.position.y=-h/2-.08;g.add(body);
-      const top=new T.Mesh(new T.BoxGeometry(1,1,1),p.ice?ice:p.move?plank:tops[p.theme]);top.scale.set(1.02,.2,DEPTH+.1);top.position.y=-.1;g.add(top);
+      const top=new T.Mesh(new T.BoxGeometry(1,1,1),p.ice?ice:p.move?plank:p.ground?mud:tops[p.theme]);top.scale.set(1.02,.2,DEPTH+.1);top.position.y=-.1;g.add(top);
       if(p.crumble)for(let k=1;k<4;k++){const c=new T.Mesh(new T.BoxGeometry(1,1,1),std(0x3b2f26));c.scale.set(.012,.5,DEPTH+.12);c.position.set(k/4-.5,-.3,0);c.rotation.z=(k%2?.4:-.4);g.add(c);}
       // Tufts of grass on meadow ledges, snow lumps on the high ones.
       if(!p.ice&&!p.move&&(p.theme===0||p.theme===3)&&!p.full)for(let k=0;k<3;k++){

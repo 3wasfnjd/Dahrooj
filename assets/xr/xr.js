@@ -122,12 +122,15 @@
     [['trigger','زناد'],['hand','يد'],['sling','نبيطة']].forEach(([id,label],i)=>buttons.push({kind:'throw',id,label,x:PAD+(2-i)*236,y:676,w:224,h:92}));
     buttons.push({kind:'time',id:'time',label:'',x:PAD+354,y:842,w:342,h:92});
     buttons.push({kind:'weather',id:'weather',label:'',x:PAD,y:842,w:342,h:92});
-    buttons.push({kind:'place',id:'place',label:'',x:PAD+354,y:962,w:342,h:92});
-    buttons.push({kind:'exit',id:'exit',label:'خروج',x:PAD,y:962,w:342,h:92});
+    buttons.push({kind:'place',id:'place',label:'',x:PAD+472,y:962,w:224,h:92});
+    buttons.push({kind:'ch',id:'ch',label:'التحديات',x:PAD+236,y:962,w:224,h:92});
+    buttons.push({kind:'exit',id:'exit',label:'خروج',x:PAD,y:962,w:224,h:92});
+    let chOpen=false;
     const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
-      const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
+      const chs=g.challenges?g.challenges():[];
+      const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(','),chOpen,chs.map(c=>c.value).join(',')].join('|');if(key===menu.key)return;menu.key=key;
       const c=menu.ctx;c.clearRect(0,0,MW,MH);
       // Glass: a soft paper tint, brighter at the top, a white rim and a faint diagonal sheen.
       let gr=c.createLinearGradient(0,0,0,MH);gr.addColorStop(0,'rgba(255,252,246,.78)');gr.addColorStop(1,'rgba(240,234,224,.62)');
@@ -140,10 +143,25 @@
       // Title and section labels.
       c.textAlign='center';c.direction='rtl';c.fillStyle=INK;c.font=font(800,60);c.fillText('دحروج',MW/2,92);
       c.fillStyle='rgba(44,45,61,.12)';c.fillRect(PAD+40,120,IN-80,2);
+      if(chOpen){
+        // The challenges, with progress, in place of the options.
+        const done=chs.filter(x=>x.value>=x.goal).length;
+        c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';c.fillText(`التحديات · ${done} من ${chs.length}`,MW/2,164);
+        const rowH=Math.min(64,760/Math.max(1,chs.length));
+        chs.forEach((x,k)=>{
+          const y=186+k*rowH,ok=x.value>=x.goal;
+          c.fillStyle=ok?'rgba(44,45,61,.9)':'rgba(255,255,255,.55)';round(c,PAD,y,IN,rowH-8,(rowH-8)/2);c.fill();
+          c.textAlign='right';c.fillStyle=ok?PAPER:INK;c.font=font(700,Math.min(28,rowH*.46));c.fillText((ok?'✓ ':'')+x.title,MW-PAD-24,y+rowH*.5+2);
+          c.textAlign='left';c.font=font(800,Math.min(26,rowH*.42));c.fillText(`${x.value}/${x.goal}`,PAD+22,y+rowH*.5+2);
+          c.textAlign='center';
+        });
+      }else{
       c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';
       for(const [t,y] of [['النمط',164],['الستايل',444],['الرمي',658],['العالم',824]])c.fillText(t,MW/2,y);
+      }
       buttons.forEach((b,i)=>{
-        const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
+        if(chOpen&&b.kind!=='ch')return;
+        const label=b.kind==='ch'?(chOpen?'رجوع':'التحديات'):b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
           :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
         // Time and weather belong to the VR world; the room has its own.
         if((b.kind==='time'||b.kind==='weather')&&!natureOn())c.globalAlpha=.35;
@@ -177,7 +195,7 @@
     }
     function menuHit(uv){
       const x=uv.x*MW,y=(1-uv.y)*MH;
-      return buttons.findIndex(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+      return buttons.findIndex(b=>(!chOpen||b.kind==='ch')&&x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     }
     function menuAction(i){
       const b=buttons[i];if(!b)return;
@@ -185,6 +203,7 @@
       else if(b.kind==='style')g.setStyle(b.id);
       else if(b.kind==='throw'){holder=null;throwStyle=b.id;}
       else if(b.kind==='exit')session?.end();
+      else if(b.kind==='ch')chOpen=!chOpen;
       else if(b.kind==='time'&&natureOn()){const i=TIMES.findIndex(t=>t[0]===nature.settings.time);nature.set({time:TIMES[(i+1)%TIMES.length][0]});}
       else if(b.kind==='weather'&&natureOn()){const i=WEATHERS.findIndex(t=>t[0]===nature.settings.weather);nature.set({weather:WEATHERS[(i+1)%WEATHERS.length][0]});}
       else if(b.kind==='place'){if(kind==='immersive-ar'){holder=null;placing=true;}else{climbSpot=null;place();}}
@@ -480,7 +499,7 @@
         const a=Math.random()*Math.PI*2,e=Math.random()*Math.PI-Math.PI/2,v=(1.2+Math.random()*1.8)*k;
         blast.sparks.push({m,p:p.clone(),v:V(Math.cos(a)*Math.cos(e)*v,Math.sin(e)*v+k,Math.sin(a)*Math.cos(e)*v),t:0,max:.45+Math.random()*.3});
       }
-      blast.popped++;g.popSound?.();
+      blast.popped++;g.popSound?.();g.chAdd?.('pop20');
     }
     function stepBlast(dt){
       if(!blast.shots.length&&!blast.sparks.length)return;
@@ -575,7 +594,8 @@
       if(kind==='immersive-ar'&&anchor){P=anchor.P;theta=anchor.theta;}
       else{
         // VR: the mountain stands on the ground where the goal stands, facing you, like the other modes.
-        if(!climbSpot)climbSpot={P:V(0,0,(CLIMB_Z-rig.position.z)/rig.scale.x),theta:0};
+        // A few centimetres up, so its own ground doesn't flicker against the stone floor.
+        if(!climbSpot)climbSpot={P:V(0,.04,(CLIMB_Z-rig.position.z)/rig.scale.x),theta:0};
         P=climbSpot.P;theta=climbSpot.theta;
       }
       climb3.group.position.copy(P);climb3.group.rotation.set(0,-theta,0);
@@ -604,7 +624,7 @@
       if(mode==='immersive-vr'&&!nature&&window.createDahroojNature)nature=window.createDahroojNature(T,{scene,hemi:g.hemi,sun:g.sun,lineMat:g.lineMat});
       // A crate going up throws every Dahrooj nearby into the air.
       if(nature?.props&&!nature.props.onExplode)nature.props.onExplode=(at,R)=>{
-        g.boom?.();
+        g.boom?.();g.chAdd?.('crates5');
         const blast=(p,v)=>{const d=V(p.x-at.x,0,p.z-at.z),l=d.length();if(l>R)return;const k=1-l/R;
           if(l>.01)v.addScaledVector(d.divideScalar(l),9*k);v.y+=6*k;p.y=Math.max(p.y,BR+.01);};
         for(const r of rests)blast(r.p,r.v);
@@ -809,7 +829,8 @@
         }
       }
       // Dahrooj, the Duel opponent and small balls.
-      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn||!(parked||holder||S.shot))&&!st.networked),actors=st.xrActors?st.xrActors():[];
+      // Dahrooj shows only while the trigger holds him or he flies; waiting, he's out of sight (in the slingshot he waits in the pouch).
+      const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn||!((parked&&F?.source)||holder||S.shot))&&!st.networked),actors=st.xrActors?st.xrActors():[];
       const face=parked&&!(S.mood&&S.moodT>0)?'open':g.ballFace();
       if(models){
         ballModel=model(ballModel,g.style(),true);
@@ -839,7 +860,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };
