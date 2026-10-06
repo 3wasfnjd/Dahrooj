@@ -11,10 +11,13 @@
   // Duel runs on the server in game time: its shots use game speed per real metre per second.
   const DUEL_GAIN=2;
   // Duel is paused in the headset for now.
-  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب'],['bowling','بولينغ'],['climb','الجبل']];
-  const STYLES=[['jelly','جيلي'],['fabric','قماش'],['clay','صلصال'],['fur','فرو'],['bubble','فقاعة']];
+  // Headset texts in Arabic and English: [id, Arabic, English].
+  const MODES=[['goal','مرمى','Goal'],['hoop','سلة','Hoop'],['window','شباك','Window'],['cans','علب','Cans'],['bowling','بولينغ','Bowling'],['climb','الجبل','Summit']];
+  const STYLES=[['jelly','جيلي','Jelly'],['fabric','قماش','Fabric'],['clay','صلصال','Clay'],['fur','فرو','Fur'],['bubble','فقاعة','Bubble']];
   const XR_MODES=new Set(MODES.map(m=>m[0]));
-  const LABEL=Object.fromEntries(MODES);
+  let lang='ar';try{if(localStorage.getItem('dahrooj-lang')==='en')lang='en';}catch(_){}
+  const tr=(ar,en)=>lang==='en'?en:ar;
+  const LABEL=id=>{const m=MODES.find(m=>m[0]===id);return m?tr(m[1],m[2]):'';};
   const INK='#2c2d3d',PAPER='#fffaf2';
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 
@@ -47,8 +50,9 @@
     // VR: grass, trees, sky, day and night, rain and snow (paper floor as a fallback). AR shows the room.
     let nature=null;
     const natureOn=()=>!!nature&&kind==='immersive-vr';
-    const TIMES=[['auto','تلقائي'],['day','نهار'],['dusk','غروب'],['night','ليل'],['dawn','فجر']];
-    const WEATHERS=[['auto','تلقائي'],['clear','صافي'],['rain','مطر'],['snow','ثلج']];
+    const TIMES=[['auto','تلقائي','Auto'],['day','نهار','Day'],['dusk','غروب','Dusk'],['night','ليل','Night'],['dawn','فجر','Dawn']];
+    const WEATHERS=[['auto','تلقائي','Auto'],['clear','صافي','Clear'],['rain','مطر','Rain'],['snow','ثلج','Snow']];
+    const named=(list,id)=>{const e=list.find(x=>x[0]===id);return e?tr(e[1],e[2]):'';};
     // A paper floor for VR; AR shows the room through passthrough instead.
     const floor=new T.Mesh(new T.CircleGeometry(40,64),new T.MeshBasicMaterial({color:0xddd2c1}));
     floor.rotation.x=-Math.PI/2;floor.position.y=-.004;floor.visible=false;scene.add(floor);
@@ -90,18 +94,18 @@
     // Score and messages, above the court and facing you.
     const hud=panel(1,.3,1024,300);rig.add(hud.mesh);
     function drawHud(){
-      const t=g.texts(),name=LABEL[g.mode()]||'',turn=t.turn==='Your turn'?'دورك':t.turn?'دور الخصم':'';
+      const t=g.texts(),name=LABEL(g.mode()),turn=t.turn==='Your turn'?tr('دورك','Your turn'):t.turn?tr('دور الخصم','Their turn'):'';
       const ch=climbOn&&climb3?climb3.hud():null;
-      const key=placing?'placing':ch?['climb',ch.hearts,ch.height,ch.checkpoint,ch.again,t.title,t.toast].join('|'):[t.title,t.count,turn,t.toast,name].join('|');if(key===hud.key)return;hud.key=key;
-      const c=hud.ctx;c.clearRect(0,0,1024,300);c.textAlign='center';c.direction='rtl';
+      const key=placing?'placing':ch?['climb',ch.hearts,ch.height,ch.checkpoint,ch.again,t.title,t.toast].join('|'):[t.title,t.count,turn,t.toast,name,lang].join('|');if(key===hud.key)return;hud.key=key;
+      const c=hud.ctx;c.clearRect(0,0,1024,300);c.textAlign='center';c.direction=tr('rtl','ltr');
       if(placing){
         c.fillStyle='rgba(255,252,246,.88)';round(c,62,30,900,230,46);c.fill();c.fillStyle=INK;
-        c.font=font(800,52);c.fillText('وجّه على سطح واضغط الزناد للتثبيت',512,125);
-        c.font=font(700,40);c.fillStyle='rgba(44,45,61,.7)';c.fillText('العصا للأعلى والأسفل تكبّر وتصغّر',512,200);
+        c.font=font(800,52);c.fillText(tr('وجّه على سطح واضغط الزناد للتثبيت','Aim at a surface and pull the trigger to pin'),512,125);
+        c.font=font(700,40);c.fillStyle='rgba(44,45,61,.7)';c.fillText(tr('العصا للأعلى والأسفل تكبّر وتصغّر','Stick up and down: bigger and smaller'),512,200);
       }else if(ch){
         c.fillStyle='rgba(255,252,246,.82)';round(c,212,8,600,190,40);c.fill();
         c.font=font(800,70);for(let i=0;i<ch.max;i++){c.fillStyle=i<ch.hearts?'#c8584b':'rgba(44,45,61,.2)';c.fillText('♥',422+i*90,98);}
-        c.font=font(700,44);c.fillStyle='rgba(44,45,61,.75)';c.fillText(ch.again?'A للتسلق من جديد':t.title||`${ch.height} م`,512,170);
+        c.font=font(700,44);c.fillStyle='rgba(44,45,61,.75)';c.fillText(ch.again?tr('A للتسلق من جديد','A to climb again'):t.title||tr(`${ch.height} م`,`${ch.height} m`),512,170);
         if(t.toast){c.font=font(700,40);const w=Math.min(980,c.measureText(t.toast).width+70);c.fillStyle=INK;round(c,512-w/2,214,w,72,36);c.fill();c.fillStyle=PAPER;c.fillText(t.toast,512,264);}
       }else{
         c.fillStyle='rgba(255,252,246,.82)';round(c,212,8,600,190,40);c.fill();
@@ -117,21 +121,31 @@
     const MW=768,MH=1200,MENU_W=.24,MENU_H=MENU_W*MH/MW;
     const menu=panel(MENU_W,MENU_H,MW,MH);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
     const buttons=[],PAD=36,IN=MW-PAD*2;
-    MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:PAD+(2-i%3)*232,y:182+Math.floor(i/3)*108,w:220,h:96}));
-    STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:PAD+(4-i)*142,y:462,w:128,h:140}));
-    [['trigger','زناد'],['hand','يد'],['sling','نبيطة']].forEach(([id,label],i)=>buttons.push({kind:'throw',id,label,x:PAD+(2-i)*236,y:676,w:224,h:92}));
-    buttons.push({kind:'time',id:'time',label:'',x:PAD+354,y:842,w:342,h:92});
-    buttons.push({kind:'weather',id:'weather',label:'',x:PAD,y:842,w:342,h:92});
-    buttons.push({kind:'place',id:'place',label:'',x:PAD+472,y:962,w:224,h:92});
-    buttons.push({kind:'ch',id:'ch',label:'التحديات',x:PAD+236,y:962,w:224,h:92});
-    buttons.push({kind:'exit',id:'exit',label:'خروج',x:PAD,y:962,w:224,h:92});
-    let chOpen=false;
+    // Positions go right to left in Arabic and left to right in English (see layoutMenu).
+    MODES.forEach(([id,ar,en],i)=>buttons.push({kind:'mode',id,ar,en,i,y:182+Math.floor(i/3)*108,w:220,h:96}));
+    STYLES.forEach(([id,ar,en],i)=>buttons.push({kind:'style',id,ar,en,i,y:462,w:128,h:140}));
+    [['trigger','زناد','Trigger'],['hand','يد','Hand'],['sling','نبيطة','Sling']].forEach(([id,ar,en],i)=>buttons.push({kind:'throw',id,ar,en,i,y:676,w:224,h:92}));
+    buttons.push({kind:'time',id:'time',i:0,y:842,w:342,h:92});
+    buttons.push({kind:'weather',id:'weather',i:1,y:842,w:342,h:92});
+    buttons.push({kind:'place',id:'place',i:0,y:962,w:224,h:92});
+    buttons.push({kind:'lang',id:'lang',i:1,y:962,w:224,h:92});
+    buttons.push({kind:'exit',id:'exit',ar:'خروج',en:'Exit',i:2,y:962,w:224,h:92});
+    function layoutMenu(){
+      const rtl=lang!=='en';
+      for(const b of buttons){
+        const step=b.kind==='mode'?232:b.kind==='style'?142:b.kind==='throw'||b.kind==='place'||b.kind==='lang'||b.kind==='exit'?236:354,
+          n=b.kind==='mode'?3:b.kind==='style'?5:b.kind==='time'||b.kind==='weather'?2:3,col=b.kind==='mode'?b.i%3:b.i;
+        b.x=PAD+(rtl?n-1-col:col)*step;
+      }
+    }
+    layoutMenu();
+    let chOpen=false;const MENU_LEAN=new T.Quaternion().setFromEuler(new T.Euler(-.35,0,0));
     const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
       // Padel isn't in the headset, so neither is its challenge.
       const chs=(g.challenges?g.challenges():[]).filter(c=>c.id!=='rally10');
-      const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(','),chOpen,chs.map(c=>c.value).join(',')].join('|');if(key===menu.key)return;menu.key=key;
+      const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(','),chOpen,lang,chs.map(c=>c.value).join(',')].join('|');if(key===menu.key)return;menu.key=key;
       const c=menu.ctx;c.clearRect(0,0,MW,MH);
       // Glass: a soft paper tint, brighter at the top, a white rim and a faint diagonal sheen.
       let gr=c.createLinearGradient(0,0,0,MH);gr.addColorStop(0,'rgba(255,252,246,.78)');gr.addColorStop(1,'rgba(240,234,224,.62)');
@@ -142,28 +156,29 @@
       c.lineWidth=4;c.strokeStyle='rgba(255,255,255,.85)';round(c,8,8,MW-16,MH-16,62);c.stroke();
       c.lineWidth=2;c.strokeStyle='rgba(44,45,61,.16)';round(c,4,4,MW-8,MH-8,66);c.stroke();
       // Title and section labels.
-      c.textAlign='center';c.direction='rtl';c.fillStyle=INK;c.font=font(800,60);c.fillText('دحروج',MW/2,92);
+      c.textAlign='center';c.direction=tr('rtl','ltr');c.fillStyle=INK;c.font=font(800,60);c.fillText(tr('دحروج','Dahrooj'),MW/2,92);
       c.fillStyle='rgba(44,45,61,.12)';c.fillRect(PAD+40,120,IN-80,2);
       if(chOpen){
         // The challenges, with progress, in place of the options.
         const done=chs.filter(x=>x.value>=x.goal).length;
-        c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';c.fillText(`التحديات · ${done} من ${chs.length}`,MW/2,164);
+        c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';c.fillText(tr(`التحديات · ${done} من ${chs.length}`,`Challenges · ${done} of ${chs.length}`),MW/2,164);
         const rowH=Math.min(64,760/Math.max(1,chs.length));
         chs.forEach((x,k)=>{
           const y=186+k*rowH,ok=x.value>=x.goal;
           c.fillStyle=ok?'rgba(44,45,61,.9)':'rgba(255,255,255,.55)';round(c,PAD,y,IN,rowH-8,(rowH-8)/2);c.fill();
-          c.textAlign='right';c.fillStyle=ok?PAPER:INK;c.font=font(700,Math.min(28,rowH*.46));c.fillText((ok?'✓ ':'')+x.title,MW-PAD-24,y+rowH*.5+2);
-          c.textAlign='left';c.font=font(800,Math.min(26,rowH*.42));c.fillText(`${x.value}/${x.goal}`,PAD+22,y+rowH*.5+2);
+          const title=lang==='en'&&x.en?x.en:x.title,rtl=lang!=='en';
+          c.textAlign=rtl?'right':'left';c.fillStyle=ok?PAPER:INK;c.font=font(700,Math.min(28,rowH*.46));c.fillText((ok?'✓ ':'')+title,rtl?MW-PAD-24:PAD+24,y+rowH*.5+2);
+          c.textAlign=rtl?'left':'right';c.font=font(800,Math.min(26,rowH*.42));c.fillText(`${x.value}/${x.goal}`,rtl?PAD+22:MW-PAD-22,y+rowH*.5+2);
           c.textAlign='center';
         });
       }else{
       c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';
-      for(const [t,y] of [['النمط',164],['الستايل',444],['الرمي',658],['العالم',824]])c.fillText(t,MW/2,y);
+      for(const [t,y] of [[tr('النمط','Mode'),164],[tr('الستايل','Style'),444],[tr('الرمي','Throw'),658],[tr('العالم','World'),824]])c.fillText(t,MW/2,y);
       }
       buttons.forEach((b,i)=>{
-        if(chOpen&&b.kind!=='ch')return;
-        const label=b.kind==='ch'?(chOpen?'رجوع':'التحديات'):b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
-          :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
+        if(chOpen)return;
+        const label=b.kind==='lang'?(lang==='en'?'العربية':'English'):b.kind==='place'?(kind==='immersive-ar'?tr('ثبّت من جديد','Re-pin'):tr('توسيط','Recentre'))
+          :b.kind==='time'?tr('الوقت: ','Time: ')+named(TIMES,sky.time):b.kind==='weather'?tr('الطقس: ','Weather: ')+named(WEATHERS,sky.weather):tr(b.ar,b.en);
         // Time and weather belong to the VR world; the room has its own.
         if((b.kind==='time'||b.kind==='weather')&&!natureOn())c.globalAlpha=.35;
         const on=(b.kind==='mode'&&b.id===modeNow())||(b.kind==='style'&&b.id===g.style())||(b.kind==='throw'&&b.id===throwStyle),hot=hover.includes(i);
@@ -188,15 +203,16 @@
         c.globalAlpha=1;
       });
       c.textAlign='center';c.fillStyle='rgba(44,45,61,.66)';c.font=font(600,27);
-      const hint=climbOn?['العصا اليسار للحركة · A أو X للقفز','الزناد للرمي · Y للقائمة']
-        :throwStyle==='sling'?['اسحب دحروج بالزناد اليمين ثم أفلت','A يرجّع دحروج · Y للقائمة']
-        :['الزناد اليمين للرمي · اليسار يفجّر','A يرجّع دحروج · Y للقائمة'];
+      const hint=chOpen?[tr('X لإغلاق التحديات','X closes the challenges'),'']
+        :climbOn?[tr('العصا اليسار للحركة · A أو X للقفز','Left stick to move · A or X to jump'),tr('الزناد للرمي · Y للقائمة','Trigger to throw · Y for the menu')]
+        :throwStyle==='sling'?[tr('اسحب دحروج بالزناد اليمين ثم أفلت','Pull Dahrooj back with the right trigger, let go'),tr('A يرجّع دحروج · Y للقائمة · X للتحديات','A calls him back · Y menu · X challenges')]
+        :[tr('الزناد اليمين للرمي · اليسار يفجّر','Right trigger throws · left trigger pops'),tr('A يرجّع دحروج · Y للقائمة · X للتحديات','A calls him back · Y menu · X challenges')];
       c.fillText(hint[0],MW/2,1110);c.fillText(hint[1],MW/2,1152);
       menu.tex.needsUpdate=true;
     }
     function menuHit(uv){
       const x=uv.x*MW,y=(1-uv.y)*MH;
-      return buttons.findIndex(b=>(!chOpen||b.kind==='ch')&&x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+      return chOpen?-1:buttons.findIndex(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     }
     function menuAction(i){
       const b=buttons[i];if(!b)return;
@@ -204,7 +220,7 @@
       else if(b.kind==='style')g.setStyle(b.id);
       else if(b.kind==='throw'){holder=null;throwStyle=b.id;}
       else if(b.kind==='exit')session?.end();
-      else if(b.kind==='ch')chOpen=!chOpen;
+      else if(b.kind==='lang'){lang=lang==='en'?'ar':'en';try{localStorage.setItem('dahrooj-lang',lang);}catch(_){}g.setLang?.(lang);layoutMenu();menu.key=hud.key=start.key='';}
       else if(b.kind==='time'&&natureOn()){const i=TIMES.findIndex(t=>t[0]===nature.settings.time);nature.set({time:TIMES[(i+1)%TIMES.length][0]});}
       else if(b.kind==='weather'&&natureOn()){const i=WEATHERS.findIndex(t=>t[0]===nature.settings.weather);nature.set({weather:WEATHERS[(i+1)%WEATHERS.length][0]});}
       else if(b.kind==='place'){if(kind==='immersive-ar'){holder=null;placing=true;}else{climbSpot=null;place();}}
@@ -239,13 +255,13 @@
     const start=panel(.56,.28,1024,512);start.mesh.name='xr-start';start.mesh.visible=false;rig.add(start.mesh);
     function drawStart(hot){
       const popped=intro?intro.popped:0,key='start|'+hot+'|'+popped;if(start.key===key)return;start.key=key;
-      const c=start.ctx;c.clearRect(0,0,1024,512);c.textAlign='center';c.direction='rtl';
+      const c=start.ctx;c.clearRect(0,0,1024,512);c.textAlign='center';c.direction=tr('rtl','ltr');
       c.fillStyle='rgba(255,252,246,.94)';round(c,6,6,1012,500,70);c.fill();
-      c.fillStyle=INK;c.font=font(800,120);c.fillText('دحروج',512,170);
+      c.fillStyle=INK;c.font=font(800,120);c.fillText(tr('دحروج','Dahrooj'),512,170);
       c.fillStyle=hot?'#44465a':INK;round(c,212,250,600,170,85);c.fill();
-      c.fillStyle=PAPER;c.font=font(800,66);c.fillText('بدء اللعبة',540,358);
+      c.fillStyle=PAPER;c.font=font(800,66);c.fillText(tr('بدء اللعبة','Play'),540,358);
       c.beginPath();c.moveTo(300,300);c.lineTo(300,370);c.lineTo(352,335);c.closePath();c.fill();
-      c.fillStyle='rgba(44,45,61,.6)';c.font=font(700,34);c.fillText(popped?`فجّرت ${popped}`:'وجّه يدك واضغط الزناد لتفجير الكور',512,470);
+      c.fillStyle='rgba(44,45,61,.6)';c.font=font(700,34);c.fillText(popped?tr(`فجّرت ${popped}`,`Popped ${popped}`):tr('وجّه يدك واضغط الزناد لتفجير الكور','Aim and pull the trigger to pop the balls'),512,470);
       start.tex.needsUpdate=true;
     }
     function beginIntro(){const st=g.stage();if(st&&st.grp)st.grp.visible=false;intro={t:0,frames:0,balls:[],shots:[],sparks:[],ready:false,leaving:0,popped:0,spawned:false,gap:0};}
@@ -722,7 +738,15 @@
         // Controllers: the Y button. Hands (no buttons): turn the palm up.
         want=menuToggled;
         if(L.source?.hand){L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y;want=menuOpen?up<.15:up<-.3;}
-        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
+        if(want){
+          if(L.source?.hand){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
+          else{
+            // With a controller the pane stands up off the hand and tilts with it, leaning back a little toward you.
+            const q=L.grip.quaternion;
+            menu.mesh.position.copy(L.grip.position).addScaledVector(V(0,1,0).applyQuaternion(q),.2);
+            menu.mesh.quaternion.copy(q).multiply(MENU_LEAN);
+          }
+        }
       }
       menuOpen=want;
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
@@ -760,8 +784,10 @@
         if(pad){
           const now=[4,5].map(i=>!!pad.buttons[i]?.pressed),edge=now.map((b,i)=>b&&!h.buttons[i]);h.buttons=now;
           // Summit: A or X jumps, B or Y throws. Elsewhere either calls Dahrooj back.
-          // Y (left) opens and closes the menu. Summit: A or X jumps, B throws. Elsewhere A, B or X calls Dahrooj back.
-          if(h===leftHand()&&edge[1]){menuToggled=!menuToggled;}
+          // Y (left) opens and closes the menu, X (left) the challenges. Summit: A or X jumps, B throws. Elsewhere A or B calls Dahrooj back.
+          if(h===leftHand()&&edge[1]){menuToggled=!menuToggled;if(menuToggled)chOpen=false;menu.key='';}
+          // X (left) opens the challenges; again closes them. (On the Summit X still jumps.)
+          else if(h===leftHand()&&edge[0]&&!climbOn){if(menuToggled&&chOpen)menuToggled=false;else{menuToggled=true;chOpen=true;}menu.key='';}
           else if(climbOn){if(edge[0])climb3.jump();if(edge[1])climb3.throwBall();}
           else if(edge.some(Boolean))recall();
         }
@@ -861,7 +887,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get lang(){return lang;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

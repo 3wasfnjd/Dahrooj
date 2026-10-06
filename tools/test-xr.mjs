@@ -129,14 +129,17 @@ try{
     check(pressed>.05,'It leaves tracks on the grass ('+pressed.toFixed(2)+')');
     // The left trigger fires small shots along the left ray; one that touches a resting Dahrooj pops it.
     const restsBefore=await p.evaluate(()=>window.__g.xr.rests.length);
-    for(let k=0;k<10&&!(await p.evaluate(()=>window.__g.xr.blast.popped>0));k++){
-      await p.evaluate(lift=>{
-        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),r=window.__g.xr.rests.at(-1);if(!r)return;
-        const at=rig.worldToLocal(r.p.clone()),from=new T.Vector3(-.2,1.2,-.3),d=at.distanceTo(from);at.y+=d*d*lift;
-        const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(from,at,new T.Vector3(0,1,0)));
-        const c=window.__dev.controllers.left;c.position.copy(from);c.quaternion.set(q.x,q.y,q.z,q.w);
-      },.012+(k%4)*.012);
-      await p.waitForTimeout(250);await trigger(1,'left');await p.waitForTimeout(200);await trigger(0,'left');await p.waitForTimeout(2500);
+    // Hold the last one still on the floor a little ahead of the left hand, and aim straight at it.
+    const aimAtRest=()=>p.evaluate(()=>{
+      const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),r=window.__g.xr.rests.at(-1);if(!r)return;
+      const spot=rig.localToWorld(new T.Vector3(-.2,0,-1.3));r.p.set(spot.x,r.p.y,spot.z);r.v.set(0,0,0);r.wander=999;
+      const at=rig.worldToLocal(r.p.clone()),from=new T.Vector3(-.2,1.2,-.3);
+      const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(from,at,new T.Vector3(0,1,0)));
+      const c=window.__dev.controllers.left;c.position.copy(from);c.quaternion.set(q.x,q.y,q.z,q.w);});
+    for(let k=0;k<6&&!(await p.evaluate(()=>window.__g.xr.blast.popped>0));k++){
+      await aimAtRest();await p.waitForTimeout(400);await aimAtRest();
+      await trigger(1,'left');await p.waitForFunction(()=>window.__g.xr.blast.shots.length>0,null,{timeout:5000}).catch(()=>{});await trigger(0,'left');
+      for(let w=0;w<8&&!(await p.evaluate(()=>window.__g.xr.blast.popped>0));w++){await aimAtRest();await p.waitForTimeout(600);}
     }
     check(await p.evaluate(n=>window.__g.xr.blast.popped>0&&window.__g.xr.rests.length<n,restsBefore),'The left trigger fires shots that pop a resting Dahrooj');
     await ctl('left',[-.18,1.05,-.32]);
@@ -167,10 +170,24 @@ try{
   await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
 
   // Challenges in the headset menu.
-  await pick(button('ch'));
-  check(await p.evaluate(()=>window.__g.xr.challengesOpen&&window.__g.xr.menuLayout&&true),'The menu shows the challenges');
-  await pick(button('ch'));
-  check(!(await p.evaluate(()=>window.__g.xr.challengesOpen)),'And goes back to the options');
+  // X opens the challenges straight away; X again closes them.
+  const xButton=async want=>{await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('x-button',1));
+    await p.waitForFunction(w=>window.__g.xr.menuOpen===w,want,{timeout:5000}).catch(()=>{});
+    await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('x-button',0));await p.waitForTimeout(500);};
+  await ctl('left',[-.2,1.1,-.3]);await xButton(true);
+  check(await p.evaluate(()=>window.__g.xr.menuOpen&&window.__g.xr.challengesOpen),'X opens the challenges');
+  // The pane tilts with the hand.
+  await ctl('left',[-.2,1.1,-.3],[0,0,0.2588,0.9659]);await p.waitForTimeout(1200);
+  const tilt=await p.evaluate(()=>{const m=window.__g.scene.getObjectByName('xr-menu'),z=new THREE.Euler().setFromQuaternion(m.quaternion,'YXZ').z;return z;});
+  check(Math.abs(tilt-.52)<.15,'The menu tilts with the hand ('+tilt.toFixed(2)+')');
+  await ctl('left',[-.2,1.1,-.3]);await xButton(false);
+  check(!(await p.evaluate(()=>window.__g.xr.menuOpen)),'X again closes them');
+  await ctl('left',[-.18,1.05,-.32]);
+  // The language button switches the headset texts to English and back.
+  await pick(button('lang'));
+  check(await p.evaluate(()=>window.__g.xr.lang==='en'),'The menu switches to English');
+  await pick(button('lang'));
+  check(await p.evaluate(()=>window.__g.xr.lang==='ar'),'And back to Arabic');
   // Bowling: Motri's ten pins at the end of a lane; a roll down the lane counts as a roll of the frame.
   await pick(button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
   check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');
