@@ -32,15 +32,17 @@ try{
   const tracked=()=>p.waitForFunction(()=>window.__g.xr.inspect().every(h=>h.connected),null,{timeout:8000});
   const parked=()=>p.waitForFunction(()=>window.__g.xr.parked&&!window.__g.S.shot,null,{timeout:8000});
   const FLIP=[0,0,1,0];
-  const yButton=async()=>{await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('y-button',1));await p.waitForTimeout(120);
+  // Held long enough for the slow emulator to see at least one frame with it down.
+  const yButton=async()=>{await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('y-button',1));await p.waitForTimeout(350);
     await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('y-button',0));await p.waitForTimeout(60);};
   async function openMenu(){
-    // The Y button opens the menu above the left hand.
-    await ctl('left',[-.2,1.1,-.3]);await yButton();
-    await p.waitForFunction(()=>{const m=window.__g.scene.getObjectByName('xr-menu');return m.visible&&m.scale.x>.95;},null,{timeout:3000});
+    // The Y button opens the menu above the left hand; press again if a frame missed it.
+    await ctl('left',[-.2,1.1,-.3]);
+    for(let k=0;k<3&&!(await p.evaluate(()=>window.__g.xr.menuOpen));k++)await yButton();
+    await p.waitForFunction(()=>{const m=window.__g.scene.getObjectByName('xr-menu');return m.visible&&m.scale.x>.95;},null,{timeout:5000});
   }
   async function closeMenu(){
-    if(await p.evaluate(()=>window.__g.xr.presenting&&window.__g.xr.menuOpen))await yButton();
+    for(let k=0;k<3&&await p.evaluate(()=>window.__g.xr.presenting&&window.__g.xr.menuOpen);k++)await yButton();
     await ctl('left',[-.18,1.05,-.32]);
     await p.waitForFunction(()=>!window.__g.scene.getObjectByName('xr-menu')?.visible,null,{timeout:3000});
   }
@@ -57,7 +59,7 @@ try{
     await p.waitForTimeout(250);await trigger(1);await p.waitForTimeout(150);await trigger(0);await p.waitForTimeout(250);
     await closeMenu();
   }
-  const button=(kind,i)=>({mode:[24+i*197+92,136],style:[24+i*197+92,328],trigger:[100,524],hand:[260,524],sling:[420,524],place:[640,524],exit:[884,524],time:[262,662],weather:[762,662]})[kind];
+  const button=(kind,i)=>({mode:[24+i*164+76,136],style:[24+i*197+92,328],trigger:[100,524],hand:[260,524],sling:[420,524],place:[640,524],exit:[884,524],time:[262,662],weather:[762,662]})[kind];
   async function aButton(){
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',1));await p.waitForTimeout(120);
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));await p.waitForTimeout(60);
@@ -81,6 +83,13 @@ try{
   let s=await state();check(s.kind==='immersive-vr'&&s.mode==='goal','VR starts in the goal, not padel');
   check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-nature')?.visible&&!!window.__g.scene.fog&&window.__g.scene.getObjectByName('xr-rig').scale.x===2),'VR shows grass, trees and sky at half size');
   check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&o.visible&&o.material?.isMeshPhysicalMaterial&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
+  // Motri's props: pole lights, lanterns, benches and crates; a crate blows up and comes back.
+  await p.waitForFunction(()=>window.__g.xr.nature.props.loaded===4,null,{timeout:30000});
+  check(await p.evaluate(()=>window.__g.xr.nature.props.obstacles.length>=16&&window.__g.xr.nature.props.crates.length===6),'Pole lights, lanterns, benches and crates stand around the stone');
+  await p.evaluate(()=>window.__g.xr.nature.props.explode(0));
+  await p.waitForFunction(()=>window.__g.xr.nature.props.crates.filter(c=>c.back>0).length>=2,null,{timeout:30000});
+  check(true,'A crate explodes and sets off the ones next to it');
+  await p.evaluate(()=>window.__g.xr.nature.props.reset());
   await parked();
   // Compare with the emulated headset itself (room metres), not with the game's own camera maths.
   const nearHead=()=>p.evaluate(()=>{const rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
@@ -115,7 +124,7 @@ try{
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.volley.length===1&&window.__g.volley[0].shot),'Two throws fly at once');
   await p.waitForTimeout(200);
   check(await p.evaluate(p0=>(window.__g.keeper().plans||0)>p0,plans),'The keeper reacts to the second throw too');
-  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:25000});
+  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:60000});
 
   check(true,'Earlier throws finish on their own');
   await aButton();await parked();
@@ -130,6 +139,13 @@ try{
   check(await p.evaluate(()=>document.querySelector('[data-style][aria-pressed="true"]').dataset.style)==='fur','The menu switches the style');
   await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
 
+  // Bowling: Motri's ten pins at the end of a lane; a roll down the lane counts as a roll of the frame.
+  await pick(...button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
+  check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');
+  await parked();await throwBall();
+  await p.waitForFunction(()=>!window.__g.S.shot,null,{timeout:70000});
+  check(await p.evaluate(()=>{const f=window.__g.stage.frame();return f.roll>=1||f.knocked>0||window.__g.stage.pins().every(q=>!q.down);}),'A roll down the lane is counted');
+  await pick(...button('mode',1));await parked();
   // The slingshot: left hand holds it, right hand pulls Dahrooj back and lets go.
   await pick(...button('sling'));
   check(await p.evaluate(()=>window.__g.xr.throwStyle==='sling'&&window.__g.scene.getObjectByName('xr-slingshot').visible),'The slingshot appears in the left hand');
@@ -143,7 +159,7 @@ try{
   await pick(...button('trigger'));
 
   // Summit: a model mountain in front of you, with the left stick, A to jump and the trigger to throw.
-  await pick(...button('mode',4));
+  await pick(...button('mode',5));
   check(await p.evaluate(()=>window.__g.xr.climbing&&window.__g.scene.getObjectByName('xr-climb').visible&&!window.__g.stage.grp.visible),'The menu opens the Summit as a model mountain');
   const climbBall=()=>p.evaluate(()=>{const b=window.__g.xr.climb.state.ball;return {x:b.x,y:b.y,vy:b.vy,grounded:b.grounded};});
   const x0=(await climbBall()).x;

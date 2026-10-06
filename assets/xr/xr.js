@@ -11,7 +11,7 @@
   // Duel runs on the server in game time: its shots use game speed per real metre per second.
   const DUEL_GAIN=2;
   // Duel is paused in the headset for now.
-  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب'],['climb','الجبل']];
+  const MODES=[['goal','مرمى'],['hoop','سلة'],['window','شباك'],['cans','علب'],['bowling','بولينغ'],['climb','الجبل']];
   const STYLES=[['jelly','جيلي'],['fabric','قماش'],['clay','صلصال'],['fur','فرو'],['bubble','فقاعة']];
   const XR_MODES=new Set(MODES.map(m=>m[0]));
   const LABEL=Object.fromEntries(MODES);
@@ -114,7 +114,7 @@
     const MENU_W=.46,MENU_H=MENU_W*820/1024;
     const menu=panel(MENU_W,MENU_H,1024,820);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
     const buttons=[];
-    MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:24+i*197,y:80,w:185,h:112}));
+    MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:24+i*164,y:80,w:152,h:112}));
     STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:24+i*197,y:272,w:185,h:112}));
     buttons.push({kind:'throw',id:'trigger',label:'زناد',x:24,y:472,w:152,h:104});
     buttons.push({kind:'throw',id:'hand',label:'يد',x:184,y:472,w:152,h:104});
@@ -520,6 +520,15 @@
       renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local-floor');
       scene.add(rig);rig.add(camera);place();
       if(mode==='immersive-vr'&&!nature&&window.createDahroojNature)nature=window.createDahroojNature(T,{scene,hemi:g.hemi,sun:g.sun,lineMat:g.lineMat});
+      // A crate going up throws every Dahrooj nearby into the air.
+      if(nature?.props&&!nature.props.onExplode)nature.props.onExplode=(at,R)=>{
+        g.boom?.();
+        const blast=(p,v)=>{const d=V(p.x-at.x,0,p.z-at.z),l=d.length();if(l>R)return;const k=1-l/R;
+          if(l>.01)v.addScaledVector(d.divideScalar(l),9*k);v.y+=6*k;p.y=Math.max(p.y,BR+.01);};
+        for(const r of rests)blast(r.p,r.v);
+        for(const b of g.volley())blast(b.pos,b.vel);
+        if(S.shot&&!S.held)blast(S.pos,S.vel);
+      };
       if(nature)nature.enable(mode==='immersive-vr');
       floor.visible=mode==='immersive-vr'&&!nature;
       s.addEventListener('end',onEnd);
@@ -618,7 +627,7 @@
     function loop(time,frame){
       const dt=lastTime?clamp((time-lastTime)/1000,0,.05):1/72;lastTime=time;clock+=dt;frames++;
       const st=g.stage();
-      if(natureOn()){eyeNow();nature.setPitch?.(targetPoint().z);nature.update(dt,eye);}
+      if(natureOn()){eyeNow();nature.setPitch?.(g.stage().farZ??targetPoint().z);nature.update(dt,eye);}
       else if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
       if(placedFor!==g.mode())place();
       updateMenu(dt);
@@ -706,6 +715,13 @@
         stepRests(dt*timeK());
         if(!S.held)markBall(S.pos,S.vel);
         for(const b of g.volley())markBall(b.pos,b.vel);
+        // Motri's props: Dahrooj bounces off poles and benches, shoves lanterns and sets off crates.
+        if(natureOn()&&nature.props){
+          const P=nature.props;
+          if(S.shot&&!S.held&&P.collide(S.pos,S.vel,BR))g.bump(Math.min(1,Math.hypot(S.vel.x,S.vel.z)/12));
+          for(const b of g.volley())P.collide(b.pos,b.vel,BR);
+          for(const r of rests)P.collide(r.p,r.v,BR);
+        }
       }
       // Dahrooj, the Duel opponent and small balls.
       const d=S.d,shown=(!st.playerVisible||st.playerVisible())&&!((placing||intro||climbOn||!(parked||holder||S.shot))&&!st.networked),actors=st.xrActors?st.xrActors():[];
