@@ -92,7 +92,7 @@ try{
   await ctl('left',[-.18,1.05,-.32]);
   let s=await state();check(s.kind==='immersive-vr'&&s.mode==='goal','VR starts in the goal, not padel');
   check(await p.evaluate(()=>window.__g.scene.getObjectByName('xr-nature')?.visible&&!!window.__g.scene.fog&&window.__g.scene.getObjectByName('xr-rig').scale.x===2),'VR shows grass, trees and sky at half size');
-  check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&o.visible&&o.material?.isMeshPhysicalMaterial&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
+  check(await p.evaluate(()=>{let found=false;window.__g.scene.traverse(o=>{if(o.isMesh&&(o.material?.isMeshPhysicalMaterial||o.material?.isShaderMaterial)&&o.geometry?.parameters?.radius>.2)found=true;});return found;}),'Dahrooj is a 3D model in the headset');
   // Motri's props: pole lights, lanterns, benches and crates; a crate blows up and comes back.
   await p.waitForFunction(()=>window.__g.xr.nature.props.loaded===4,null,{timeout:30000});
   check(await p.evaluate(()=>window.__g.xr.nature.props.obstacles.length>=16&&window.__g.xr.nature.props.crates.length===6),'Pole lights, lanterns, benches and crates stand around the stone');
@@ -105,7 +105,9 @@ try{
   const nearHead=()=>p.evaluate(()=>{const rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
     const b=rig.worldToLocal(window.__g.S.pos.clone());return Math.hypot(b.x-h.x,b.y-h.y,b.z-h.z);});
   const dHead=await nearHead();check(dHead<1,'Dahrooj waits within reach of the real head ('+dHead.toFixed(2)+' m)');
+  await p.waitForTimeout(800);check(!(await p.evaluate(()=>window.__g.xr.ballShown)),'Waiting, Dahrooj is out of sight until the trigger');
   check(await throwBall(),'The trigger takes Dahrooj into the hand');
+  check(await p.evaluate(()=>window.__g.xr.ballShown),'He shows once the trigger takes him, and in flight');
   s=await state();check(s.shot&&!s.held,'Letting go throws with the hand velocity');
   const v=await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up');
   // A or X brings Dahrooj straight back.
@@ -162,6 +164,11 @@ try{
   check(await p.evaluate(()=>document.querySelector('[data-style][aria-pressed="true"]').dataset.style)==='fur','The menu switches the style');
   await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
 
+  // Challenges in the headset menu.
+  await pick(button('ch'));
+  check(await p.evaluate(()=>window.__g.xr.challengesOpen&&window.__g.xr.menuLayout&&true),'The menu shows the challenges');
+  await pick(button('ch'));
+  check(!(await p.evaluate(()=>window.__g.xr.challengesOpen)),'And goes back to the options');
   // Bowling: Motri's ten pins at the end of a lane; a roll down the lane counts as a roll of the frame.
   await pick(button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
   check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');

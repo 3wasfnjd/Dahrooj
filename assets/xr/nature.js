@@ -24,6 +24,8 @@
   };
   const DAY_KEYS=[[DAY.day,0],[DAY.day,.15],[DAY.dusk,.25],[DAY.night,.35],[DAY.night,.6],[DAY.dawn,.8],[DAY.day,.9]];
   const DAY_SECONDS=4*60;
+  // Auto weather takes its turn like the day does: clear, rain, clear, snow, every six minutes.
+  const WEATHER_SECONDS=6*60;
   // YearCycles.js: seasons on the real date.
   const YEAR={winter:{temperature:5,humidity:.8,clouds:.65,wind:.3},spring:{temperature:15,humidity:.65,clouds:.45,wind:.2},
     summer:{temperature:25,humidity:.5,clouds:.3,wind:.1},fall:{temperature:15,humidity:.65,clouds:.65,wind:.25}};
@@ -522,6 +524,13 @@
         w.wind=noise(dayAbs)*.5+.5;
         w.rain=remapClamp(w.humidity,.65,1,0,1)*remapClamp(w.clouds,0,1,0,1);
         w.snow=remapClamp(w.rain,.05,.3,0,1)*remapClamp(w.temperature,0,-5,0,1)+remapClamp(w.temperature,0,10,0,-1);
+        // Auto: a cycle on the clock (Motri's own formulas left rain rare and snow to cold winters).
+        if(state.weather==='auto'){
+          const q=(now/WEATHER_SECONDS)%1,band=(a,b)=>clamp(Math.min((q-a)/.04,(b-q)/.04),0,1);
+          const rainy=band(.22,.45),snowy=band(.68,.92);
+          w.rain=Math.max(rainy*.85,snowy*.8);w.snow=snowy>0?snowy*2-1:-1;
+          w.wind=Math.max(w.wind,rainy*.65);w.weatherPhase=q;
+        }
         // The menu can force a spell, like Motri's weather override.
         if(state.weather==='clear'){w.rain=0;w.snow=-1;}
         else if(state.weather==='rain'){w.rain=.8;w.snow=-1;w.wind=Math.max(w.wind,.6);}

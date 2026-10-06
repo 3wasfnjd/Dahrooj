@@ -1773,7 +1773,7 @@ function make3D(){
           if(c.calm>.6) c.sleep=true;
           if(!c.down && isDown(c)){ c.down=true; knocked++; addCount('bowling'); }
         }
-        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(roll===0?'سترايك!':'سبير!'); }
+        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(roll===0?'سترايك!':'سبير!'); if(roll===0) chProgress('strike1',1); }
       }
     };
   }
@@ -2486,6 +2486,9 @@ function make3D(){
     sprite:(style,face,blink)=>makeStartBallSprite(style,face,blink,{t:0,parts:[]}),
     drawFace(c,Rr,face,lx,ly,blush,blink,style,noEyes){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink,noEyes);}finally{ballStyle=prev;}},
     style:()=>ballStyle, setMode:m=>setMode(m), setStyle:v=>setStyle(v), mode:()=>mode,
+    // Challenges for the headset menu, and a step forward on one from the headset (crates, blaster).
+    challenges:()=>CHALLENGES.map(c=>({id:c.id,title:c.title,goal:c.goal,value:Math.min(c.goal,chState[c.id]||0)})),
+    chAdd:id=>chProgress(id,(chState[id]||0)+1),
     texts:()=>({count:elCount.textContent,turn:elCount.dataset.turn||'',toast:elToast.classList.contains('show')?elToast.textContent:'',title:elTitle.classList.contains('show')?elTitle.textContent:''}),
     paper:()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#ddd2c1'});
   return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};
@@ -2502,6 +2505,9 @@ const CHALLENGES=[
   {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
   {id:'summit1',  title:'اوصل قمة الجبل',                 goal:1},
   {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     goal:15},
+  {id:'strike1',  title:'سترايك في البولينغ',               goal:1},
+  {id:'crates5',  title:'فجّر ٥ صناديق في عالم النظارة',     goal:5},
+  {id:'pop20',    title:'فجّر ٢٠ دحروج بالزناد اليسار',     goal:20},
 ];
 let chState={}, stylesUsed=[];
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
