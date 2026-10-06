@@ -727,11 +727,14 @@ function drawXStitch(c,R){
 }
 
 // eyes, mouth and cheeks, drawn around (0,0) for a body of radius Rr
-function drawFace(c,Rr,face,lx,ly,blushK,blinkOn){
+// noEyes: the headset model has real 3D eyes and takes only the rest of the face from here.
+function drawFace(c,Rr,face,lx,ly,blushK,blinkOn,noEyes){
   if(face==='none') return;
   const er=Rr*0.19, ex=Rr*0.31, ey=-Rr*0.08+ly*Rr*0.06, exo=lx*Rr*0.08;
-  drawEye(c,-ex+exo,ey,er,lx,ly,face,blinkOn);
-  drawEye(c,ex+exo,ey,er,lx,ly,face,blinkOn);
+  if(!noEyes){
+    drawEye(c,-ex+exo,ey,er,lx,ly,face,blinkOn);
+    drawEye(c,ex+exo,ey,er,lx,ly,face,blinkOn);
+  }
   if(face==='wide'||face==='dizzy'){
     c.fillStyle=COL.ink;
     c.beginPath(); c.ellipse(exo,Rr*0.32+ly*Rr*0.05,Rr*0.07,Rr*0.09,0,0,Math.PI*2); c.fill();
@@ -2481,7 +2484,7 @@ function make3D(){
     recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
     canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),
     sprite:(style,face,blink)=>makeStartBallSprite(style,face,blink,{t:0,parts:[]}),
-    drawFace(c,Rr,face,lx,ly,blush,blink,style){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink);}finally{ballStyle=prev;}},
+    drawFace(c,Rr,face,lx,ly,blush,blink,style,noEyes){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink,noEyes);}finally{ballStyle=prev;}},
     style:()=>ballStyle, setMode:m=>setMode(m), setStyle:v=>setStyle(v), mode:()=>mode,
     texts:()=>({count:elCount.textContent,turn:elCount.dataset.turn||'',toast:elToast.classList.contains('show')?elToast.textContent:'',title:elTitle.classList.contains('show')?elTitle.textContent:''}),
     paper:()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#ddd2c1'});
