@@ -2193,7 +2193,7 @@ function make3D(){
     const WZ=-11, FR=0.05;
     groundLine(grp,-14,WZ,14,WZ);
     const START=1.15, MIN=BR*2*1.2, SHRINK=0.85;
-    const W={size:START,x:2.4,y:1.6,frame:null,bars:[],pop:1,won:false};
+    const W={size:START,x:2.4,y:1.6,frame:null,bars:[],pop:1,won:false,moveT:0};
     function build(){
       if(W.frame){ grp.remove(W.frame); W.frame.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
       W.frame=new T.Group(); grp.add(W.frame);
@@ -2220,17 +2220,20 @@ function make3D(){
       grp, aimZ:WZ,
       ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
       behind:P=>P.z<WZ-0.05,
-      onRespawn(){ if(W.won){ W.won=false; relocate(); } },
+      // The window moves on its own a moment after a hit, whichever Dahrooj scored (in the headset the
+      // next throw often starts before the scoring ball comes back, so waiting for a respawn left it stuck).
+      onRespawn(){ if(W.won&&W.moveT<=0){ W.won=false; relocate(); } },
       collide(){
         const P=S.pos, o=W.frame.position;
         for(const [a,b] of W.bars){ if(segCollide(wp.copy(a).add(o),wq.copy(b).add(o),FR,0.6)) ooh(); }
         segCollide(V(o.x,0,WZ),V(o.x,o.y-W.size/2-FR,WZ),0.035,0.5);
         if(S.shot && S.scoredT<=0 && S.missT<=0 && S.prevZ>=WZ && P.z<WZ){
           const h=W.size/2;
-          if(Math.abs(P.x-o.x)<h && Math.abs(P.y-o.y)<h){ W.won=true; success(); } else miss();
+          if(Math.abs(P.x-o.x)<h && Math.abs(P.y-o.y)<h){ if(!W.won){ W.won=true; W.moveT=1.2; } success(); } else miss();
         }
       },
       update(dt){
+        if(W.won&&W.moveT>0){ W.moveT-=dt; if(W.moveT<=0){ W.won=false; relocate(); } }
         if(W.pop<1){ W.pop=Math.min(1,W.pop+dt*3.5); const t=W.pop, s=1+Math.sin(t*Math.PI)*0.25*(1-t); W.frame.scale.setScalar(Math.max(0.001,t<1?Math.min(1,t*1.4)*s:1)); }
       }
     };

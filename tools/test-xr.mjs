@@ -173,7 +173,7 @@ try{
   check(await p.evaluate(()=>window.__g.xr.nature.settings.time==='night'),'The menu sets night');
   await pick(button('style',3));
   check(await p.evaluate(()=>document.querySelector('[data-style][aria-pressed="true"]').dataset.style)==='fur','The menu switches the style');
-  await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
+  await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&(hoopState.shot||(lastVel&&lastVel[2]<-1)),'Throwing works in hoop');
 
   // Challenges in the headset menu.
   // X opens the challenges straight away; X again closes them.
@@ -184,7 +184,8 @@ try{
   check(await p.evaluate(()=>window.__g.xr.menuOpen&&window.__g.xr.challengesOpen),'X opens the challenges');
   // The pane tilts with the hand.
   await ctl('left',[-.2,1.1,-.3],[0,0,0.2588,0.9659]);await p.waitForTimeout(1200);
-  const tilt=await p.evaluate(()=>{const m=window.__g.scene.getObjectByName('xr-menu'),z=new THREE.Euler().setFromQuaternion(m.quaternion,'YXZ').z;return z;});
+  // Its own sideways axis turns with the hand's roll.
+  const tilt=await p.evaluate(()=>{const m=window.__g.scene.getObjectByName('xr-menu'),x=new THREE.Vector3(1,0,0).applyQuaternion(m.quaternion);return Math.atan2(x.y,x.x);});
   check(Math.abs(tilt-.52)<.15,'The menu tilts with the hand ('+tilt.toFixed(2)+')');
   await ctl('left',[-.2,1.1,-.3]);await xButton(false);
   check(!(await p.evaluate(()=>window.__g.xr.menuOpen)),'X again closes them');

@@ -139,7 +139,7 @@
       }
     }
     layoutMenu();
-    let chOpen=false;const MENU_LEAN=new T.Quaternion().setFromEuler(new T.Euler(-.35,0,0));
+    let chOpen=false;const MENU_LEAN=new T.Quaternion().setFromEuler(new T.Euler(-1.3,0,0));
     const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
@@ -820,9 +820,10 @@
         if(want){
           if(L.source?.hand){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
           else{
-            // With a controller the pane stands up off the hand and tilts with it, leaning back a little toward you.
+            // With a controller the pane rises from the wrist, like a hologram from a watch: it tilts with
+            // the hand and leans back toward you.
             const q=L.grip.quaternion;
-            menu.mesh.position.copy(L.grip.position).addScaledVector(V(0,1,0).applyQuaternion(q),.2);
+            menu.mesh.position.copy(L.grip.position).add(V(0,.13,.08).applyQuaternion(q));
             menu.mesh.quaternion.copy(q).multiply(MENU_LEAN);
           }
         }
