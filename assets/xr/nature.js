@@ -274,7 +274,7 @@
       const poles=[],benches=[],lanterns=[];
       for(const s of[-1,1]){
         for(const z of[4,-7,-18])poles.push({x:cx+s*10.3,z,rot:0});
-        for(const z of[-1.5,-12.5]){benches.push({x:cx+s*11.9,z,rot:s*Math.PI/2});lanterns.push({x:cx+s*11.9,z:z+1.75,rot:.4*s},{x:cx+s*11.9,z:z-1.75,rot:-.3*s});}
+        for(const z of[-1.5,-12.5]){benches.push({x:cx+s*11.9,z,rot:-s*Math.PI/2});lanterns.push({x:cx+s*11.9,z:z+1.75,rot:.4*s},{x:cx+s*11.9,z:z-1.75,rot:-.3*s});}
       }
       const crateSpots=[];
       for(const [x,z] of[[-7.4,-4],[7.4,-14]]){const s=Math.sign(x);
