@@ -127,6 +127,12 @@ try{
     await p.waitForFunction(`(${pressedFn})()>.05`,null,{timeout:30000}).catch(()=>{});
     const pressed=await p.evaluate(`(${pressedFn})()`);
     check(pressed>.05,'It leaves tracks on the grass ('+pressed.toFixed(2)+')');
+    // Pat a resting Dahrooj with your hand and he giggles.
+    await p.evaluate(()=>{const rig=window.__g.scene.getObjectByName('xr-rig'),r=window.__g.xr.rests.at(-1);r.wander=999;r.v.set(0,0,0);
+      const at=rig.worldToLocal(r.p.clone());window.__dev.controllers.right.position.set(at.x,at.y,at.z);});
+    const patted=await p.waitForFunction(()=>window.__g.xr.rests.some(r=>r.moodT>0&&r.mood==='joy'),null,{timeout:8000}).then(()=>true,()=>false);
+    await ctl('right',[.2,1.2,-.3]);
+    check(patted,'Patting a resting Dahrooj makes him giggle');
     // The left trigger fires small shots along the left ray; one that touches a resting Dahrooj pops it.
     const restsBefore=await p.evaluate(()=>window.__g.xr.rests.length);
     // Hold the last one still on the floor a little ahead of the left hand, and aim straight at it.

@@ -728,7 +728,7 @@
     g.setRestHook?.((pos,vel)=>{
       if(!session||g.stage().networked||climbOn)return;
       const m=models?models.make(g.style(),{lite:true}):null;if(m)scene.add(m.group);
-      rests.push({m,style:g.style(),p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3});
+      rests.push({m,style:g.style(),p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3,mood:null,moodT:0,petT:0});
       if(rests.length>RESTS_MAX){const o=rests.shift();if(o.m){scene.remove(o.m.group);models.forget?.(o.m.group);}}
     });
     function clearRests(){for(const r of rests)if(r.m){scene.remove(r.m.group);models.forget?.(r.m.group);}rests.length=0;}
@@ -763,11 +763,30 @@
           const rel=b.v.clone().sub(a.v).dot(n);if(rel<0){a.v.addScaledVector(n,rel*.9);b.v.addScaledVector(n,-rel*.9);}}
       }
     }
+    /* ---------- Dahrooj feels you: pat one and he giggles; shake the one in your hand and he gets dizzy ---------- */
+    const handAt=V(0,0,0);
+    function feelHands(dt){
+      for(const r of rests){r.moodT=Math.max(0,r.moodT-dt);r.petT=Math.max(0,r.petT-dt);}
+      for(const h of hands){
+        if(!h.source)continue;h.grip.getWorldPosition(handAt);
+        for(const r of rests){
+          if(r.petT>0||handAt.distanceTo(r.p)>BR*1.7)continue;
+          r.petT=1.4;r.mood='joy';r.moodT=1.3;r.dv-=4;if(r.p.y<=BR*1.05)r.v.y=2.2;r.blink=0;
+          g.squeak?.(1+Math.random()*.3);g.chAdd?.('pet5');
+        }
+      }
+      // Shaking: the holding hand travels a long way over a quarter second but stays in one place.
+      if(holder&&holder.hist.length>4){
+        const k=scaleNow(),hs=holder.hist;let path=0;for(let i=1;i<hs.length;i++)path+=hs[i].p.distanceTo(hs[i-1].p);
+        const net=hs[hs.length-1].p.distanceTo(hs[0].p);
+        if(path/k>.55&&net/k<.18&&!(S.mood==='dizzy'&&S.moodT>0)){S.mood='dizzy';S.moodT=1.8;S.moodNext=null;g.squeak?.(.7);}
+      }
+    }
     function drawRests(){
       for(const r of rests){
         if(!r.m)continue;r.m.group.visible=!climbOn&&!intro;
         const sp=Math.hypot(r.v.x,r.v.z);
-        r.m.update({pos:V(r.p.x,r.p.y-BR*Math.max(0,r.d),r.p.z),toward:eye,faceName:sp>5?'wide':'open',blink:r.blink>0,squash:[1+r.d*.75,1-r.d]});
+        r.m.update({pos:V(r.p.x,r.p.y-BR*Math.max(0,r.d),r.p.z),toward:eye,faceName:r.moodT>0?r.mood:sp>5?'wide':'open',blink:r.blink>0,squash:[1+r.d*.75,1-r.d]});
       }
     }
 
@@ -893,7 +912,7 @@
       if(climbOn){eyeNow();climb3.update(dt,{style:g.style(),eye,onEvent:climbEvent});}
       else{
         g.step(dt*timeK());
-        stepRests(dt*timeK());
+        stepRests(dt*timeK());feelHands(dt);
         if(!S.held)markBall(S.pos,S.vel);
         for(const b of g.volley())markBall(b.pos,b.vel);
         // Motri's props: Dahrooj bounces off poles and benches, shoves lanterns and sets off crates.

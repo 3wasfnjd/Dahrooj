@@ -410,6 +410,18 @@ function thump(s){
   g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.05+s*0.28,t+.006); g.gain.exponentialRampToValueAtTime(0.0001,t+.2);
   o.connect(g).connect(audio.destination); o.start(t); o.stop(t+.22);
 }
+// Dahrooj's squeak when you pat or shake him: a quick rising chirp with a wobble (made here).
+function squeak(pitch=1){
+  if(!audio) return;
+  const t=audio.currentTime;
+  for(const [d,f0,f1] of [[0,520,980],[.09,700,1250]]){
+    const o=audio.createOscillator(), g=audio.createGain(), lfo=audio.createOscillator(), lg=audio.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(f0*pitch,t+d); o.frequency.exponentialRampToValueAtTime(f1*pitch,t+d+.08);
+    lfo.frequency.value=38; lg.gain.value=30*pitch; lfo.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(.0001,t+d); g.gain.exponentialRampToValueAtTime(.09,t+d+.012); g.gain.exponentialRampToValueAtTime(.0001,t+d+.11);
+    o.connect(g).connect(audio.destination); o.start(t+d); o.stop(t+d+.12); lfo.start(t+d); lfo.stop(t+d+.12);
+  }
+}
 // A short, low burst of filtered noise for an exploding crate (made here, no recorded sounds).
 function boom(){
   if(!audio) return;
@@ -2477,7 +2489,7 @@ function make3D(){
   if(window.createDahroojXR) xr=window.createDahroojXR({T,renderer,scene,camera,S,BR,GRAV,V,UP,ground,hemi,sun,lineMat,
     stage:()=>stage, stageName:()=>stageName,
     step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
-    render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s), boom:()=>boom(),
+    render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s), boom:()=>boom(), squeak:p=>squeak(p),
     popSound:()=>startPopSound(),
     another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
     climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e), setRestHook:fn=>{restHook=fn;},
@@ -2510,6 +2522,7 @@ const CHALLENGES=[
   {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     en:'Beat 15 monsters on the Summit', goal:15},
   {id:'strike1',  title:'سترايك في البولينغ',               en:'A strike in bowling', goal:1},
   {id:'crates5',  title:'فجّر ٥ صناديق في عالم النظارة',     en:'Blow up 5 crates in the headset world', goal:5},
+  {id:'pet5',     title:'ربّت على دحروج ٥ مرات في النظارة', en:'Pat Dahrooj 5 times in the headset', goal:5},
   {id:'pop20',    title:'فجّر ٢٠ دحروج بالزناد اليسار',     en:'Pop 20 Dahroojs with the left trigger', goal:20},
 ];
 let chState={}, stylesUsed=[];
