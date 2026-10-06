@@ -200,7 +200,13 @@ try{
   check(thrown,'The trigger throws a ball at the monsters');
   const head=await p.evaluate(()=>{const g=window.__g.scene.getObjectByName('xr-climb'),rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
     const p=rig.worldToLocal(g.getWorldPosition(new THREE.Vector3()));return Math.hypot(p.x-h.x,p.z-h.z);});
-  check(head>.4&&head<1.1,'The mountain stands within reach in front of you ('+head.toFixed(2)+' m)');
+  check(head>4&&head<8,'The mountain stands on the ground where the goal stands ('+head.toFixed(2)+' m)');
+  // The right stick still makes it bigger or smaller.
+  const unit0=await p.evaluate(()=>window.__g.scene.getObjectByName('xr-climb').children[0]?.scale.x||0);
+  await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,-1));
+  const grew=await p.waitForFunction(u=>window.__g.scene.getObjectByName('xr-climb').children[0].scale.x>u*1.05,unit0,{timeout:10000}).then(()=>true,()=>false);
+  await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,0));
+  check(grew,'The right stick resizes the mountain');
   await pick(button('mode',0));
   check(await p.evaluate(()=>!window.__g.xr.climbing&&!window.__g.scene.getObjectByName('xr-climb').visible&&window.__g.stage.grp.visible&&window.__g.stageName==='goal'),'Leaving the Summit brings the goal back');
   await pick(button('exit'));
