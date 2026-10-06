@@ -525,6 +525,7 @@
         const s=blast.shots[i];s.t+=dt;s.v.y-=G*dt*(s.t<.3?.12:1);s.p.addScaledVector(s.v,dt);
         if(s.p.y<R){s.p.y=R;if(s.v.y<-.8*k)s.v.y*=-.45;else s.v.y=0;s.v.x*=Math.pow(.55,dt);s.v.z*=Math.pow(.55,dt);}
         if(natureOn()&&nature.props)nature.props.collide(s.p,s.v,R);
+        roomCollide(s.p,s.v,R,dt);
         const sp=Math.hypot(s.v.x,s.v.z);
         if(sp>.01){const axis=V(s.v.z,0,-s.v.x).normalize();s.q.premultiply(new T.Quaternion().setFromAxisAngle(axis,sp/R*dt));}
         if(s.model){s.model.update({pos:s.p.clone()});s.m.scale.setScalar(R/BR);}else s.m.scale.setScalar(R);
@@ -578,6 +579,53 @@
       return null;
     }
     // Outline the surfaces the headset found while choosing a spot.
+    /* ---------- mixed reality: the real room's walls and furniture as colliders (AR) ---------- */
+    // The headset's detected planes (walls, tables, sofa, ceiling...) are turned into game space every
+    // frame. A ball is tested along the path it moved this frame, so a fast throw can't slip through a
+    // wall between two frames. The real floor stays the game's own floor.
+    const roomPlanes=new Map(),lp=V(0,0,0),lq=V(0,0,0),rn=V(0,0,0);
+    function updateRoom(frame){
+      if(kind!=='immersive-ar'){if(roomPlanes.size)for(const [k,e] of roomPlanes)if(!e.test)roomPlanes.delete(k);return;}
+      const planes=frame&&frame.detectedPlanes,space=renderer.xr.getReferenceSpace();if(!planes||!space)return;
+      rig.updateMatrixWorld();const seen=new Set();
+      for(const plane of planes){
+        const label=(plane.semanticLabel||'').toLowerCase();if(label==='floor')continue;
+        const pose=frame.getPose(plane.planeSpace,space);if(!pose)continue;seen.add(plane);
+        let e=roomPlanes.get(plane);if(!e){e={m:new T.Matrix4(),inv:new T.Matrix4()};roomPlanes.set(plane,e);}
+        if(e.t!==plane.lastChangedTime){e.t=plane.lastChangedTime;e.poly=plane.polygon.map(q=>[q.x,q.z]);}
+        e.label=label;e.m.fromArray(pose.transform.matrix).premultiply(rig.matrixWorld);e.inv.copy(e.m).invert();
+      }
+      for(const [k,e] of roomPlanes)if(!e.test&&!seen.has(k))roomPlanes.delete(k);
+    }
+    function inPoly(x,z,poly){
+      let inside=false;
+      for(let i=0,j=poly.length-1;i<poly.length;j=i++){const [xi,zi]=poly[i],[xj,zj]=poly[j];
+        if(((zi>z)!==(zj>z))&&(x<(xj-xi)*(z-zi)/(zj-zi)+xi))inside=!inside;}
+      return inside;
+    }
+    // Sphere (game units) against every room plane; bounces off like the game's own walls.
+    function roomCollide(p,v,R,step){
+      if(!roomPlanes.size)return 0;
+      let hit=0;const s=rig.scale.x,r=R/s;
+      for(const e of roomPlanes.values()){
+        lp.copy(p).applyMatrix4(e.inv);lq.copy(p).addScaledVector(v,-step).applyMatrix4(e.inv);
+        const crossed=(lp.y>0)!==(lq.y>0);
+        if(!crossed&&Math.abs(lp.y)>=r)continue;
+        // Where the path met the plane (or the nearest point), inside the surface's outline?
+        const t=crossed?lq.y/(lq.y-lp.y):1,cx=lq.x+(lp.x-lq.x)*t,cz=lq.z+(lp.z-lq.z)*t;
+        if(!inPoly(cx,cz,e.poly))continue;
+        // Back onto the side it came from, touching the surface, and a bounce that loses a little.
+        const side=(crossed?lq.y:lp.y)>=0?1:-1;
+        rn.set(0,side,0).transformDirection(e.m);
+        if(crossed)p.copy(lp.set(cx,side*r*1.001,cz).applyMatrix4(e.m));
+        else p.addScaledVector(rn,(r-Math.abs(lp.y))*s);
+        const vn=v.dot(rn);if(vn<0){v.addScaledVector(rn,-1.55*vn);v.multiplyScalar(.92);hit=Math.max(hit,-vn);}
+      }
+      return hit;
+    }
+    // For tests: a stand-in wall (matrix in rig space, outline in its own x/z).
+    function addTestPlane(matrixArray,poly){rig.updateMatrixWorld();const m=new T.Matrix4().fromArray(matrixArray).premultiply(rig.matrixWorld);
+      roomPlanes.set({},{test:true,m,inv:m.clone().invert(),poly,label:'wall'});}
     function showPlanes(frame){
       const planes=frame&&frame.detectedPlanes,space=renderer.xr.getReferenceSpace(),seen=new Set();
       if(placing&&planes&&space)for(const plane of planes){
@@ -770,6 +818,7 @@
         }
       }else reticle.visible=false;
       if(kind==='immersive-ar')showPlanes(frame);
+      updateRoom(frame);
       const hover=[],F=climbOn?null:forkHand();let startHot=false,stickX=0;
       for(const h of hands){
         h.grip.getWorldPosition(wp);h.hist.push({p:wp.clone(),t:clock});
@@ -848,6 +897,13 @@
         if(!S.held)markBall(S.pos,S.vel);
         for(const b of g.volley())markBall(b.pos,b.vel);
         // Motri's props: Dahrooj bounces off poles and benches, shoves lanterns and sets off crates.
+        // Mixed reality: the real walls and furniture.
+        if(roomPlanes.size){
+          const k=dt*timeK();
+          if(S.shot&&!S.held){const h=roomCollide(S.pos,S.vel,BR,k);if(h>1)g.bump(Math.min(1,h/12));}
+          for(const b of g.volley())roomCollide(b.pos,b.vel,BR,k);
+          for(const r of rests)roomCollide(r.p,r.v,BR,k);
+        }
         if(natureOn()&&nature.props){
           const P=nature.props;
           if(S.shot&&!S.held&&P.collide(S.pos,S.vel,BR))g.bump(Math.min(1,Math.hypot(S.vel.x,S.vel.z)/12));
@@ -887,7 +943,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get lang(){return lang;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get ballShown(){return !!ballModel?.group.visible;},get challengesOpen(){return chOpen;},get lang(){return lang;},get roomPlanes(){return roomPlanes.size;},addTestPlane,get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

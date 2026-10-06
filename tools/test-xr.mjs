@@ -265,6 +265,18 @@ try{
   await trigger(0);await p.waitForTimeout(300);
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.S.missT===0),'A throw from far away stays in play');
   await aButton();await p.evaluate(()=>{window.__dev.position.z-=1.5;});await ctl('right',[.2,1.2,-.3]);await ctl('left',[-.18,1.05,-.32]);await parked();
+  // Mixed reality: a real wall a metre ahead (a stand-in plane here) stops Dahrooj, who bounces back.
+  await p.evaluate(()=>window.__g.xr.addTestPlane(new THREE.Matrix4().makeRotationX(Math.PI/2).setPosition(0,1,-.9).toArray(),[[-2,-2],[2,-2],[2,2],[-2,2]]));
+  await ctl('right',[.2,1.2,-.3]);await p.waitForTimeout(150);await trigger(1);
+  await p.waitForFunction(()=>window.__g.xr.holding,null,{timeout:5000}).catch(()=>{});await p.waitForTimeout(200);
+  for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.02,-.3-i*.06),i);await p.waitForTimeout(14);}
+  await trigger(0);
+  const path=[];
+  for(let k=0;k<25;k++){await p.waitForTimeout(250);path.push(await p.evaluate(()=>{const rig=window.__g.scene.getObjectByName('xr-rig');return window.__g.S.shot?rig.worldToLocal(window.__g.S.pos.clone()).z:null;}));}
+  const zs=path.filter(z=>z!==null),minZ=Math.min(...zs),back=zs.some((z,i)=>i>0&&z>zs[i-1]+.02&&zs.slice(0,i).some(q=>q<-.6));
+  check(zs.length>2&&minZ>-.95,'A real wall stops Dahrooj in AR (nearest '+minZ.toFixed(2)+' m, wall at -0.90)');
+  check(back,'He bounces back off it');
+  await aButton();await parked();
   // Thumbstick up makes the court bigger (a smaller world scale), within limits.
   await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,-1));await p.waitForTimeout(1500);
   await p.evaluate(()=>window.__dev.controllers.right.updateAxes('thumbstick',0,0));await p.waitForTimeout(100);
