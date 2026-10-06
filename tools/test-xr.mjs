@@ -277,20 +277,20 @@ try{
     // The emulator runs few frames a second and each frame advances at most 50 ms, so allow time.
     await q.waitForFunction(()=>window.__g.scene.getObjectByName('xr-start')?.visible,null,{timeout:30000});
     const countLanded=()=>{
-      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10);
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro');
       return group?group.children.filter(m=>m.visible&&m.position.y<.24*1.6).length:0;};
     // They keep hopping, so take the count at the moment enough of them are down.
     const landed=await q.waitForFunction(`(()=>{const n=(${countLanded})();return n>=5?n:0;})()`,null,{timeout:40000}).then(h=>h.jsonValue(),()=>q.evaluate(`(${countLanded})()`));
     check(landed>=5,'Dahrooj balls fall onto the floor ('+landed+')');
     const spread=await q.evaluate(()=>{
-      const rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=10),h=window.__dev.position;
+      const rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro'),h=window.__dev.position;
       return Math.max(...group.children.map(m=>{const p=rig.worldToLocal(group.localToWorld(m.position.clone()));return Math.hypot(p.x-h.x,p.z-h.z);}));});
     check(spread<3.1,'They land around the player in the room ('+spread.toFixed(2)+' m)');
     // Shoot at the nearest ball until one pops.
     let popped=0;
     for(let k=0;k<8&&!popped;k++){
       await q.evaluate(()=>{
-        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),group=rig.children.find(c=>c.isGroup&&c.children.length>=5);
+        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),group=window.__g.scene.getObjectByName('xr-intro');
         const eye=new T.Vector3(.15,1.2,-.05);let best=null,bd=9;
         for(const m of group.children){const p=rig.worldToLocal(group.localToWorld(m.position.clone()));const d=p.distanceTo(eye);if(m.visible&&d<bd){bd=d;best=p;}}
         const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(eye,best,new T.Vector3(0,1,0)));

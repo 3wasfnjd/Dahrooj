@@ -234,7 +234,7 @@
 
     /* ---------- the opening: Dahrooj balls rain into the room, then a start button ---------- */
     const INTRO_R=.11,INTRO_STYLES=['jelly','fabric','clay','fur','bubble'];
-    const introGroup=new T.Group();introGroup.scale.setScalar(INTRO_R/BR);rig.add(introGroup);
+    const introGroup=new T.Group();introGroup.name='xr-intro';introGroup.scale.setScalar(INTRO_R/BR);rig.add(introGroup);
     const start=panel(.56,.28,1024,512);start.mesh.name='xr-start';start.mesh.visible=false;rig.add(start.mesh);
     function drawStart(hot){
       const popped=intro?intro.popped:0,key='start|'+hot+'|'+popped;if(start.key===key)return;start.key=key;
