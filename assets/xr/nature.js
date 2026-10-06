@@ -60,20 +60,19 @@
       uLightColor:{value:C('#ffffff')},uLightIntensity:{value:1},uShadowColor:{value:C('#6d3fff')},
       uLightDir:{value:V(Math.sin(phi)*Math.sin(theta),Math.cos(phi),Math.sin(phi)*Math.cos(theta)).normalize()},
       uFogA:{value:C('#00ffff')},uFogB:{value:C('#9b89ff')},uFogNear:{value:20},uFogFar:{value:50},
+      uHorizon:{value:C('#9ff')},uZenith:{value:C('#9b89ff')},uSunDir:{value:V(.3,.5,-.8).normalize()},uStars:{value:0},
       uPerlin:{value:perlin},uTime:{value:0},
       uWindDir:{value:new T.Vector2(Math.sin(Math.PI*.6),Math.cos(Math.PI*.6))},uWindStrength:{value:.5},uWindTime:{value:0},uCam:{value:V(0,0,0)}
     };
     const SHADE=`
-      uniform vec3 uLightColor,uShadowColor,uLightDir,uFogA,uFogB;uniform float uLightIntensity,uFogNear,uFogFar;
+      uniform vec3 uLightColor,uShadowColor,uLightDir,uFogA,uFogB,uHorizon;uniform float uLightIntensity,uFogNear,uFogFar;
       varying vec4 vClip;varying float vDist;
       vec3 motriShade(vec3 base,vec3 n,float extraShadow){
         vec3 col=base*uLightColor*uLightIntensity;
         float core=smoothstep(1.,-.25,dot(n,uLightDir));
         col=mix(col,base*uShadowColor,clamp(max(core,extraShadow),0.,1.));
-        // Fog.js: the background gradient from the top-left of the view, with range fog towards it.
-        vec2 suv=vClip.xy/vClip.w*.5+.5;suv.y=1.-suv.y;
-        vec3 fogColor=mix(uFogA,uFogB,smoothstep(0.,1.,length(suv)));
-        return mix(col,fogColor,smoothstep(uFogNear,uFogFar,vDist));
+        // Range fog into the horizon colour of the sky (Motri's fog colours), so the land melts into it.
+        return mix(col,uHorizon,smoothstep(uFogNear,uFogFar,vDist));
       }`;
     const WIND=`
       uniform sampler2D uPerlin;uniform vec2 uWindDir;uniform float uWindStrength,uWindTime;
@@ -82,10 +81,20 @@
         return uWindDir*(n1+n2)*uWindStrength;}`;
     const OUT='vec4 mv=modelViewMatrix*vec4(p,1.);vDist=-mv.z;gl_Position=projectionMatrix*mv;vClip=gl_Position;';
 
-    /* ---------- background: the Fog.js gradient ---------- */
-    const sky=new T.Mesh(new T.SphereGeometry(400,16,8),new T.ShaderMaterial({uniforms:U,side:T.BackSide,depthWrite:false,fog:false,
-      vertexShader:'varying vec4 vClip;void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);vClip=gl_Position;}',
-      fragmentShader:'uniform vec3 uFogA,uFogB;varying vec4 vClip;void main(){vec2 suv=vClip.xy/vClip.w*.5+.5;suv.y=1.-suv.y;gl_FragColor=vec4(mix(uFogA,uFogB,smoothstep(0.,1.,length(suv))),1.);}'}));
+    /* ---------- sky: Motri's day colours as a dome, light at the horizon and rich overhead ---------- */
+    // It follows the eyes and stays inside the camera's far plane (the game camera sees 120 m).
+    const sky=new T.Mesh(new T.SphereGeometry(100,32,16),new T.ShaderMaterial({uniforms:U,side:T.BackSide,depthWrite:false,fog:false,
+      vertexShader:'varying vec3 vDir;void main(){vDir=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+      fragmentShader:[
+        'uniform vec3 uHorizon,uZenith,uFogA,uSunDir,uLightColor;uniform float uStars;varying vec3 vDir;',
+        'float hash(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}',
+        'void main(){vec3 d=normalize(vDir);float h=clamp(d.y,0.,1.);',
+        'vec3 col=mix(uHorizon,uZenith,pow(h,.6));',
+        'col=mix(col,uFogA,.18*(1.-h)*(.5+.5*d.x));',
+        'float s=max(dot(d,uSunDir),0.);col+=uLightColor*(pow(s,600.)*1.5+pow(s,10.)*.25);',
+        // Stars at night (DayCycles.js night interval).
+        'col+=step(.9965,hash(floor(d*220.)))*smoothstep(.05,.3,d.y)*uStars;',
+        'col=mix(col,uHorizon,step(d.y,.0));gl_FragColor=vec4(col,1.);}'].join('\n')}));
     sky.renderOrder=-10;sky.frustumCulled=false;root.add(sky);
 
     /* ---------- ground: Terrain.js grass colour, lit like everything else ---------- */
@@ -97,7 +106,7 @@
 
     /* ---------- Grass.js: three vertices per blade, turned to the camera, bent by the wind ---------- */
     {
-      const subdivisions=240,size=48,count=subdivisions*subdivisions,fragment=size/subdivisions;
+      const subdivisions=340,size=60,count=subdivisions*subdivisions,fragment=size/subdivisions;
       const position=new Float32Array(count*9),heightRandomness=new Float32Array(count*3),corner=new Float32Array(count*3);
       for(let iX=0;iX<subdivisions;iX++)for(let iZ=0;iZ<subdivisions;iZ++){
         const i=iX*subdivisions+iZ,fx=(iX/subdivisions-.5)*size+fragment*.5+court.x,fz=(iZ/subdivisions-.5)*size+fragment*.5+court.z;
@@ -304,8 +313,15 @@
         // Lighting and fog.
         U.uLightColor.value.copy(d.lightColor);U.uLightIntensity.value=d.lightIntensity;U.uShadowColor.value.copy(d.shadowColor);
         U.uFogA.value.copy(d.fogColorA);U.uFogB.value.copy(d.fogColorB);
+        // A gentler sky than the raw fog colours: a pale horizon and a deep top, greyer when it rains.
+        const cloud=clamp(w.rain*1.2,0,1),grey=C('#9aa0b0');
+        U.uHorizon.value.copy(d.fogColorA).lerp(C('#ffffff'),.35).lerp(grey,cloud*.5);
+        U.uZenith.value.copy(d.fogColorB).lerp(d.fogColorA,.15).lerp(grey.clone().multiplyScalar(.7),cloud*.6);
+        const sa=dayP*Math.PI*2;U.uSunDir.value.set(Math.cos(sa)*.6,.25+.5*Math.abs(Math.cos(sa*.5)),-.75).normalize();
+        if(eye)sky.position.copy(eye);
+        U.uStars.value=(1-cloud)*clamp(Math.min((dayP-.25)/.1,(.7-dayP)/.1),0,1);
         const near=20,amplitude=25;U.uFogNear.value=near+d.fogNearRatio*amplitude;U.uFogFar.value=near+d.fogFarRatio*amplitude;
-        scene.fog.color.copy(d.fogColorA).lerp(d.fogColorB,.6);scene.fog.near=Math.max(1,U.uFogNear.value);scene.fog.far=U.uFogFar.value+10;
+        scene.fog.color.copy(U.uHorizon.value);scene.fog.near=Math.max(1,U.uFogNear.value);scene.fog.far=U.uFogFar.value+10;
         // The game's own objects take Motri's light too.
         const k=d.lightIntensity>2?1/3:1;
         if(hemi){hemi.color.copy(d.lightColor);hemi.groundColor.copy(d.shadowColor).lerp(grassColor,.5);hemi.intensity=.6*d.lightIntensity*k;}

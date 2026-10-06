@@ -21,7 +21,8 @@
   window.createDahroojXR=g=>{
     const {T,renderer,scene,camera,S,BR,V}=g;
     let session=null,kind=null,lastTime=0,holder=null,holdT=0,clock=0,paper='',arScale=AR_SCALE,popT=1,frames=0;
-    let throwStyle='hand',parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
+    // Throw styles: 'trigger' (aim, hold to charge, let go), 'hand' (a real swing), 'sling'.
+    let throwStyle='trigger',menuToggled=false,parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
     // Summit: a model mountain on the table (AR) or on a plinth in front of you (VR).
     let climbOn=false,climb3=null,climbSpot=null,climbUnit=.022;
     const modeNow=()=>climbOn?'climb':g.mode();
@@ -115,8 +116,9 @@
     const buttons=[];
     MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:24+i*197,y:80,w:185,h:112}));
     STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:24+i*197,y:272,w:185,h:112}));
-    buttons.push({kind:'throw',id:'hand',label:'يد',x:24,y:472,w:232,h:104});
-    buttons.push({kind:'throw',id:'sling',label:'نبيطة',x:268,y:472,w:232,h:104});
+    buttons.push({kind:'throw',id:'trigger',label:'زناد',x:24,y:472,w:152,h:104});
+    buttons.push({kind:'throw',id:'hand',label:'يد',x:184,y:472,w:152,h:104});
+    buttons.push({kind:'throw',id:'sling',label:'نبيطة',x:344,y:472,w:152,h:104});
     buttons.push({kind:'place',id:'place',label:'',x:524,y:472,w:232,h:104});
     buttons.push({kind:'exit',id:'exit',label:'خروج',x:768,y:472,w:232,h:104});
     buttons.push({kind:'time',id:'time',label:'',x:24,y:612,w:476,h:100});
@@ -128,8 +130,8 @@
       c.fillStyle='rgba(255,252,246,.94)';round(c,4,4,1016,812,46);c.fill();
       c.strokeStyle='rgba(44,45,61,.18)';c.lineWidth=4;c.stroke();
       c.textAlign='center';c.direction='rtl';c.fillStyle='rgba(44,45,61,.55)';c.font=font(700,34);
-      c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',262,454);
-      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي':'الزناد وهو طاير يعطيك دحروج ثاني · A أو X يرجّعه',512,770);
+      c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',260,454);
+      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي · Y للقائمة':'اضغط الزناد مطوّلًا للقوة ثم أفلت · A يرجّع دحروج · Y للقائمة',512,770);
       buttons.forEach((b,i)=>{
         const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
           :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
@@ -195,7 +197,7 @@
       start.tex.needsUpdate=true;
     }
     function beginIntro(){const st=g.stage();if(st&&st.grp)st.grp.visible=false;intro={t:0,frames:0,balls:[],shots:[],sparks:[],ready:false,leaving:0,popped:0,spawned:false,gap:0};}
-    const INTRO_COUNT=40,ROOM=2.6,FRONT=1.1,SHOT_R=.035,SPARK=new T.SphereGeometry(1,8,6);
+    const INTRO_COUNT=40,ROOM=2.6,FRONT=1.1,SHOT_R=.02,SPARK=new T.SphereGeometry(1,8,6);
     const STYLE_COLORS={jelly:0x4b4e56,fabric:0x7c2941,clay:0x825637,fur:0xf1ebe1,bubble:0xcfe8ff};
     // A wave of balls rains all around the player once the headset has reported a few poses.
     function spawnIntro(){
@@ -371,9 +373,17 @@
         if(pull.length()>SLING_MAX)pull.setLength(SLING_MAX);
         return pull.multiplyScalar(SLING_K);
       }
+      if(throwStyle==='trigger'){
+        // Along the hand's ray, as fast as the charge: real metres per second.
+        const d=V(0,0,-1).applyQuaternion(h.target.getWorldQuaternion(wq)).normalize();
+        return d.multiplyScalar(CHARGE_MIN+(CHARGE_MAX-CHARGE_MIN)*chargePower(h));
+      }
       const u=velocity(h).multiplyScalar(GAIN/s);
       return u.length()<MIN_THROW?null:u;
     }
+    // Holding the trigger charges the throw; the power rises and falls so you can pick your moment.
+    const CHARGE_MIN=2.2,CHARGE_MAX=11,CHARGE_TIME=1.1;
+    function chargePower(h){const p=((h.chargeT||0)/CHARGE_TIME)%2;return Math.max(.08,p<1?p:2-p);}
     // Real speed to game speed: the world is s times smaller and its time runs timeK times faster.
     const toGame=u=>{const v=u.clone().multiplyScalar(scaleNow()/timeK());if(v.length()>MAX_SPEED)v.setLength(MAX_SPEED);return v;};
 
@@ -394,7 +404,7 @@
       // Dahrooj in flight keeps going and a fresh one comes to the hand: throw them back to back.
       if(S.shot&&!g.another())g.recall();
       // Dahrooj appears straight in the hand with a little pop, rather than flying over to it.
-      if(!holder&&g.canHold()){holder=h;holdT=0;popT=0;parked=false;S.held=true;S.vel.set(0,0,0);S.shot=false;}
+      if(!holder&&g.canHold()){holder=h;holdT=0;popT=0;h.chargeT=0;parked=false;S.held=true;S.vel.set(0,0,0);S.shot=false;}
     }
     function release(h,lost){
       if(holder===h){
@@ -506,7 +516,7 @@
         ?{requiredFeatures:['local-floor'],optionalFeatures:['hand-tracking','hit-test','plane-detection']}
         :{optionalFeatures:['local-floor','bounded-floor','hand-tracking']};
       const s=await navigator.xr.requestSession(mode,options);
-      session=s;kind=mode;anchor=null;placing=mode==='immersive-ar';
+      session=s;kind=mode;anchor=null;placing=mode==='immersive-ar';menuToggled=false;
       renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local-floor');
       scene.add(rig);rig.add(camera);place();
       if(mode==='immersive-vr'&&!nature&&window.createDahroojNature)nature=window.createDahroojNature(T,{scene,hemi:g.hemi,sun:g.sun,lineMat:g.lineMat});
@@ -546,9 +556,9 @@
     function updateMenu(dt){
       const L=leftHand();let want=false;
       if(L){
-        L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y,y=L.grip.position.y,hy=headLocal().pos.y;
-        // Flipped palm-up or raised to the face; a little slack to close so it doesn't flicker.
-        want=menuOpen?(up<.15||y>hy-.25):(up<-.3||y>hy-.15);
+        // Controllers: the Y button. Hands (no buttons): turn the palm up.
+        want=menuToggled;
+        if(L.source?.hand){L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y;want=menuOpen?up<.15:up<-.3;}
         if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.2,0));eyeNow();menu.mesh.lookAt(eye);}
       }
       menuOpen=want;
@@ -585,7 +595,9 @@
         if(pad){
           const now=[4,5].map(i=>!!pad.buttons[i]?.pressed),edge=now.map((b,i)=>b&&!h.buttons[i]);h.buttons=now;
           // Summit: A or X jumps, B or Y throws. Elsewhere either calls Dahrooj back.
-          if(climbOn){if(edge[0])climb3.jump();if(edge[1])climb3.throwBall();}
+          // Y (left) opens and closes the menu. Summit: A or X jumps, B throws. Elsewhere A, B or X calls Dahrooj back.
+          if(h===leftHand()&&edge[1]){menuToggled=!menuToggled;}
+          else if(climbOn){if(edge[0])climb3.jump();if(edge[1])climb3.throwBall();}
           else if(edge.some(Boolean))recall();
         }
         if(climbOn&&axes&&axes.length>3){
@@ -628,7 +640,8 @@
         tips.forEach((o,i)=>{o.getWorldPosition(wp);stretch(bands[i],rig.worldToLocal(wp.clone()),end);});
       }else for(const b of bands)b.visible=false;
       // The flight preview while pulling.
-      const u=holder&&F?.source?launch(holder,S.pos):null;
+      if(holder)holder.chargeT=(holder.chargeT||0)+dt;
+      const u=holder&&(F?.source||throwStyle==='trigger')?launch(holder,S.pos):null;
       if(u){
         const v=toGame(u),p=S.pos.clone(),step=.05,r=.012*scaleNow();
         for(const d of dots){

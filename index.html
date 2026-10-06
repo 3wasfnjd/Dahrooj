@@ -1287,7 +1287,7 @@ function make3D(){
       const dx=K.tx-K.x;
       K.tang=Math.abs(dx)>0.5 ? -Math.sign(dx)*Math.min(1.35,Math.abs(dx)*0.75) : 0;
       K.jump=py>1.15;
-      K.wait=0.07+Math.random()*0.06; K.plan=true;
+      K.wait=0.07+Math.random()*0.06; K.plan=true; K.plans=(K.plans||0)+1;
     }
     function keeperUpdate(dt){
       if(S.shot && !K.plan && S.shotT>0.02) keeperPlan();
@@ -1341,6 +1341,9 @@ function make3D(){
       ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
       behind:P=>P.z<GZ-0.05,
       onRespawn(){ keeperReset(); },
+      // Every new throw gets a fresh save attempt, even before the last ball comes back (headset volleys).
+      onThrow(){ K.plan=false; K.saved=false; K.wait=0; },
+      keeperState:()=>K,
       collide(){
         const P=S.pos, v=S.vel;
         keeperCollide();
@@ -2266,6 +2269,7 @@ function make3D(){
     S.zMax=Math.max(6,S.pos.z+3); S.xMax=Math.max(16,Math.abs(S.pos.x)+6);
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp/18)*8;
     whoosh(Math.min(1,sp/18));
+    if(stage.onThrow) stage.onThrow();
     if(stage.onHit) stage.onHit(sp*170);
   }
   function ballFace(){

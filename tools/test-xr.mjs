@@ -10,7 +10,7 @@ const iwer=readFileSync(require.resolve('iwer/build/iwer.min.js'),'utf8');
 const app=await startLocal({port:0,transformHTML:html=>html
   .replace('reducedMotion:reduce,onInteract:ensureAudio','reducedMotion:true,onInteract:ensureAudio')
   .replace('return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};',
-    'window.__g={S,volley,get stage(){return stage;},get stageName(){return stageName;},get xr(){return xr;},scene};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
+    'window.__g={S,volley,keeper:()=>stages.goal&&stages.goal.keeperState?stages.goal.keeperState():{},get stage(){return stage;},get stageName(){return stageName;},get xr(){return xr;},scene};return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};')
   .replace('grp,aimZ:OZ,networked:true,','grp,aimZ:OZ,networked:true,testClient:client,')});
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],
   ...(process.env.DAHROOJ_CHROMIUM?{executablePath:process.env.DAHROOJ_CHROMIUM}:{})});
@@ -32,12 +32,15 @@ try{
   const tracked=()=>p.waitForFunction(()=>window.__g.xr.inspect().every(h=>h.connected),null,{timeout:8000});
   const parked=()=>p.waitForFunction(()=>window.__g.xr.parked&&!window.__g.S.shot,null,{timeout:8000});
   const FLIP=[0,0,1,0];
+  const yButton=async()=>{await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('y-button',1));await p.waitForTimeout(120);
+    await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('y-button',0));await p.waitForTimeout(60);};
   async function openMenu(){
-    // Flip the left hand palm-up: the menu appears above it.
-    await ctl('left',[-.2,1.1,-.3],FLIP);
+    // The Y button opens the menu above the left hand.
+    await ctl('left',[-.2,1.1,-.3]);await yButton();
     await p.waitForFunction(()=>{const m=window.__g.scene.getObjectByName('xr-menu');return m.visible&&m.scale.x>.95;},null,{timeout:3000});
   }
   async function closeMenu(){
+    if(await p.evaluate(()=>window.__g.xr.presenting&&window.__g.xr.menuOpen))await yButton();
     await ctl('left',[-.18,1.05,-.32]);
     await p.waitForFunction(()=>!window.__g.scene.getObjectByName('xr-menu')?.visible,null,{timeout:3000});
   }
@@ -54,13 +57,15 @@ try{
     await p.waitForTimeout(250);await trigger(1);await p.waitForTimeout(150);await trigger(0);await p.waitForTimeout(250);
     await closeMenu();
   }
-  const button=(kind,i)=>({mode:[24+i*197+92,136],style:[24+i*197+92,328],hand:[140,524],sling:[384,524],place:[640,524],exit:[884,524],time:[262,662],weather:[762,662]})[kind];
+  const button=(kind,i)=>({mode:[24+i*197+92,136],style:[24+i*197+92,328],trigger:[100,524],hand:[260,524],sling:[420,524],place:[640,524],exit:[884,524],time:[262,662],weather:[762,662]})[kind];
   async function aButton(){
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',1));await p.waitForTimeout(120);
     await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));await p.waitForTimeout(60);
   }
+  // Trigger throws go along the hand's ray: aim 20 degrees up.
+  const UP20=[0.1736,0,0,0.9848];
   async function throwBall(){
-    await ctl('right',[.2,1.2,-.3]);
+    await ctl('right',[.2,1.2,-.3],UP20);
     await p.waitForTimeout(200);await trigger(1);await p.waitForTimeout(300);
     const held=await p.evaluate(()=>window.__g.xr.holding);
     for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
@@ -88,12 +93,16 @@ try{
   await aButton();
   s=await state();check(!s.shot&&s.parked,'The A button calls Dahrooj back');
   // Back to back: grabbing while Dahrooj flies keeps that throw going and brings a fresh one.
-  await throwBall();await trigger(1);await p.waitForTimeout(150);
+  await throwBall();await p.waitForTimeout(150);const plans=await p.evaluate(()=>window.__g.keeper().plans||0);
+  await trigger(1);await p.waitForTimeout(150);
   check(await p.evaluate(()=>window.__g.xr.holding&&!window.__g.S.shot&&window.__g.volley.length===1),'A second Dahrooj is ready while the first still flies');
   for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
   await trigger(0);await p.waitForTimeout(80);
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.volley.length===1&&window.__g.volley[0].shot),'Two throws fly at once');
+  await p.waitForTimeout(200);
+  check(await p.evaluate(p0=>(window.__g.keeper().plans||0)>p0,plans),'The keeper reacts to the second throw too');
   await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:25000});
+
   check(true,'Earlier throws finish on their own');
   await aButton();await parked();
 
@@ -117,7 +126,7 @@ try{
   await trigger(0);await p.waitForTimeout(60);
   s=await state();const sv=await p.evaluate(()=>window.__g.S.vel.toArray());
   check(s.shot&&sv[2]<-4,'Letting go of the pull launches Dahrooj forward '+JSON.stringify(sv));
-  await pick(...button('hand'));
+  await pick(...button('trigger'));
 
   // Summit: a model mountain in front of you, with the left stick, A to jump and the trigger to throw.
   await pick(...button('mode',4));
