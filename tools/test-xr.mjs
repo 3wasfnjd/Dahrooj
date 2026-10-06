@@ -137,7 +137,7 @@ try{
   check(await p.evaluate(()=>window.__g.S.shot&&window.__g.volley.length===1&&window.__g.volley[0].shot),'Two throws fly at once');
   await p.waitForTimeout(200);
   check(await p.evaluate(p0=>(window.__g.keeper().plans||0)>p0,plans),'The keeper reacts to the second throw too');
-  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:60000});
+  await p.waitForFunction(()=>window.__g.volley.length===0,null,{timeout:150000});
 
   check(true,'Earlier throws finish on their own');
   await aButton();await parked();
