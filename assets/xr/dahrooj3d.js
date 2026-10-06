@@ -67,7 +67,10 @@
     // The bubble's film swirls; all bubbles share one clock.
     const bubbleTime={value:0};
     const MATERIALS={
-      jelly:()=>new T.MeshPhysicalMaterial({color:0x4b4e56,roughness:.16,metalness:0,clearcoat:1,clearcoatRoughness:.03,envMap:env,envMapIntensity:.45}),
+      // Jelly: a clear, glossy skin (transmission lets the light through, the highlights stay bright)
+      // over a denser core, like a gummy sweet; the core and a few air bubbles show through.
+      jelly:()=>new T.MeshPhysicalMaterial({color:0x5d616e,roughness:.06,metalness:0,clearcoat:1,clearcoatRoughness:.02,
+        transmission:.36,transparent:true,depthWrite:false,envMap:env,envMapIntensity:1.1}),
       fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:feltNormal,roughness:1,envMap:env,envMapIntensity:.35});
         m.normalScale.set(.9,.9);if(m.sheen!==undefined)m.sheen=new T.Color(0xc77d93);return m;},
       clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(.7,.7);return m;},
@@ -146,12 +149,27 @@
       return faces.get(key);
     }
 
+    // The jelly's insides: a soft dark core, the skin's inner wall for depth, and trapped air bubbles.
+    const jellyCore=new T.MeshStandardMaterial({color:0x3c3f49,roughness:.45,metalness:0,emissive:0x202229,envMap:env,envMapIntensity:.25});
+    const jellyWall=new T.MeshPhysicalMaterial({color:0x4b4e56,roughness:.2,side:T.BackSide,transparent:true,opacity:.8,depthWrite:false,envMap:env,envMapIntensity:.5});
+    const airMat=new T.MeshPhysicalMaterial({color:0xffffff,roughness:.05,transparent:true,opacity:.45,clearcoat:1,envMap:env,envMapIntensity:1.2,depthWrite:false});
+    const airGeo=new T.SphereGeometry(1,12,8);
+    function jellyInside(lite){
+      const g=new T.Group();
+      const core=new T.Mesh(lite?liteSphere:sphere,jellyCore);core.scale.setScalar(.86);g.add(core);
+      const wall=new T.Mesh(lite?liteSphere:sphere,jellyWall);wall.scale.setScalar(.985);wall.renderOrder=-1;g.add(wall);
+      if(!lite)for(const [x,y,z,s] of [[.42,.38,.55,.07],[-.5,-.2,.56,.05],[.15,-.55,.6,.045],[-.3,.5,.62,.04],[.6,-.1,.5,.035]]){
+        const b=new T.Mesh(airGeo,airMat);b.position.set(x*r,y*r,z*r);b.scale.setScalar(s*r);g.add(b);
+      }
+      return g;
+    }
+
     // lite: for crowds (the opening balls and shots), fewer triangles and fur layers.
     function make(style,{face=true,lite=false}={}){
       const outer=new T.Group(),inner=new T.Group();outer.add(inner);
       const body=new T.Mesh(lite?liteSphere:sphere,MATERIALS[style]?.()||MATERIALS.jelly());
       body.castShadow=style!=='bubble';inner.add(body);
-      if(style==='jelly')inner.add(bandaid());
+      if(style==='jelly'){inner.add(jellyInside(lite));inner.add(bandaid());body.renderOrder=.5;}
       if(style==='fabric')inner.add(stitches());
       if(style==='fur'){inner.add(furShells(lite));inner.add(bow());}
       let cap=null;
