@@ -4,7 +4,9 @@
    Foliage.js, foliageSDF.png and the tree models, Draco removed), bushes (Bushes.js), wind (Wind.js),
    rain lines and falling snow (RainLines.js), snow on the ground (Snow.js), day cycles and their
    presets (DayCycles.js), seasons (YearCycles.js), weather (Weather.js), lighting
-   (Ligthing.js, MeshDefaultMaterial.js) and the fog and background gradient (Fog.js).
+   (Ligthing.js, MeshDefaultMaterial.js), the fog and background gradient (Fog.js), the stone floor
+   (Floor.js), pole lights with fireflies, lanterns, benches, explosive crates and fireballs (PoleLights.js,
+   Lanterns.js, Benches.js, ExplosiveCrates.js, Fireballs.js).
    Distances are in game metres (the headset shows them at a half). */
 (() => {
   'use strict';
@@ -104,6 +106,16 @@
     const tctx=trackCanvas.getContext('2d');tctx.fillStyle='#000';tctx.fillRect(0,0,TRACK_PX,TRACK_PX);
     const trackTex=new T.CanvasTexture(trackCanvas);trackTex.minFilter=trackTex.magFilter=T.LinearFilter;trackTex.generateMipmaps=false;
     U.uTracks={value:trackTex};U.uTrackArea={value:V(court.x,court.z,TRACK_SIZE)};
+    /* Floor.js: Motri's stone slabs under the play area, fading into grass at a noisy edge.
+       uSlab: centre x, centre z, half width, half length (set per mode so the target stands on it). */
+    const slabsTexture=new T.TextureLoader().load(BASE+'slabs.png');slabsTexture.wrapS=slabsTexture.wrapT=T.RepeatWrapping;
+    U.uSlabs={value:slabsTexture};U.uSlab={value:new T.Vector4(court.x,-2.5,9,9)};
+    U.uSlabHigh={value:C('#ffcf8b')};U.uSlabLow={value:C('#a87762')};
+    const SLAB=`
+      uniform sampler2D uSlabs;uniform vec4 uSlab;uniform vec3 uSlabHigh,uSlabLow;
+      float slabAt(vec2 p){vec2 q=abs(p-uSlab.xy)-uSlab.zw;float edge=max(q.x,q.y);
+        float n=texture2D(uPerlin,p*.03).r;return 1.-smoothstep(-1.2,.8,edge+(n-.5)*2.2);}
+      vec3 slabColor(vec2 p){return mix(uSlabLow,uSlabHigh,texture2D(uSlabs,p*.175).r);}`;
     let tracksDirty=false,tracksFade=0,tracksUpload=0;
     const TRACK=`
       uniform sampler2D uTracks;uniform vec3 uTrackArea;
@@ -116,7 +128,7 @@
     const groundMat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor}},
       vertexShader:'varying vec4 vClip;varying float vDist;varying vec2 vWorld;void main(){vec3 p=position;vWorld=(modelMatrix*vec4(p,1.)).xz;'+OUT+'}',
       // Marks: the ground shows dirt where balls rolled.
-      fragmentShader:SHADE+TRACK+'uniform vec3 uColor,uDirt;varying vec2 vWorld;void main(){vec3 c=mix(uColor,uDirt,clamp(trackAt(vWorld)*1.4,0.,.9));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),0.),1.);}'});
+      fragmentShader:SHADE+TRACK+'uniform sampler2D uPerlin;'+SLAB+'uniform vec3 uColor,uDirt;varying vec2 vWorld;void main(){vec3 c=mix(uColor,slabColor(vWorld),slabAt(vWorld));c=mix(c,uDirt,clamp(trackAt(vWorld)*1.4,0.,.9)*(1.-slabAt(vWorld)*.6));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),0.),1.);}'});
     const ground=new T.Mesh(new T.CircleGeometry(300,64).rotateX(-Math.PI/2),groundMat);ground.position.y=-.02;root.add(ground);
 
     /* ---------- Grass.js: three vertices per blade, turned to the camera, bent by the wind ---------- */
@@ -133,7 +145,7 @@
       const mat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor},uPitch:{value:new T.Vector4(court.x,court.z+1,11,17)},bladeWidth:{value:.1},bladeHeight:{value:.6},bladeHeightRandomness:{value:.6}},side:T.DoubleSide,
         vertexShader:WIND+`
           attribute float heightRandomness,corner;uniform float bladeWidth,bladeHeight,bladeHeightRandomness;uniform vec3 uCam;uniform vec4 uPitch;
-          varying vec4 vClip;varying float vDist;varying float vTip;varying float vTrack;`+TRACK+`
+          varying vec4 vClip;varying float vDist;varying float vTip;varying float vTrack;`+TRACK+SLAB+`
           void main(){
             vec3 p=position;float tip=corner<.5?1.:0.;vTip=tip;
             float heightVariation=texture2D(uPerlin,p.xz*.0321).r+.5;
@@ -142,6 +154,8 @@
             vec2 q=abs(p.xz-uPitch.xy)-uPitch.zw;h*=mix(.28,1.,smoothstep(0.,3.,max(q.x,q.y)));
             // Pressed flat where a ball rolled.
             vTrack=trackAt(p.xz);h*=1.-vTrack*.85;
+            // No grass on the stone (Grass.js hides blades where the terrain has none).
+            float slab=slabAt(p.xz);h*=1.-smoothstep(.35,.7,slab);if(slab>.7)p.y-=100.;
             vec2 shape=corner<.5?vec2(0.,1.):corner<1.5?vec2(1.,0.):vec2(-1.,0.);
             vec3 offset=vec3(shape.x*bladeWidth,shape.y*h,0.);
             float a=atan(p.z-uCam.z,p.x-uCam.x)-1.5707963;
@@ -207,6 +221,8 @@
       if(Math.abs(x-court.x)<14&&z>-30&&z<8)continue;
       spots.push({x,z,rot:rng()*Math.PI*2,scale:.85+rng()*.4});
     }
+    // A wood behind the target, beyond the stone.
+    for(let i=0;i<24;i++)spots.push({x:court.x+(rng()-.5)*40,z:-28-rng()*18,rot:rng()*Math.PI*2,scale:.8+rng()*.5});
     const bodyMat=map=>new T.ShaderMaterial({uniforms:{...U,uMap:{value:map}},
       vertexShader:'varying vec4 vClip;varying float vDist;varying vec2 vUv;varying vec3 vNormal;void main(){vUv=uv;vNormal=normalize(mat3(modelMatrix*instanceMatrix)*normal);vec4 mv=viewMatrix*modelMatrix*instanceMatrix*vec4(position,1.);vDist=-mv.z;gl_Position=projectionMatrix*mv;vClip=gl_Position;}',
       fragmentShader:SHADE+'uniform sampler2D uMap;varying vec2 vUv;varying vec3 vNormal;void main(){vec3 base=texture2D(uMap,vUv).rgb;gl_FragColor=vec4(motriShade(base,normalize(vNormal),0.),1.);}'});
@@ -240,6 +256,155 @@
       }
       foliage(mats,'#b4b536','#d8cf3b');
     }
+
+    /* ---------- PoleLights.js, Lanterns.js, Benches.js and ExplosiveCrates.js: Motri's props around the stone ---------- */
+    // Same models and materials: the palette for bodies, emissiveOrangeRadialGradient for the glass
+    // (#ff8641 to #ff3e00, normalised, 1.7). Pole glass and fireflies come on at night, as in Motri.
+    // Lanterns and benches are knocked about by Dahrooj; crates blow up when he touches one.
+    const props=(()=>{
+      const out={obstacles:[],crates:[],loaded:0,onExplode:null};
+      const glowU={uColorA:{value:C('#ff8641')},uColorB:{value:C('#ff3e00')},uIntensity:{value:1.7},uOn:{value:1}};
+      const glowMat=new T.ShaderMaterial({uniforms:glowU,
+        vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*viewMatrix*modelMatrix*instanceMatrix*vec4(position,1.);}',
+        fragmentShader:'uniform vec3 uColorA,uColorB;uniform float uIntensity,uOn;varying vec2 vUv;void main(){vec3 c=mix(uColorA,uColorB,length(vUv-.5)*2.);c/=dot(c,vec3(.2126,.7152,.0722));gl_FragColor=vec4(c*uIntensity*uOn,1.);}'});
+      const poleGlowU={...glowU,uOn:{value:0}};
+      const poleGlowMat=glowMat.clone();poleGlowMat.uniforms=poleGlowU;
+      const cx=court.x,cz=court.z;
+      // Pole lights line the stone, benches with a lantern at each end sit beyond them, crates wait at the sides.
+      const poles=[],benches=[],lanterns=[];
+      for(const s of[-1,1]){
+        for(const z of[4,-7,-18])poles.push({x:cx+s*10.3,z,rot:0});
+        for(const z of[-1.5,-12.5]){benches.push({x:cx+s*11.9,z,rot:s*Math.PI/2});lanterns.push({x:cx+s*11.9,z:z+1.75,rot:.4*s},{x:cx+s*11.9,z:z-1.75,rot:-.3*s});}
+      }
+      const crateSpots=[];
+      for(const [x,z] of[[-7.4,-4],[7.4,-14]]){const s=Math.sign(x);
+        crateSpots.push({x:cx+x,z:cz+z+10-.45,y:0,rot:.2},{x:cx+x+s*.15,z:cz+z+10+.45,y:0,rot:-.15},{x:cx+x+s*.05,z:cz+z+10,y:1,rot:.5});}
+      const CRATE=.7,LANTERN=.6,BENCH=.75;
+      const m4=new T.Matrix4(),q=new T.Quaternion(),Y=V(0,1,0);
+      // One instanced mesh per model part; parts keep their offset inside the model.
+      function build(file,list,scale,lift,glow,done){
+        new T.GLTFLoader().load(BASE+file,gltf=>{
+          gltf.scene.updateMatrixWorld(true);const parts=[];
+          gltf.scene.traverse(o=>{if(!o.isMesh)return;
+            const em=/emissive/i.test(o.material.name);
+            const mesh=new T.InstancedMesh(o.geometry,em?glow:bodyMat(o.material.map),list.length);
+            mesh.frustumCulled=false;root.add(mesh);parts.push({mesh,local:o.matrixWorld.clone()});});
+          const item={parts,list,scale,lift,sync(i){const it=list[i];q.setFromAxisAngle(Y,it.rot);if(it.tilt)q.multiply(new T.Quaternion().setFromAxisAngle(V(1,0,0),it.tilt));
+            m4.compose(V(it.x,(it.y||0)+lift*scale*(it.k??1),it.z),q,V(1,1,1).multiplyScalar(scale*(it.k??1)));
+            for(const p of parts){p.mesh.setMatrixAt(i,m4.clone().multiply(p.local));p.mesh.instanceMatrix.needsUpdate=true;}}};
+          list.forEach((_,i)=>item.sync(i));out.loaded++;done?.(item);
+        });
+      }
+      let poleItem=null,lanternItem=null,benchItem=null,crateItem=null;
+      if(T.GLTFLoader){
+        build('poleLight.glb',poles,1,1.78,poleGlowMat,it=>poleItem=it);
+        build('lantern.glb',lanterns,LANTERN,.51,glowMat,it=>lanternItem=it);
+        build('bench.glb',benches,BENCH,.71,null,it=>benchItem=it);
+        build('explosiveCrate.glb',crateSpots,CRATE,.53,null,it=>crateItem=it);
+      }
+      // Colliders: boxes standing on the ground (half sizes in metres).
+      for(const p of poles)out.obstacles.push({it:p,hx:.2,hz:.2,h:3.5});
+      for(const b of benches)out.obstacles.push({it:b,hx:1.09*BENCH,hz:.63*BENCH,h:1.4*BENCH,mass:.25,vx:0,vz:0,spin:0});
+      for(const l of lanterns)out.obstacles.push({it:l,hx:.35*LANTERN,hz:.35*LANTERN,h:1.1*LANTERN,mass:.6,vx:0,vz:0,spin:0});
+      for(const c of crateSpots){c.home={...c};out.crates.push(c);}
+
+      // Fireflies around each pole light at night (5 per light).
+      const flies=(()=>{
+        const n=poles.length*5,pos=new Float32Array(n*3),seed=new Float32Array(n);
+        poles.forEach((p,i)=>{for(let j=0;j<5;j++){const k=i*5+j,a=Math.random()*Math.PI*2;pos.set([p.x+Math.cos(a),2.8,p.z+Math.sin(a)],k*3);seed[k]=Math.random()*999;}});
+        const geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(pos,3));geo.setAttribute('seed',new T.BufferAttribute(seed,1));
+        const mat=new T.ShaderMaterial({uniforms:{...glowU,uTime:U.uTime,uScale:{value:0}},transparent:true,depthWrite:false,blending:T.AdditiveBlending,
+          vertexShader:'attribute float seed;uniform float uTime,uScale;void main(){float t=uTime+seed;vec3 p=position+vec3(sin(t*.4)*.5,sin(t)*.2,sin(t*.3)*.5);vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp(90.*uScale/-mv.z,0.,14.);gl_Position=projectionMatrix*mv;}',
+          fragmentShader:'uniform vec3 uColorA,uColorB;void main(){float d=length(gl_PointCoord-.5)*2.;if(d>1.)discard;vec3 c=mix(uColorA,uColorB,d);gl_FragColor=vec4(c*(1.-d*d),1.);}'});
+        const pts=new T.Points(geo,mat);pts.frustumCulled=false;root.add(pts);return mat.uniforms.uScale;
+      })();
+      // A warm pool of light on the ground under each pole at night.
+      const poolMat=new T.MeshBasicMaterial({color:0xff8641,transparent:true,opacity:0,depthWrite:false,blending:T.AdditiveBlending,fog:false,
+        map:(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'#fff');gr.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=gr;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);})()});
+      for(const p of poles){const pool=new T.Mesh(new T.PlaneGeometry(6,6),poolMat);pool.rotation.x=-Math.PI/2;pool.position.set(p.x,.03,p.z);root.add(pool);}
+
+      /* Fireballs.js: a noisy ball of fire that swells and burns away into goo. */
+      const fireGeo=new T.SphereGeometry(.5,12,6),fires=[];
+      const fireMat=()=>new T.ShaderMaterial({uniforms:{uPerlin:U.uPerlin,uHorizon:U.uHorizon,uFogNear:U.uFogNear,uFogFar:U.uFogFar,progress:{value:.15},colorA:{value:C('red')},colorB:{value:C('orange')},strength:{value:1.7}},
+        vertexShader:'varying vec3 vPos,vNormal;varying float vY,vDist;void main(){vPos=position;vNormal=normal;vec4 w=modelMatrix*vec4(position,1.);vY=w.y;vec4 mv=viewMatrix*w;vDist=-mv.z;gl_Position=projectionMatrix*mv;}',
+        fragmentShader:`uniform sampler2D uPerlin;uniform vec3 colorA,colorB,uHorizon;uniform float progress,strength,uFogNear,uFogFar;varying vec3 vPos,vNormal;varying float vY,vDist;
+          void main(){
+            float nx=texture2D(uPerlin,vPos.yz*.8).r,ny=texture2D(uPerlin,vPos.xz*.8+.8).r,nz=texture2D(uPerlin,vPos.xy*.8+1.6).r;
+            vec3 b=abs(normalize(vNormal));b/=b.x+b.y+b.z;
+            float n=(nx*b.x+ny*b.y+nz*b.z-.15)/.75;
+            n*=clamp(vY*2.,0.,1.);n-=progress;
+            if(n<0.)discard;
+            vec3 fire=mix(colorA,colorB,n)*strength;
+            vec3 goo=mix(vec3(0.),uHorizon,smoothstep(uFogNear,uFogFar,vDist));
+            gl_FragColor=vec4(mix(fire,goo,step(n,.1)),1.);}`});
+      // Motri's strength is 8 under tone mapping; r128 here has none, so a lower one keeps the reds.
+      function fireball(p,radius){
+        const mat=fireMat(),mesh=new T.Mesh(fireGeo,mat);mesh.position.copy(p);mesh.rotation.order='XYZ';
+        mesh.rotation.x=Math.random()*Math.PI*2;mesh.rotation.y=Math.random()*Math.PI*2;root.add(mesh);
+        fires.push({mesh,mat,t:0,radius});
+      }
+      function explode(c){
+        if(c.exploded)return;c.exploded=true;c.fuse=.4;
+      }
+      // Ball against prop: push it out, bounce it, shove light props and light the fuse on crates.
+      out.collide=(p,v,r)=>{
+        let hit=false;
+        for(const o of out.obstacles){
+          const it=o.it;if(p.y-r>o.h)continue;
+          const dx=p.x-it.x,dz=p.z-it.z,c=Math.cos(it.rot),s=Math.sin(it.rot);
+          const lx=dx*c-dz*s,lz=dx*s+dz*c,qx=clamp(lx,-o.hx,o.hx),qz=clamp(lz,-o.hz,o.hz);
+          let ex=lx-qx,ez=lz-qz,d=Math.hypot(ex,ez);if(d>=r)continue;
+          if(d<1e-4){if(o.hx-Math.abs(lx)<o.hz-Math.abs(lz)){ex=Math.sign(lx)||1;ez=0;}else{ex=0;ez=Math.sign(lz)||1;}d=0;}else{ex/=d;ez/=d;}
+          const nx=ex*c+ez*s,nz=-ex*s+ez*c,push=r-d;p.x+=nx*push;p.z+=nz*push;
+          const vn=v.x*nx+v.z*nz;
+          if(vn<0){
+            if(o.mass){const k=-vn*o.mass;o.vx-=nx*k;o.vz-=nz*k;o.spin+=(Math.random()-.5)*k*.6;o.tip=Math.min(1,(o.tip||0)+k*.08);}
+            v.x-=nx*vn*1.5;v.z-=nz*vn*1.5;hit=true;
+          }
+        }
+        for(const c of out.crates){
+          if(c.exploded)continue;const half=.53*CRATE;
+          const dx=p.x-c.x,dy=p.y-(c.y+half),dz=p.z-c.z;
+          if(Math.abs(dx)<half+r&&Math.abs(dy)<half+r&&Math.abs(dz)<half+r)explode(c);
+        }
+        return hit;
+      };
+      out.update=(dt,night)=>{
+        poleGlowU.uOn.value=night>.5?1:0;
+        flies.value+=((night>.5?1:0)-flies.value)*Math.min(1,dt/1.5);
+        poolMat.opacity=night*.35;
+        // Shoved props slide to a stop on the stone and settle back upright.
+        for(const o of out.obstacles){if(!o.mass)continue;const it=o.it;
+          if(Math.abs(o.vx)+Math.abs(o.vz)+Math.abs(o.spin)+(o.tip||0)<.002)continue;
+          it.x+=o.vx*dt;it.z+=o.vz*dt;it.rot+=o.spin*dt;const f=Math.pow(.04,dt);o.vx*=f;o.vz*=f;o.spin*=f;
+          o.tip=Math.max(0,(o.tip||0)-dt*1.5);it.tilt=Math.sin((o.tip||0)*Math.PI)*.35;
+          const item=o.mass>.5?lanternItem:benchItem,list=o.mass>.5?lanterns:benches;item?.sync(list.indexOf(it));
+        }
+        for(const c of out.crates){
+          // A crate left in the air drops onto the one below or the ground.
+          if(!c.exploded){
+            const below=out.crates.filter(o=>o!==c&&!o.exploded&&Math.abs(o.x-c.x)<.6&&Math.abs(o.z-c.z)<.6&&o.y<c.y).reduce((m,o)=>Math.max(m,o.y+1.06*CRATE),0);
+            if(c.y>below+.001){c.vy=(c.vy||0)-9.8*dt;c.y=Math.max(below,c.y+c.vy*dt);if(c.y===below)c.vy=0;crateItem?.sync(crateSpots.indexOf(c));}
+          }
+          if(c.fuse>0){c.fuse-=dt;if(c.fuse<=0){
+            const at=V(c.x,c.y+.53*CRATE,c.z);fireball(at,3.5);c.k=0;crateItem?.sync(crateSpots.indexOf(c));c.back=25;
+            api.mark(c.x,c.z,1.6,.9);out.onExplode?.(at,3.5);
+            // Crates next to it go up too, one after the other.
+            for(const o of out.crates)if(!o.exploded&&Math.hypot(o.x-c.x,o.z-c.z,o.y-c.y)<1.8)explode(o);}}
+          // Back after a while, popping in.
+          if(c.exploded&&c.fuse<=0){c.back-=dt;if(c.back<=0){Object.assign(c,c.home,{exploded:false,k:.01,vy:0});}}
+          if(!c.exploded&&c.k!=null&&c.k<1){c.k=Math.min(1,c.k+dt*3);crateItem?.sync(crateSpots.indexOf(c));}
+        }
+        for(let i=fires.length-1;i>=0;i--){const f=fires[i];f.t+=dt;
+          const e=Math.min(1,f.t/.6);f.mesh.scale.setScalar(.5+(f.radius-.5)*(1-Math.pow(1-e,3)));
+          f.mesh.rotation.z=-Math.min(1,f.t/2.25);f.mat.uniforms.progress.value=.15+.85*clamp((f.t-.25)/2,0,1);
+          if(f.t>2.25){root.remove(f.mesh);f.mat.dispose();fires.splice(i,1);}}
+      };
+      // Every crate back in place (for tests and a fresh round).
+      out.reset=()=>{for(const c of out.crates){Object.assign(c,c.home,{exploded:false,fuse:0,k:1,vy:0});crateItem?.sync(crateSpots.indexOf(c));}};
+      out.explode=i=>explode(out.crates[i]);
+      return out;
+    })();
 
     /* ---------- RainLines.js: quads falling from 20 m, wrapped around the view; short and slow for snow ---------- */
     const rainU={...U,thickness:{value:.015},elevation:{value:20},incline:{value:.2},size:{value:40},center:{value:new T.Vector2()},len:{value:2},localTime:{value:0},visibleRatio:{value:0}};
@@ -300,6 +465,8 @@
     const lantern=new T.PointLight(0xffd9a0,0,16,1.6);root.add(lantern);
     const api={
       root,
+      // The stone reaches from behind the player to just past the target at farZ.
+      setPitch(farZ){const z0=farZ-1.5,z1=5;U.uSlab.value.set(court.x,(z0+z1)/2,9,(z1-z0)/2);},
       // Press a track at (x, z): radius in metres, strength 0–1.
       mark(x,z,radius,strength){
         const u=(x-court.x)/TRACK_SIZE+.5,v=(z-court.z)/TRACK_SIZE+.5;if(u<0||v<0||u>1||v>1)return;
@@ -312,6 +479,8 @@
       get settings(){return {time:state.time,weather:state.weather};},
       get weather(){return state.w;},
       get treesLoaded(){return treesLoaded;},
+      // Motri's props: collide(pos, vel, radius) for each ball, onExplode(pos, radius) when a crate goes up.
+      props,
       // time: auto | day | dusk | night | dawn; weather: auto | clear | rain | snow
       set({time,weather}={}){if(time)state.time=time;if(weather)state.weather=weather;},
       enable(on){
@@ -365,6 +534,7 @@
         moon.intensity=night*.45;lantern.intensity=night*1.1;if(eye)lantern.position.set(eye.x,eye.y+.5,eye.z-1.5);
         // Motri's own pieces are lit a little brighter at night too.
         U.uLightIntensity.value=d.lightIntensity*(1-night*.35)+night*.6;
+        props.update(dt,night);
         // Wind.js
         U.uWindStrength.value=remapClamp(w.wind,0,1,.1,1);U.uWindTime.value+=dt*.1*U.uWindStrength.value;
         U.uTime.value+=dt;
