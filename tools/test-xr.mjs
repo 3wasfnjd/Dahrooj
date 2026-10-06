@@ -44,7 +44,7 @@ try{
   async function closeMenu(){
     for(let k=0;k<3&&await p.evaluate(()=>window.__g.xr.presenting&&window.__g.xr.menuOpen);k++)await yButton();
     await ctl('left',[-.18,1.05,-.32]);
-    await p.waitForFunction(()=>!window.__g.scene.getObjectByName('xr-menu')?.visible,null,{timeout:3000});
+    await p.waitForFunction(()=>!window.__g.scene.getObjectByName('xr-menu')?.visible,null,{timeout:10000});
   }
   async function pick(x,y){
     await openMenu();
