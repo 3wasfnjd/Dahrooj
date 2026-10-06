@@ -3,6 +3,7 @@
    shell fur and a thin-film bubble. The face is the game's own face drawing, laid on the front. */
 (() => {
   'use strict';
+  const MAT_BASE=(document.currentScript&&document.currentScript.src)?new URL('./materials/',document.currentScript.src).href:'./assets/xr/materials/';
   window.createDahrooj3D=(T,{radius,drawFace,renderer})=>{
     const r=radius,V=(x,y,z)=>new T.Vector3(x,y,z);
     const canvas=(w,h,draw)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new T.CanvasTexture(c);t.anisotropy=4;return t;};
@@ -64,6 +65,15 @@
       }
       x.putImageData(img,0,0);return new T.CanvasTexture(c);
     })();
+    // Real surface detail (CC0 normal maps from @pmndrs/assets, see materials/README.md): knitted wool for
+    // fabric and finger presses for clay. Until they load, the drawn ones stand in.
+    function surface(file,repeat,strength){
+      const o={tex:null,mats:new Set()};
+      new T.TextureLoader().load(MAT_BASE+file,t=>{t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(...repeat);t.anisotropy=4;o.tex=t;
+        for(const m of o.mats){m.normalMap=t;m.normalScale.set(strength,strength);m.needsUpdate=true;}});
+      return o;
+    }
+    const knit=surface('knit-normal.webp',[6,3],.9),clayDents=surface('clay-normal.webp',[3,1.5],1.8);
     // The bubble's film swirls; all bubbles share one clock.
     const bubbleTime={value:0};
     const MATERIALS={
@@ -71,9 +81,9 @@
       // over a denser core, like a gummy sweet; the core and a few air bubbles show through.
       jelly:()=>new T.MeshPhysicalMaterial({color:0x5d616e,roughness:.06,metalness:0,clearcoat:1,clearcoatRoughness:.02,
         transmission:.36,transparent:true,depthWrite:false,envMap:env,envMapIntensity:1.1}),
-      fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:feltNormal,roughness:1,envMap:env,envMapIntensity:.35});
+      fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:knit.tex||feltNormal,roughness:1,envMap:env,envMapIntensity:.35});knit.mats.add(m);
         m.normalScale.set(.9,.9);if(m.sheen!==undefined)m.sheen=new T.Color(0xc77d93);return m;},
-      clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(.7,.7);return m;},
+      clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayDents.tex||clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(clayDents.tex?1.8:.7,clayDents.tex?1.8:.7);clayDents.mats.add(m);return m;},
       fur:()=>new T.MeshStandardMaterial({map:furMap,color:0x9c9086,roughness:1,envMap:env,envMapIntensity:.3}),
       bubble:()=>new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:bubbleTime},
         vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vP;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);vP=position;gl_Position=projectionMatrix*mv;}',
