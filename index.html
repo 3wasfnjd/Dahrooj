@@ -1703,7 +1703,7 @@ function make3D(){
     }
     const live=()=>pins.filter(p=>!p.gone);
     return {
-      grp, aimZ:-9, farZ:BACK+.5, friction:0.8,
+      grp, aimZ:-9, farZ:BACK+.5, friction:0.97, shotTime:10,
       pins:()=>pins.map(p=>({down:p.down,gone:p.gone,x:p.x.x,y:p.x.y,z:p.x.z})),
       frame:()=>({roll,knocked}),
       ft:sp=>Math.max(0.55,Math.min(1.1,1.2-sp/3000)),
@@ -2336,7 +2336,7 @@ function make3D(){
       }
       else if(S.scoredT>0){ S.scoredT-=dt; if(S.scoredT<=0) return end(); }
       else if(S.missT>0){ S.missT-=dt; if(S.missT<=0) return end(); }
-      else if(S.restT>0.5 || S.shotT>5 || Math.abs(P.x)>S.xMax || P.z<-34 || P.z>S.zMax) miss();
+      else if(S.restT>0.5 || S.shotT>(stage.shotTime||5) || Math.abs(P.x)>S.xMax || P.z<-34 || P.z>S.zMax) miss();
     }
     return false;
   }

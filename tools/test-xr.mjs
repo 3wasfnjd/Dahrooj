@@ -75,10 +75,13 @@ try{
   const UP20=[0.1736,0,0,0.9848];
   async function throwBall(){
     await ctl('right',[.2,1.2,-.3],UP20);
-    await p.waitForTimeout(200);await trigger(1);await p.waitForTimeout(300);
-    const held=await p.evaluate(()=>window.__g.xr.holding);
+    await p.waitForTimeout(200);await trigger(1);
+    // Wait for the hand to take Dahrooj (one emulator frame can take a few hundred ms).
+    const held=await p.waitForFunction(()=>window.__g.xr.holding,null,{timeout:5000}).then(()=>true,()=>false);
+    await p.waitForTimeout(300);
     for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
-    await trigger(0);await p.waitForTimeout(80);
+    await trigger(0);
+    await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding,null,{timeout:5000}).catch(()=>{});
     return held;
   }
 
@@ -112,7 +115,7 @@ try{
   {
     const before=await p.evaluate(()=>window.__g.xr.rests.length);
     await throwBall();
-    await p.waitForFunction(n=>window.__g.xr.rests.length>n,before,{timeout:70000});
+    await p.waitForFunction(n=>window.__g.xr.rests.length>n,before,{timeout:150000});
     check(true,'A thrown Dahrooj stays in the world after the throw');
     // It may stop on top of the goal first; give it time to roll down and touch the grass.
     const pressedFn=()=>{const r=window.__g.xr.rests.at(-1).p,N=window.__g.xr.nature;let best=0;
@@ -163,7 +166,7 @@ try{
   await pick(button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
   check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');
   await parked();await throwBall();
-  await p.waitForFunction(()=>!window.__g.S.shot,null,{timeout:70000});
+  await p.waitForFunction(()=>!window.__g.S.shot,null,{timeout:150000});
   check(await p.evaluate(()=>{const f=window.__g.stage.frame();return f.roll>=1||f.knocked>0||window.__g.stage.pins().every(q=>!q.down);}),'A roll down the lane is counted');
   await pick(button('mode',1));await parked();
   // The slingshot: left hand holds it, right hand pulls Dahrooj back and lets go.
@@ -191,8 +194,10 @@ try{
   await p.waitForFunction(()=>!window.__g.xr.climb.state.ball.grounded,null,{timeout:3000});
   await p.evaluate(()=>window.__dev.controllers.right.updateButtonValue('a-button',0));
   check(true,'A jumps');
-  await ctl('right',[.2,1.2,-.3]);await trigger(1);await p.waitForTimeout(120);await trigger(0);
-  check(await p.evaluate(()=>window.__g.xr.climb.state.shots.length>0||window.__g.xr.climb.state.ball.cool>0),'The trigger throws a ball at the monsters');
+  await ctl('right',[.2,1.2,-.3]);await trigger(1);
+  const thrown=await p.waitForFunction(()=>window.__g.xr.climb.state.shots.length>0||window.__g.xr.climb.state.ball.cool>0,null,{timeout:6000}).then(()=>true,()=>false);
+  await trigger(0);
+  check(thrown,'The trigger throws a ball at the monsters');
   const head=await p.evaluate(()=>{const g=window.__g.scene.getObjectByName('xr-climb'),rig=window.__g.scene.getObjectByName('xr-rig'),h=window.__dev.position;
     const p=rig.worldToLocal(g.getWorldPosition(new THREE.Vector3()));return Math.hypot(p.x-h.x,p.z-h.z);});
   check(head>.4&&head<1.1,'The mountain stands within reach in front of you ('+head.toFixed(2)+' m)');
