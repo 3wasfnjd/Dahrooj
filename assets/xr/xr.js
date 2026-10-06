@@ -111,40 +111,70 @@
     }
 
     // The menu rides on the left hand: flip it palm-up or raise it. Point with the right hand to pick.
-    const MENU_W=.46,MENU_H=MENU_W*820/1024;
-    const menu=panel(MENU_W,MENU_H,1024,820);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
-    const buttons=[];
-    MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:24+i*164,y:80,w:152,h:112}));
-    STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:24+i*197,y:272,w:185,h:112}));
-    buttons.push({kind:'throw',id:'trigger',label:'زناد',x:24,y:472,w:152,h:104});
-    buttons.push({kind:'throw',id:'hand',label:'يد',x:184,y:472,w:152,h:104});
-    buttons.push({kind:'throw',id:'sling',label:'نبيطة',x:344,y:472,w:152,h:104});
-    buttons.push({kind:'place',id:'place',label:'',x:524,y:472,w:232,h:104});
-    buttons.push({kind:'exit',id:'exit',label:'خروج',x:768,y:472,w:232,h:104});
-    buttons.push({kind:'time',id:'time',label:'',x:24,y:612,w:476,h:100});
-    buttons.push({kind:'weather',id:'weather',label:'',x:524,y:612,w:476,h:100});
+    // A tall pane of frosted glass in Dahrooj's ink and paper: the world shows faintly through it.
+    const MW=768,MH=1200,MENU_W=.34,MENU_H=MENU_W*MH/MW;
+    const menu=panel(MENU_W,MENU_H,MW,MH);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
+    const buttons=[],PAD=36,IN=MW-PAD*2;
+    MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:PAD+(2-i%3)*232,y:182+Math.floor(i/3)*108,w:220,h:96}));
+    STYLES.forEach(([id,label],i)=>buttons.push({kind:'style',id,label,x:PAD+(4-i)*142,y:462,w:128,h:140}));
+    [['trigger','زناد'],['hand','يد'],['sling','نبيطة']].forEach(([id,label],i)=>buttons.push({kind:'throw',id,label,x:PAD+(2-i)*236,y:676,w:224,h:92}));
+    buttons.push({kind:'time',id:'time',label:'',x:PAD+354,y:842,w:342,h:92});
+    buttons.push({kind:'weather',id:'weather',label:'',x:PAD,y:842,w:342,h:92});
+    buttons.push({kind:'place',id:'place',label:'',x:PAD+354,y:962,w:342,h:92});
+    buttons.push({kind:'exit',id:'exit',label:'خروج',x:PAD,y:962,w:342,h:92});
+    const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
       const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(',')].join('|');if(key===menu.key)return;menu.key=key;
-      const c=menu.ctx;c.clearRect(0,0,1024,820);
-      c.fillStyle='rgba(255,252,246,.94)';round(c,4,4,1016,812,46);c.fill();
-      c.strokeStyle='rgba(44,45,61,.18)';c.lineWidth=4;c.stroke();
-      c.textAlign='center';c.direction='rtl';c.fillStyle='rgba(44,45,61,.55)';c.font=font(700,34);
-      c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',260,454);
-      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي · Y للقائمة':throwStyle==='sling'?'اسحب دحروج بالزناد اليمين ثم أفلت · A يرجّع دحروج · Y للقائمة':'الزناد اليمين للرمي · اليسار يفجّر · A يرجّع دحروج · Y للقائمة',512,770);
+      const c=menu.ctx;c.clearRect(0,0,MW,MH);
+      // Glass: a soft paper tint, brighter at the top, a white rim and a faint diagonal sheen.
+      let gr=c.createLinearGradient(0,0,0,MH);gr.addColorStop(0,'rgba(255,252,246,.78)');gr.addColorStop(1,'rgba(240,234,224,.62)');
+      c.fillStyle=gr;round(c,6,6,MW-12,MH-12,64);c.fill();
+      c.save();round(c,6,6,MW-12,MH-12,64);c.clip();
+      gr=c.createLinearGradient(0,0,MW,MH*.55);gr.addColorStop(0,'rgba(255,255,255,.55)');gr.addColorStop(.35,'rgba(255,255,255,0)');gr.addColorStop(.62,'rgba(255,255,255,0)');gr.addColorStop(.7,'rgba(255,255,255,.18)');gr.addColorStop(.78,'rgba(255,255,255,0)');
+      c.fillStyle=gr;c.fillRect(0,0,MW,MH);c.restore();
+      c.lineWidth=4;c.strokeStyle='rgba(255,255,255,.85)';round(c,8,8,MW-16,MH-16,62);c.stroke();
+      c.lineWidth=2;c.strokeStyle='rgba(44,45,61,.16)';round(c,4,4,MW-8,MH-8,66);c.stroke();
+      // Title and section labels.
+      c.textAlign='center';c.direction='rtl';c.fillStyle=INK;c.font=font(800,60);c.fillText('دحروج',MW/2,92);
+      c.fillStyle='rgba(44,45,61,.12)';c.fillRect(PAD+40,120,IN-80,2);
+      c.font=font(700,30);c.fillStyle='rgba(44,45,61,.62)';
+      for(const [t,y] of [['النمط',164],['الستايل',444],['الرمي',658],['العالم',824]])c.fillText(t,MW/2,y);
       buttons.forEach((b,i)=>{
         const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
           :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
         // Time and weather belong to the VR world; the room has its own.
         if((b.kind==='time'||b.kind==='weather')&&!natureOn())c.globalAlpha=.35;
         const on=(b.kind==='mode'&&b.id===modeNow())||(b.kind==='style'&&b.id===g.style())||(b.kind==='throw'&&b.id===throwStyle),hot=hover.includes(i);
-        c.fillStyle=on?INK:hot?'rgba(44,45,61,.14)':'rgba(44,45,61,.05)';round(c,b.x,b.y,b.w,b.h,b.h/2);c.fill();
-        c.fillStyle=on?PAPER:INK;c.font=font(800,label.length>8&&b.w<400?32:40);c.fillText(label,b.x+b.w/2,b.y+b.h/2+14);c.globalAlpha=1;
+        const r=b.kind==='style'?36:b.h/2;
+        // Glass buttons: lighter panes with a white edge; the chosen one is solid ink.
+        if(on){c.fillStyle=INK;round(c,b.x,b.y,b.w,b.h,r);c.fill();}
+        else{
+          const bg=c.createLinearGradient(0,b.y,0,b.y+b.h);bg.addColorStop(0,hot?'rgba(255,255,255,.95)':'rgba(255,255,255,.62)');bg.addColorStop(1,hot?'rgba(255,255,255,.7)':'rgba(255,255,255,.3)');
+          c.fillStyle=bg;round(c,b.x,b.y,b.w,b.h,r);c.fill();
+          c.lineWidth=2.5;c.strokeStyle=hot?'rgba(44,45,61,.35)':'rgba(255,255,255,.9)';c.stroke();
+        }
+        if(b.kind==='style'){
+          // A little Dahrooj in that style: a shaded body with two eyes.
+          const [a,d]=STYLE_DOTS[b.id]||['#888','#444'],cx=b.x+b.w/2,cy=b.y+52;
+          const bg=c.createRadialGradient(cx-10,cy-12,4,cx,cy,32);bg.addColorStop(0,a);bg.addColorStop(1,d);
+          c.fillStyle=bg;c.beginPath();c.arc(cx,cy,30,0,7);c.fill();c.lineWidth=2;c.strokeStyle='rgba(44,45,61,.25)';c.stroke();
+          for(const ex of [-9,9]){c.fillStyle='#fff';c.beginPath();c.arc(cx+ex,cy-3,6.5,0,7);c.fill();c.fillStyle=INK;c.beginPath();c.arc(cx+ex,cy-2,3.3,0,7);c.fill();}
+          c.fillStyle=on?PAPER:INK;c.font=font(800,28);c.fillText(label,cx,b.y+122);
+        }else{
+          c.fillStyle=on?PAPER:INK;c.font=font(800,label.length>10?32:38);c.fillText(label,b.x+b.w/2,b.y+b.h/2+13);
+        }
+        c.globalAlpha=1;
       });
+      c.textAlign='center';c.fillStyle='rgba(44,45,61,.66)';c.font=font(600,27);
+      const hint=climbOn?['العصا اليسار للحركة · A أو X للقفز','الزناد للرمي · Y للقائمة']
+        :throwStyle==='sling'?['اسحب دحروج بالزناد اليمين ثم أفلت','A يرجّع دحروج · Y للقائمة']
+        :['الزناد اليمين للرمي · اليسار يفجّر','A يرجّع دحروج · Y للقائمة'];
+      c.fillText(hint[0],MW/2,1110);c.fillText(hint[1],MW/2,1152);
       menu.tex.needsUpdate=true;
     }
     function menuHit(uv){
-      const x=uv.x*1024,y=(1-uv.y)*820;
+      const x=uv.x*MW,y=(1-uv.y)*MH;
       return buttons.findIndex(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     }
     function menuAction(i){
@@ -668,7 +698,7 @@
         // Controllers: the Y button. Hands (no buttons): turn the palm up.
         want=menuToggled;
         if(L.source?.hand){L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y;want=menuOpen?up<.15:up<-.3;}
-        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.2,0));eyeNow();menu.mesh.lookAt(eye);}
+        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.3,0));eyeNow();menu.mesh.lookAt(eye);}
       }
       menuOpen=want;
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
@@ -804,7 +834,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get menuLayout(){return {w:MW,h:MH,buttons:buttons.map(b=>({...b}))};},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };
