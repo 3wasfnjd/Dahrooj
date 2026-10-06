@@ -56,14 +56,18 @@
     // Strand map for the shells: each texel is one hair with its own length; the face is short-haired.
     const FUR_SHELLS=18,FUR_LEN=.085;
     const hairMap=(()=>{
-      const w=512,h=256,c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),img=x.createImageData(w,h);
+      // Fine and dense: about a millimetre per hair on the ball, grown in soft clumps so the coat
+      // reads as fluffy rather than spiky.
+      const w=1024,h=512,c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),img=x.createImageData(w,h);
+      const clump=(i,j)=>.55+.45*Math.sin(i*.09+Math.sin(j*.07)*2)*Math.sin(j*.11+Math.sin(i*.05)*2);
       for(let j=0;j<h;j++)for(let i=0;i<w;i++){
         // The face sits at u = .25, v = .5 on the sphere.
         const du=(i/w-.25)/.17,dv=(j/h-.5)/.2,face=Math.min(1,Math.max(0,(Math.hypot(du,dv)-.75)*3));
-        const len=Math.pow(rand(),.6)*(.3+.7*face),k=(j*w+i)*4;
+        // Every texel has at least a short undercoat, so the skin never shows through as dark dots.
+        const len=Math.max(.16,Math.pow(rand(),.45)*(.55+.45*clump(i,j))*(.3+.7*face)),k=(j*w+i)*4;
         img.data[k]=img.data[k+1]=img.data[k+2]=len*255;img.data[k+3]=255;
       }
-      x.putImageData(img,0,0);return new T.CanvasTexture(c);
+      x.putImageData(img,0,0);const t=new T.CanvasTexture(c);t.anisotropy=4;return t;
     })();
     // Real surface detail (CC0 normal maps from @pmndrs/assets, see materials/README.md): knitted wool for
     // fabric and finger presses for clay. Until they load, the drawn ones stand in.
@@ -84,7 +88,8 @@
       fabric:()=>{const m=new T.MeshPhysicalMaterial({map:feltMap,normalMap:knit.tex||feltNormal,roughness:1,envMap:env,envMapIntensity:.35});knit.mats.add(m);
         m.normalScale.set(.9,.9);if(m.sheen!==undefined)m.sheen=new T.Color(0xc77d93);return m;},
       clay:()=>{const m=new T.MeshStandardMaterial({map:clayMap,normalMap:clayDents.tex||clayNormal,roughness:.72,envMap:env,envMapIntensity:.5});m.normalScale.set(clayDents.tex?1.8:.7,clayDents.tex?1.8:.7);clayDents.mats.add(m);return m;},
-      fur:()=>new T.MeshStandardMaterial({map:furMap,color:0x9c9086,roughness:1,envMap:env,envMapIntensity:.3}),
+      // The skin is the colour of the hair roots and lit like them, so gaps between hairs read as deeper fur.
+      fur:()=>new T.MeshStandardMaterial({map:furMap,color:new T.Color(.74,.72,.69),roughness:1}),
       bubble:()=>new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:bubbleTime},
         vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vP;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);vP=position;gl_Position=projectionMatrix*mv;}',
         fragmentShader:[
@@ -132,13 +137,15 @@
     // Shell fur: stacked layers keep only the longer strands further out, so hairs taper and
     // the roots are shaded. The outer layers droop a little.
     // One material per layer, shared by every fur ball; a lite ball uses every fourth layer.
-    const furLayers=Array.from({length:FUR_SHELLS},(_,i)=>{const t=(i+1)/FUR_SHELLS,shade=.4+.7*t;
-      return {t,mat:new T.MeshStandardMaterial({map:furMap,alphaMap:hairMap,alphaTest:Math.min(.97,.08+t*.9),color:new T.Color(Math.min(1,shade),Math.min(1,shade*.97),Math.min(1,shade*.93)),roughness:1})};});
+    // The layers are about a millimetre apart, too close for the depth buffer at headset distances, so
+    // they don't write depth: each is drawn over the one inside it, from the skin outwards.
+    const furLayers=Array.from({length:FUR_SHELLS},(_,i)=>{const t=(i+1)/FUR_SHELLS,shade=.7+.4*t;
+      return {t,mat:new T.MeshStandardMaterial({map:furMap,alphaMap:hairMap,alphaTest:Math.min(.97,.08+t*.9),depthWrite:false,color:new T.Color(Math.min(1,shade),Math.min(1,shade*.97),Math.min(1,shade*.93)),roughness:1})};});
     function furShells(lite){
       const g=new T.Group();
       furLayers.forEach(({t,mat},i)=>{
         if(lite&&i%4!==3)return;
-        const m=new T.Mesh(lite?liteSphere:sphere,mat);m.scale.setScalar(1+t*FUR_LEN);m.position.y=-r*.035*t*t;g.add(m);
+        const m=new T.Mesh(lite?liteSphere:sphere,mat);m.renderOrder=1+t;m.scale.setScalar(1+t*FUR_LEN);m.position.y=-r*.035*t*t;g.add(m);
       });
       return g;
     }
@@ -149,14 +156,48 @@
     const capGeo=k=>new T.SphereGeometry(r*k,32,24,Math.PI/2-FACE_SPAN/2,FACE_SPAN,Math.PI/2-FACE_SPAN/2,FACE_SPAN);
     // On fur the face sits on top of the short hair around it.
     const faceGeo=capGeo(1.006),furFaceGeo=capGeo(1+FUR_LEN*.32);
-    function faceTexture(style,face,lx,ly,blink){
-      const qx=Math.round(lx*2)/2,qy=Math.round(ly*2)/2,key=[style,face,qx,qy,blink?1:0].join('/');
+    function faceTexture(style,face,lx,ly,blink,noEyes){
+      const qx=Math.round(lx*2)/2,qy=Math.round(ly*2)/2,key=[style,face,qx,qy,blink?1:0,noEyes?1:0].join('/');
       if(!faces.has(key)){
         const size=256,R=size/2/(FACE_SPAN/2)*.97;
-        faces.set(key,canvas(size,size,(c)=>{c.translate(size/2,size/2);drawFace(c,R,face,qx,qy,0,blink,style);}));
+        faces.set(key,canvas(size,size,(c)=>{c.translate(size/2,size/2);drawFace(c,R,face,qx,qy,0,blink,style,noEyes);}));
         if(faces.size>160){const first=faces.keys().next().value;faces.get(first).dispose();faces.delete(first);}
       }
       return faces.get(key);
+    }
+
+    /* ---------- 3D eyes: glossy eyeballs with a pupil and a glint, where the drawing put them ---------- */
+    // Open, focused, wide and happy eyes are real; the closed, squinting, laughing and dizzy ones stay drawn.
+    const EYE_FACES=new Set(['open','focus','wide','joy']),ER=r*.19;
+    const eyeGeo=new T.SphereGeometry(1,24,16),eyeGeoLite=new T.SphereGeometry(1,12,8);
+    const sclera=new T.MeshPhysicalMaterial({color:0xfffaf2,roughness:.2,clearcoat:1,clearcoatRoughness:.04,envMap:env,envMapIntensity:.7});
+    const scleraFelt=new T.MeshPhysicalMaterial({color:0xf2ebdd,roughness:.85,envMap:env,envMapIntensity:.3});
+    if(scleraFelt.sheen!==undefined)scleraFelt.sheen=new T.Color(0x8a8070);
+    const pupilMat=new T.MeshPhysicalMaterial({color:0x2c2d3d,roughness:.06,clearcoat:1,clearcoatRoughness:.02,envMap:env,envMapIntensity:1.1});
+    const glintMat=new T.MeshBasicMaterial({color:0xffffff});
+    function eyes(style,lite){
+      const g=new T.Group(),geo=lite?eyeGeoLite:eyeGeo,parts=[];
+      // On fur the eyes sit out on top of the short hair around the face.
+      const lift=style==='fur'?r*FUR_LEN*.4:0;
+      for(const s of [-1,1]){
+        const pivot=new T.Group();pivot.rotation.order='YXZ';g.add(pivot);
+        const ball=new T.Group();ball.position.z=r+lift-ER*.22;pivot.add(ball);
+        const white=new T.Mesh(geo,style==='fabric'?scleraFelt:sclera);white.scale.set(ER,ER*1.12,ER*.55);ball.add(white);
+        const pupil=new T.Group();pupil.position.z=ER*.42;ball.add(pupil);
+        const dot=new T.Mesh(geo,pupilMat);dot.scale.set(ER*.55,ER*.55,ER*.22);pupil.add(dot);
+        const glint=new T.Mesh(geo,glintMat);glint.scale.setScalar(ER*.15);glint.position.set(-ER*.2,ER*.22,ER*.2);pupil.add(glint);
+        parts.push({s,pivot,ball,pupil});
+      }
+      return {g,set(face,lx,ly,blink){
+        const on=EYE_FACES.has(face);g.visible=on;if(!on)return;
+        const open=blink?.12:face==='focus'?.6:1,pr=(face==='wide'?.42:face==='joy'?.66:.55)/.55;
+        for(const e of parts){
+          // Same places as the drawing: a little above the middle, apart, and shifting with the look.
+          e.pivot.rotation.set(-(.08-ly*.06),e.s*.31+lx*.08,0);
+          e.ball.scale.set(1,open,1);
+          e.pupil.position.x=lx*ER*.42;e.pupil.position.y=-ly*ER*.48;e.pupil.scale.set(pr,pr,1);
+        }
+      }};
     }
 
     // The jelly's insides: a soft dark core, the skin's inner wall for depth, and trapped air bubbles.
@@ -182,8 +223,9 @@
       if(style==='jelly'){inner.add(jellyInside(lite));inner.add(bandaid());body.renderOrder=.5;}
       if(style==='fabric')inner.add(stitches());
       if(style==='fur'){inner.add(furShells(lite));inner.add(bow());}
-      let cap=null;
+      let cap=null,eye=null;
       if(face){
+        eye=eyes(style,lite);inner.add(eye.g);
         cap=new T.Mesh(style==='fur'?furFaceGeo:faceGeo,new T.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));
         cap.renderOrder=1;inner.add(cap);
       }
@@ -194,9 +236,10 @@
           bubbleTime.value=performance.now()/1000;
           outer.position.copy(pos);outer.scale.set(squash[0],squash[1],squash[0]);
           if(toward)inner.lookAt(toward);
+          eye?.set(faceName,look[0],look[1],blink);
           if(cap){
             if(faceName==='none')cap.visible=false;
-            else{const map=faceTexture(style,faceName,look[0],look[1],blink);if(cap.material.map!==map){cap.material.map=map;cap.material.needsUpdate=true;}cap.visible=true;}
+            else{const map=faceTexture(style,faceName,look[0],look[1],blink,!!eye&&EYE_FACES.has(faceName));if(cap.material.map!==map){cap.material.map=map;cap.material.needsUpdate=true;}cap.visible=true;}
           }
         },
         dispose(){outer.traverse(o=>{if(o.isMesh&&o.material!==undefined&&!o.geometry.isShared)o.material.dispose?.();});}
