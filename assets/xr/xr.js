@@ -131,7 +131,7 @@
       c.strokeStyle='rgba(44,45,61,.18)';c.lineWidth=4;c.stroke();
       c.textAlign='center';c.direction='rtl';c.fillStyle='rgba(44,45,61,.55)';c.font=font(700,34);
       c.fillText('النمط',512,62);c.fillText('الستايل',512,254);c.fillText('الرمي',260,454);
-      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي · Y للقائمة':'اضغط الزناد مطوّلًا للقوة ثم أفلت · A يرجّع دحروج · Y للقائمة',512,770);
+      c.font=font(600,30);c.fillText(climbOn?'العصا اليسار للحركة · A أو X للقفز · الزناد للرمي · Y للقائمة':throwStyle==='sling'?'اسحب دحروج بالزناد اليمين ثم أفلت · A يرجّع دحروج · Y للقائمة':'الزناد اليمين للرمي · اليسار يفجّر · A يرجّع دحروج · Y للقائمة',512,770);
       buttons.forEach((b,i)=>{
         const label=b.kind==='place'?(kind==='immersive-ar'?'ثبّت من جديد':'توسيط')
           :b.kind==='time'?'الوقت: '+Object.fromEntries(TIMES)[sky.time]:b.kind==='weather'?'الطقس: '+Object.fromEntries(WEATHERS)[sky.weather]:b.label;
@@ -337,7 +337,7 @@
           session.requestHitTestSource({space:src.targetRaySpace}).then(s=>{if(h.source===src)hitSources.set(h,s);else s.cancel();},()=>{});
       });
       target.addEventListener('disconnected',()=>{release(h,true);h.source=null;hitSources.get(h)?.cancel();hitSources.delete(h);});
-      target.addEventListener('selectstart',()=>press(h));
+      target.addEventListener('selectstart',()=>press(h,'trigger'));
       target.addEventListener('selectend',()=>release(h));
       target.addEventListener('squeezestart',()=>press(h));
       target.addEventListener('squeezeend',()=>release(h));
@@ -387,11 +387,13 @@
     // Real speed to game speed: the world is s times smaller and its time runs timeK times faster.
     const toGame=u=>{const v=u.clone().multiplyScalar(scaleNow()/timeK());if(v.length()>MAX_SPEED)v.setLength(MAX_SPEED);return v;};
 
-    function press(h){
+    function press(h,how){
       if(!session)return;
       if(h.hover>=0){menuAction(h.hover);return;}
       if(intro){if(h.onStart)endIntro();else fireIntro(h);return;}
       if(menuOpen&&h===leftHand())return;
+      // Controllers: the left trigger is a blaster that pops the Dahroojs around the modes.
+      if(how==='trigger'&&h===leftHand()&&h.source?.gamepad&&!placing&&!climbOn&&!forkHand()&&!g.stage().networked){fireBlast(h);return;}
       if(placing){if(anchor){placing=false;g.respawn();}return;}
       if(climbOn){if(h===leftHand())climb3.jump();else climb3.throwBall();return;}
       const st=g.stage();
@@ -426,6 +428,53 @@
       const target=[clamp(p.x+v.x*t,-9,9),clamp(p.y+v.y*t-.5*g.GRAV*t*t,.35,6),z];
       if(st.submitShot&&st.submitShot({target,flight:t,curve:0}))g.whoosh(Math.min(1,v.length()/18));
     }
+    /* ---------- the left-hand blaster ---------- */
+    // Small eyeless Dahroojs fly along the left ray, as on the start page, and pop the Dahroojs they
+    // touch: the ones resting in the world, earlier throws still in the air, and the one in flight.
+    // They knock into Motri's props too, and set off the crates.
+    const blast={shots:[],sparks:[],popped:0,fired:0};
+    function fireBlast(h){
+      if(clock-(h.lastShot||0)<.12)return;h.lastShot=clock;
+      const {origin,dir}=rayOf(h),k=scaleNow(),style=INTRO_STYLES[++blast.fired%INTRO_STYLES.length];
+      const model=models?models.make(style,{face:false,lite:true}):null,m=model?model.group:new T.Mesh(SPARK,new T.MeshBasicMaterial({color:STYLE_COLORS[style]}));
+      scene.add(m);
+      blast.shots.push({m,model,p:origin.addScaledVector(dir,.08*k),v:dir.multiplyScalar(9*k),t:0,q:new T.Quaternion()});
+      g.whoosh(.2);
+    }
+    function burst(p,style){
+      const k=scaleNow();
+      for(let i=0;i<14;i++){
+        const m=new T.Mesh(SPARK,new T.MeshBasicMaterial({color:i%3?STYLE_COLORS[style]||0xfffaf2:0xfffaf2,transparent:true}));m.scale.setScalar((.012+Math.random()*.012)*k);scene.add(m);
+        const a=Math.random()*Math.PI*2,e=Math.random()*Math.PI-Math.PI/2,v=(1.2+Math.random()*1.8)*k;
+        blast.sparks.push({m,p:p.clone(),v:V(Math.cos(a)*Math.cos(e)*v,Math.sin(e)*v+k,Math.sin(a)*Math.cos(e)*v),t:0,max:.45+Math.random()*.3});
+      }
+      blast.popped++;g.popSound?.();
+    }
+    function stepBlast(dt){
+      if(!blast.shots.length&&!blast.sparks.length)return;
+      const k=scaleNow(),R=SHOT_R*k,G=REAL_G*k;
+      for(let i=blast.shots.length-1;i>=0;i--){
+        const s=blast.shots[i];s.t+=dt;s.v.y-=G*dt*(s.t<.3?.12:1);s.p.addScaledVector(s.v,dt);
+        if(s.p.y<R){s.p.y=R;if(s.v.y<-.8*k)s.v.y*=-.45;else s.v.y=0;s.v.x*=Math.pow(.55,dt);s.v.z*=Math.pow(.55,dt);}
+        if(natureOn()&&nature.props)nature.props.collide(s.p,s.v,R);
+        const sp=Math.hypot(s.v.x,s.v.z);
+        if(sp>.01){const axis=V(s.v.z,0,-s.v.x).normalize();s.q.premultiply(new T.Quaternion().setFromAxisAngle(axis,sp/R*dt));}
+        if(s.model){s.model.update({pos:s.p.clone()});s.m.scale.setScalar(R/BR);}else s.m.scale.setScalar(R);
+        s.m.position.copy(s.p);s.m.quaternion.copy(s.q);
+        // What it touches pops.
+        const near=p=>p.distanceTo(s.p)<BR+R;let hit=false;
+        for(let j=rests.length-1;j>=0;j--)if(near(rests[j].p)){const r=rests[j];burst(r.p,r.style);if(r.m)scene.remove(r.m.group);rests.splice(j,1);hit=true;}
+        const vol=g.volley();for(let j=vol.length-1;j>=0;j--)if(near(vol[j].pos)){burst(vol[j].pos,g.style());vol.splice(j,1);hit=true;}
+        if(S.shot&&!S.held&&near(S.pos)){burst(S.pos,g.style());holder=null;g.recall();hit=true;}
+        if(hit)s.v.multiplyScalar(.6);
+        if(s.t>5){scene.remove(s.m);blast.shots.splice(i,1);}
+      }
+      for(let i=blast.sparks.length-1;i>=0;i--){
+        const s=blast.sparks[i];s.t+=dt;s.v.y-=G*.5*dt;s.p.addScaledVector(s.v,dt);s.m.position.copy(s.p);s.m.material.opacity=1-s.t/s.max;
+        if(s.t>=s.max){scene.remove(s.m);s.m.material.dispose();blast.sparks.splice(i,1);}
+      }
+    }
+    function clearBlast(){for(const s of [...blast.shots,...blast.sparks])scene.remove(s.m);blast.shots.length=blast.sparks.length=0;}
     // A or X: Dahrooj comes back at once.
     function recall(){
       const st=g.stage();
@@ -549,7 +598,7 @@
       scene.background=null;floor.visible=false;ballSprite.visible=false;
       for(const a of actorSprites)a.visible=false;for(const d of dots)d.visible=false;
       if(ballModel)ballModel.group.visible=false;for(const m of [...actorModels,...volleyModels])if(m)m.group.visible=false;
-      clearRests();
+      clearRests();clearBlast();
       renderer.xr.enabled=false;
       g.resize();g.onExit?.();
     }
@@ -561,7 +610,7 @@
     g.setRestHook?.((pos,vel)=>{
       if(!session||g.stage().networked||climbOn)return;
       const m=models?models.make(g.style(),{lite:true}):null;if(m)scene.add(m.group);
-      rests.push({m,p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3});
+      rests.push({m,style:g.style(),p:pos.clone(),v:vel.clone(),d:0,dv:0,wander:1.5+Math.random()*4,blink:0,next:1+Math.random()*3});
       if(rests.length>RESTS_MAX){const o=rests.shift();if(o.m)scene.remove(o.m.group);}
     });
     function clearRests(){for(const r of rests)if(r.m)scene.remove(r.m.group);rests.length=0;}
@@ -677,6 +726,7 @@
       fork.visible=!!F?.source;if(F?.source&&fork.parent!==F.grip)F.grip.add(fork);
       drawMenu(hover);drawHud();if(start.mesh.visible)drawStart(startHot);
       if(intro){stepIntro(dt);drawIntro();}
+      stepBlast(dt);
       hud.mesh.visible=!intro;
       eyeNow();hud.mesh.lookAt(eye);
       // Dahrooj waits by your hand (or in the slingshot) between throws.
@@ -754,7 +804,7 @@
     }
 
     return {enter,get presenting(){return !!session;},get kind(){return kind;},get holding(){return !!holder;},
-      get placing(){return placing;},get rests(){return rests;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
+      get placing(){return placing;},get rests(){return rests;},get blast(){return blast;},get nature(){return nature;},get climbing(){return climbOn;},get climb(){return climb3;},get opening(){return !!intro;},get popped(){return intro?intro.popped:0;},get parked(){return parked;},get menuOpen(){return menuOpen;},get throwStyle(){return throwStyle;},
       // For tests: what each hand reports.
       inspect:()=>hands.map(h=>({connected:!!h.source,hand:h.source?.handedness,samples:h.hist.length,velocity:velocity(h).toArray()}))};
   };

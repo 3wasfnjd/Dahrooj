@@ -113,6 +113,19 @@ try{
     await p.waitForFunction(`(${pressedFn})()>.05`,null,{timeout:30000}).catch(()=>{});
     const pressed=await p.evaluate(`(${pressedFn})()`);
     check(pressed>.05,'It leaves tracks on the grass ('+pressed.toFixed(2)+')');
+    // The left trigger fires small shots along the left ray; one that touches a resting Dahrooj pops it.
+    const restsBefore=await p.evaluate(()=>window.__g.xr.rests.length);
+    for(let k=0;k<10&&!(await p.evaluate(()=>window.__g.xr.blast.popped>0));k++){
+      await p.evaluate(lift=>{
+        const T=THREE,rig=window.__g.scene.getObjectByName('xr-rig'),r=window.__g.xr.rests.at(-1);if(!r)return;
+        const at=rig.worldToLocal(r.p.clone()),from=new T.Vector3(-.2,1.2,-.3),d=at.distanceTo(from);at.y+=d*d*lift;
+        const q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().lookAt(from,at,new T.Vector3(0,1,0)));
+        const c=window.__dev.controllers.left;c.position.copy(from);c.quaternion.set(q.x,q.y,q.z,q.w);
+      },.012+(k%4)*.012);
+      await p.waitForTimeout(250);await trigger(1,'left');await p.waitForTimeout(200);await trigger(0,'left');await p.waitForTimeout(2500);
+    }
+    check(await p.evaluate(n=>window.__g.xr.blast.popped>0&&window.__g.xr.rests.length<n,restsBefore),'The left trigger fires shots that pop a resting Dahrooj');
+    await ctl('left',[-.18,1.05,-.32]);
     await parked();
   }
   // Back to back: grabbing while Dahrooj flies keeps that throw going and brings a fresh one.
