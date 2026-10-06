@@ -1774,7 +1774,7 @@ function make3D(){
           if(c.calm>.6) c.sleep=true;
           if(!c.down && isDown(c)){ c.down=true; knocked++; addCount('bowling'); }
         }
-        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(roll===0?'سترايك!':'سبير!'); if(roll===0) chProgress('strike1',1); }
+        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(xrOnNow()&&xrLang==='en'?(roll===0?'Strike!':'Spare!'):(roll===0?'سترايك!':'سبير!')); if(roll===0) chProgress('strike1',1); }
       }
     };
   }
@@ -2488,7 +2488,9 @@ function make3D(){
     drawFace(c,Rr,face,lx,ly,blush,blink,style,noEyes){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink,noEyes);}finally{ballStyle=prev;}},
     style:()=>ballStyle, setMode:m=>setMode(m), setStyle:v=>setStyle(v), mode:()=>mode,
     // Challenges for the headset menu, and a step forward on one from the headset (crates, blaster).
-    challenges:()=>CHALLENGES.map(c=>({id:c.id,title:c.title,goal:c.goal,value:Math.min(c.goal,chState[c.id]||0)})),
+    challenges:()=>CHALLENGES.map(c=>({id:c.id,title:c.title,en:c.en,goal:c.goal,value:Math.min(c.goal,chState[c.id]||0)})),
+    // The headset's language for the messages it shows (the web page stays Arabic).
+    setLang:l=>{xrLang=l==='en'?'en':'ar';},
     chAdd:id=>chProgress(id,(chState[id]||0)+1),
     texts:()=>({count:elCount.textContent,turn:elCount.dataset.turn||'',toast:elToast.classList.contains('show')?elToast.textContent:'',title:elTitle.classList.contains('show')?elTitle.textContent:''}),
     paper:()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#ddd2c1'});
@@ -2497,20 +2499,22 @@ function make3D(){
 
 /* ---------- challenges (saved on this device) ---------- */
 const CHALLENGES=[
-  {id:'free25',   title:'٢٥ ارتداد',                    goal:25},
-  {id:'keeper3',  title:'سجّل على الحارس ٣ مرات',       goal:3},
-  {id:'hoop3',    title:'٣ سلات ورا بعض',              goal:3},
-  {id:'windowMin',title:'صغّر الشباك لأصغر حجم', goal:1},
-  {id:'rally10',  title:'رالي بادل ١٠ ضربات',             goal:10},
-  {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   goal:1},
-  {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
-  {id:'summit1',  title:'اوصل قمة الجبل',                 goal:1},
-  {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     goal:15},
-  {id:'strike1',  title:'سترايك في البولينغ',               goal:1},
-  {id:'crates5',  title:'فجّر ٥ صناديق في عالم النظارة',     goal:5},
-  {id:'pop20',    title:'فجّر ٢٠ دحروج بالزناد اليسار',     goal:20},
+  {id:'free25',   title:'٢٥ ارتداد',                    en:'25 bounces', goal:25},
+  {id:'keeper3',  title:'سجّل على الحارس ٣ مرات',       en:'Score past the keeper 3 times', goal:3},
+  {id:'hoop3',    title:'٣ سلات ورا بعض',              en:'3 hoops in a row', goal:3},
+  {id:'windowMin',title:'صغّر الشباك لأصغر حجم', en:'Shrink the window to its smallest', goal:1},
+  {id:'rally10',  title:'رالي بادل ١٠ ضربات',             en:'A padel rally of 10 hits', goal:10},
+  {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   en:'Knock down every can in one throw', goal:1},
+  {id:'styles5',  title:'العب بكل الستايلات الخمسة',          en:'Play in all five styles', goal:5},
+  {id:'summit1',  title:'اوصل قمة الجبل',                 en:'Reach the top of the Summit', goal:1},
+  {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     en:'Beat 15 monsters on the Summit', goal:15},
+  {id:'strike1',  title:'سترايك في البولينغ',               en:'A strike in bowling', goal:1},
+  {id:'crates5',  title:'فجّر ٥ صناديق في عالم النظارة',     en:'Blow up 5 crates in the headset world', goal:5},
+  {id:'pop20',    title:'فجّر ٢٠ دحروج بالزناد اليسار',     en:'Pop 20 Dahroojs with the left trigger', goal:20},
 ];
 let chState={}, stylesUsed=[];
+let xrLang='ar'; try{ if(localStorage.getItem('dahrooj-lang')==='en') xrLang='en'; }catch(_){}
+const xrOnNow=()=>!!(G3&&G3.xr&&G3.xr.presenting);
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
 let hoopStreak=0;
 const elToast=document.getElementById('toast'), elPanel=document.getElementById('chpanel'), btnCh=document.getElementById('btn-ch'), btnVisits=document.getElementById('btn-visits');
@@ -2530,7 +2534,7 @@ function chProgress(id,value){
   const before=chState[id]||0; if(value<=before) return;
   chState[id]=Math.min(c.goal,value);
   try{ localStorage.setItem('dahrooj-ch',JSON.stringify(chState)); }catch(_){}
-  if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+c.title); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
+  if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+(xrOnNow()&&xrLang==='en'?c.en:c.title)); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
   if(!elPanel.hidden) renderPanel();
 }
 const ar=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);

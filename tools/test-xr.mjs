@@ -180,10 +180,11 @@ try{
   await ctl('left',[-.2,1.1,-.3]);await xButton(false);
   check(!(await p.evaluate(()=>window.__g.xr.menuOpen)),'X again closes them');
   await ctl('left',[-.18,1.05,-.32]);
-  await pick(button('ch'));
-  check(await p.evaluate(()=>window.__g.xr.challengesOpen&&window.__g.xr.menuLayout&&true),'The menu shows the challenges');
-  await pick(button('ch'));
-  check(!(await p.evaluate(()=>window.__g.xr.challengesOpen)),'And goes back to the options');
+  // The language button switches the headset texts to English and back.
+  await pick(button('lang'));
+  check(await p.evaluate(()=>window.__g.xr.lang==='en'),'The menu switches to English');
+  await pick(button('lang'));
+  check(await p.evaluate(()=>window.__g.xr.lang==='ar'),'And back to Arabic');
   // Bowling: Motri's ten pins at the end of a lane; a roll down the lane counts as a roll of the frame.
   await pick(button('mode',4));check((await state()).mode==='bowling','The menu switches to bowling');
   check(await p.evaluate(()=>window.__g.stage.pins().length===10&&window.__g.stage.pins().every(q=>!q.down)),'Ten pins stand at the end of the lane');
