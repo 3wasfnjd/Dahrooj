@@ -125,7 +125,7 @@
     buttons.push({kind:'place',id:'place',label:'',x:PAD+472,y:962,w:224,h:92});
     buttons.push({kind:'ch',id:'ch',label:'التحديات',x:PAD+236,y:962,w:224,h:92});
     buttons.push({kind:'exit',id:'exit',label:'خروج',x:PAD,y:962,w:224,h:92});
-    let chOpen=false;
+    let chOpen=false;const MENU_LEAN=new T.Quaternion().setFromEuler(new T.Euler(-.35,0,0));
     const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
@@ -189,8 +189,8 @@
       });
       c.textAlign='center';c.fillStyle='rgba(44,45,61,.66)';c.font=font(600,27);
       const hint=climbOn?['العصا اليسار للحركة · A أو X للقفز','الزناد للرمي · Y للقائمة']
-        :throwStyle==='sling'?['اسحب دحروج بالزناد اليمين ثم أفلت','A يرجّع دحروج · Y للقائمة']
-        :['الزناد اليمين للرمي · اليسار يفجّر','A يرجّع دحروج · Y للقائمة'];
+        :throwStyle==='sling'?['اسحب دحروج بالزناد اليمين ثم أفلت','A يرجّع دحروج · Y للقائمة · X للتحديات']
+        :['الزناد اليمين للرمي · اليسار يفجّر','A يرجّع دحروج · Y للقائمة · X للتحديات'];
       c.fillText(hint[0],MW/2,1110);c.fillText(hint[1],MW/2,1152);
       menu.tex.needsUpdate=true;
     }
@@ -722,7 +722,15 @@
         // Controllers: the Y button. Hands (no buttons): turn the palm up.
         want=menuToggled;
         if(L.source?.hand){L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y;want=menuOpen?up<.15:up<-.3;}
-        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
+        if(want){
+          if(L.source?.hand){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
+          else{
+            // With a controller the pane stands up off the hand and tilts with it, leaning back a little toward you.
+            const q=L.grip.quaternion;
+            menu.mesh.position.copy(L.grip.position).addScaledVector(V(0,1,0).applyQuaternion(q),.2);
+            menu.mesh.quaternion.copy(q).multiply(MENU_LEAN);
+          }
+        }
       }
       menuOpen=want;
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
@@ -760,8 +768,10 @@
         if(pad){
           const now=[4,5].map(i=>!!pad.buttons[i]?.pressed),edge=now.map((b,i)=>b&&!h.buttons[i]);h.buttons=now;
           // Summit: A or X jumps, B or Y throws. Elsewhere either calls Dahrooj back.
-          // Y (left) opens and closes the menu. Summit: A or X jumps, B throws. Elsewhere A, B or X calls Dahrooj back.
-          if(h===leftHand()&&edge[1]){menuToggled=!menuToggled;}
+          // Y (left) opens and closes the menu, X (left) the challenges. Summit: A or X jumps, B throws. Elsewhere A or B calls Dahrooj back.
+          if(h===leftHand()&&edge[1]){menuToggled=!menuToggled;if(menuToggled)chOpen=false;menu.key='';}
+          // X (left) opens the challenges; again closes them. (On the Summit X still jumps.)
+          else if(h===leftHand()&&edge[0]&&!climbOn){if(menuToggled&&chOpen)menuToggled=false;else{menuToggled=true;chOpen=true;}menu.key='';}
           else if(climbOn){if(edge[0])climb3.jump();if(edge[1])climb3.throwBall();}
           else if(edge.some(Boolean))recall();
         }

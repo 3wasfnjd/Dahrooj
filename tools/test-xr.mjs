@@ -167,6 +167,19 @@ try{
   await parked();const heldHoop=await throwBall();const hoopState=await state();check(heldHoop&&hoopState.shot,'Throwing works in hoop');
 
   // Challenges in the headset menu.
+  // X opens the challenges straight away; X again closes them.
+  const xButton=async want=>{await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('x-button',1));
+    await p.waitForFunction(w=>window.__g.xr.menuOpen===w,want,{timeout:5000}).catch(()=>{});
+    await p.evaluate(()=>window.__dev.controllers.left.updateButtonValue('x-button',0));await p.waitForTimeout(500);};
+  await ctl('left',[-.2,1.1,-.3]);await xButton(true);
+  check(await p.evaluate(()=>window.__g.xr.menuOpen&&window.__g.xr.challengesOpen),'X opens the challenges');
+  // The pane tilts with the hand.
+  await ctl('left',[-.2,1.1,-.3],[0,0,0.2588,0.9659]);await p.waitForTimeout(1200);
+  const tilt=await p.evaluate(()=>{const m=window.__g.scene.getObjectByName('xr-menu'),z=new THREE.Euler().setFromQuaternion(m.quaternion,'YXZ').z;return z;});
+  check(Math.abs(tilt-.52)<.15,'The menu tilts with the hand ('+tilt.toFixed(2)+')');
+  await ctl('left',[-.2,1.1,-.3]);await xButton(false);
+  check(!(await p.evaluate(()=>window.__g.xr.menuOpen)),'X again closes them');
+  await ctl('left',[-.18,1.05,-.32]);
   await pick(button('ch'));
   check(await p.evaluate(()=>window.__g.xr.challengesOpen&&window.__g.xr.menuLayout&&true),'The menu shows the challenges');
   await pick(button('ch'));
