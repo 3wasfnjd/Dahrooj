@@ -73,6 +73,7 @@ try{
   }
   // Trigger throws go along the hand's ray: aim 20 degrees up.
   const UP20=[0.1736,0,0,0.9848];
+  let lastVel=null;
   async function throwBall(){
     await ctl('right',[.2,1.2,-.3],UP20);
     await p.waitForTimeout(200);await trigger(1);
@@ -81,7 +82,8 @@ try{
     await p.waitForTimeout(300);
     for(let i=1;i<=8;i++){await p.evaluate(i=>window.__dev.controllers.right.position.set(.2,1.2+i*.08,-.3-i*.18),i);await p.waitForTimeout(14);}
     await trigger(0);
-    await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding,null,{timeout:5000}).catch(()=>{});
+    // The velocity right as he leaves the hand (the emulator may take a while to the next check).
+    lastVel=await p.waitForFunction(()=>window.__g.S.shot||!window.__g.xr.holding?window.__g.S.vel.toArray():false,null,{timeout:5000}).then(h=>h.jsonValue(),()=>null);
     return held;
   }
 
@@ -109,7 +111,7 @@ try{
   check(await throwBall(),'The trigger takes Dahrooj into the hand');
   check(await p.evaluate(()=>window.__g.xr.ballShown),'He shows once the trigger takes him, and in flight');
   s=await state();check(s.shot&&!s.held,'Letting go throws with the hand velocity');
-  const v=await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up');
+  const v=lastVel||await p.evaluate(()=>window.__g.S.vel.toArray());check(v[2]<-3&&v[1]>0,'The throw goes forward and up '+JSON.stringify(v.map(x=>+x.toFixed(2))));
   // A or X brings Dahrooj straight back.
   await aButton();
   s=await state();check(!s.shot&&s.parked,'The A button calls Dahrooj back');

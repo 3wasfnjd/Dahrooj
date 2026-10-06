@@ -137,6 +137,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   letter-spacing:.12em;text-transform:uppercase;color:rgba(44,45,61,.5);pointer-events:none;user-select:none;
 }
 .credit small{font:600 10px/1 "Grandstander","Trebuchet MS",sans-serif;letter-spacing:.18em;color:rgba(44,45,61,.38)}
+.credit a{color:inherit;text-decoration:none;pointer-events:auto}
 #title{
   position:fixed;z-index:3;left:16px;right:16px;top:26%;text-align:center;pointer-events:none;user-select:none;
   font:700 48px/1.15 "Grandstander","Trebuchet MS",sans-serif;color:#2c2d3d;letter-spacing:.01em;
@@ -257,7 +258,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
     <span data-pad="jump"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19.5V5M5.5 11.5 12 5l6.5 6.5"/></svg></span>
   </div>
 </div>
-<p class="credit">Aboden Games<small>© 2026</small></p>
+<p class="credit">Aboden Games<small><a href="credits.html" title="الحقوق والتراخيص">© 2026</a> · <a href="privacy.html" title="سياسة الخصوصية">الخصوصية</a></small></p>
 </div>
 
 <section id="xr-gate" hidden aria-label="دحروج VR">
@@ -2679,16 +2680,21 @@ if(XR_ENTRY){
   const kinds=[['xr-gate-ar','immersive-ar'],['xr-gate-vr','immersive-vr']];
   const offer=kinds.map(([id,kind])=>{
     const btn=document.getElementById(id);
-    btn.addEventListener('click',()=>{
-      ensureAudio(); played=true;
-      if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
-      if(!G3||!G3.xr) return;
-      gate.hidden=true;
-      G3.xr.enter(kind,{opening:true}).catch(()=>{gate.hidden=false;note.textContent='تعذّر الدخول، جرّب مرة ثانية.';});
-    });
+    btn.addEventListener('click',()=>enterXR(kind));
     return (navigator.xr?.isSessionSupported?.(kind)||Promise.resolve(false)).then(ok=>{btn.hidden=!ok;return ok;},()=>false);
   });
-  Promise.all(offer).then(ok=>{if(!ok.some(Boolean))note.textContent='افتح هذا الرابط من متصفح نظارة Meta Quest.';});
+  function enterXR(kind,auto){
+    ensureAudio(); played=true;
+    if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
+    if(!G3||!G3.xr) return;
+    gate.hidden=true;
+    G3.xr.enter(kind,{opening:true}).catch(()=>{gate.hidden=false;if(!auto)note.textContent='تعذّر الدخول، جرّب مرة ثانية.';});
+  }
+  Promise.all(offer).then(ok=>{
+    if(!ok.some(Boolean)){note.textContent='افتح هذا الرابط من متصفح نظارة Meta Quest.';return;}
+    // The Quest app (?xr=app) goes straight into VR; if the headset still wants a tap, the buttons stay.
+    if(new URLSearchParams(location.search).get('xr')==='app'&&ok[1]) enterXR('immersive-vr',true);
+  });
 }
 // Quest: VR and AR, offered only when supported. The 2D modes wait for a later phase.
 for(const [id,kind] of [['btn-vr','immersive-vr'],['btn-ar','immersive-ar']]){
