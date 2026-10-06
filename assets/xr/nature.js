@@ -104,6 +104,16 @@
     const tctx=trackCanvas.getContext('2d');tctx.fillStyle='#000';tctx.fillRect(0,0,TRACK_PX,TRACK_PX);
     const trackTex=new T.CanvasTexture(trackCanvas);trackTex.minFilter=trackTex.magFilter=T.LinearFilter;trackTex.generateMipmaps=false;
     U.uTracks={value:trackTex};U.uTrackArea={value:V(court.x,court.z,TRACK_SIZE)};
+    /* Floor.js: Motri's stone slabs under the play area, fading into grass at a noisy edge.
+       uSlab: centre x, centre z, half width, half length (set per mode so the target stands on it). */
+    const slabsTexture=new T.TextureLoader().load(BASE+'slabs.png');slabsTexture.wrapS=slabsTexture.wrapT=T.RepeatWrapping;
+    U.uSlabs={value:slabsTexture};U.uSlab={value:new T.Vector4(court.x,-2.5,9,9)};
+    U.uSlabHigh={value:C('#ffcf8b')};U.uSlabLow={value:C('#a87762')};
+    const SLAB=`
+      uniform sampler2D uSlabs;uniform vec4 uSlab;uniform vec3 uSlabHigh,uSlabLow;
+      float slabAt(vec2 p){vec2 q=abs(p-uSlab.xy)-uSlab.zw;float edge=max(q.x,q.y);
+        float n=texture2D(uPerlin,p*.03).r;return 1.-smoothstep(-1.2,.8,edge+(n-.5)*2.2);}
+      vec3 slabColor(vec2 p){return mix(uSlabLow,uSlabHigh,texture2D(uSlabs,p*.175).r);}`;
     let tracksDirty=false,tracksFade=0,tracksUpload=0;
     const TRACK=`
       uniform sampler2D uTracks;uniform vec3 uTrackArea;
@@ -116,7 +126,7 @@
     const groundMat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor}},
       vertexShader:'varying vec4 vClip;varying float vDist;varying vec2 vWorld;void main(){vec3 p=position;vWorld=(modelMatrix*vec4(p,1.)).xz;'+OUT+'}',
       // Marks: the ground shows dirt where balls rolled.
-      fragmentShader:SHADE+TRACK+'uniform vec3 uColor,uDirt;varying vec2 vWorld;void main(){vec3 c=mix(uColor,uDirt,clamp(trackAt(vWorld)*1.4,0.,.9));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),0.),1.);}'});
+      fragmentShader:SHADE+TRACK+'uniform sampler2D uPerlin;'+SLAB+'uniform vec3 uColor,uDirt;varying vec2 vWorld;void main(){vec3 c=mix(uColor,slabColor(vWorld),slabAt(vWorld));c=mix(c,uDirt,clamp(trackAt(vWorld)*1.4,0.,.9)*(1.-slabAt(vWorld)*.6));gl_FragColor=vec4(motriShade(c,vec3(0.,1.,0.),0.),1.);}'});
     const ground=new T.Mesh(new T.CircleGeometry(300,64).rotateX(-Math.PI/2),groundMat);ground.position.y=-.02;root.add(ground);
 
     /* ---------- Grass.js: three vertices per blade, turned to the camera, bent by the wind ---------- */
@@ -133,7 +143,7 @@
       const mat=new T.ShaderMaterial({uniforms:{...U,uColor:{value:grassColor},uDirt:{value:dirtColor},uPitch:{value:new T.Vector4(court.x,court.z+1,11,17)},bladeWidth:{value:.1},bladeHeight:{value:.6},bladeHeightRandomness:{value:.6}},side:T.DoubleSide,
         vertexShader:WIND+`
           attribute float heightRandomness,corner;uniform float bladeWidth,bladeHeight,bladeHeightRandomness;uniform vec3 uCam;uniform vec4 uPitch;
-          varying vec4 vClip;varying float vDist;varying float vTip;varying float vTrack;`+TRACK+`
+          varying vec4 vClip;varying float vDist;varying float vTip;varying float vTrack;`+TRACK+SLAB+`
           void main(){
             vec3 p=position;float tip=corner<.5?1.:0.;vTip=tip;
             float heightVariation=texture2D(uPerlin,p.xz*.0321).r+.5;
@@ -142,6 +152,8 @@
             vec2 q=abs(p.xz-uPitch.xy)-uPitch.zw;h*=mix(.28,1.,smoothstep(0.,3.,max(q.x,q.y)));
             // Pressed flat where a ball rolled.
             vTrack=trackAt(p.xz);h*=1.-vTrack*.85;
+            // No grass on the stone (Grass.js hides blades where the terrain has none).
+            float slab=slabAt(p.xz);h*=1.-smoothstep(.35,.7,slab);if(slab>.7)p.y-=100.;
             vec2 shape=corner<.5?vec2(0.,1.):corner<1.5?vec2(1.,0.):vec2(-1.,0.);
             vec3 offset=vec3(shape.x*bladeWidth,shape.y*h,0.);
             float a=atan(p.z-uCam.z,p.x-uCam.x)-1.5707963;
@@ -207,6 +219,8 @@
       if(Math.abs(x-court.x)<14&&z>-30&&z<8)continue;
       spots.push({x,z,rot:rng()*Math.PI*2,scale:.85+rng()*.4});
     }
+    // A wood behind the target, beyond the stone.
+    for(let i=0;i<24;i++)spots.push({x:court.x+(rng()-.5)*40,z:-28-rng()*18,rot:rng()*Math.PI*2,scale:.8+rng()*.5});
     const bodyMat=map=>new T.ShaderMaterial({uniforms:{...U,uMap:{value:map}},
       vertexShader:'varying vec4 vClip;varying float vDist;varying vec2 vUv;varying vec3 vNormal;void main(){vUv=uv;vNormal=normalize(mat3(modelMatrix*instanceMatrix)*normal);vec4 mv=viewMatrix*modelMatrix*instanceMatrix*vec4(position,1.);vDist=-mv.z;gl_Position=projectionMatrix*mv;vClip=gl_Position;}',
       fragmentShader:SHADE+'uniform sampler2D uMap;varying vec2 vUv;varying vec3 vNormal;void main(){vec3 base=texture2D(uMap,vUv).rgb;gl_FragColor=vec4(motriShade(base,normalize(vNormal),0.),1.);}'});
@@ -300,6 +314,8 @@
     const lantern=new T.PointLight(0xffd9a0,0,16,1.6);root.add(lantern);
     const api={
       root,
+      // The stone reaches from behind the player to just past the target at farZ.
+      setPitch(farZ){const z0=farZ-1.5,z1=5;U.uSlab.value.set(court.x,(z0+z1)/2,9,(z1-z0)/2);},
       // Press a track at (x, z): radius in metres, strength 0–1.
       mark(x,z,radius,strength){
         const u=(x-court.x)/TRACK_SIZE+.5,v=(z-court.z)/TRACK_SIZE+.5;if(u<0||v<0||u>1||v>1)return;

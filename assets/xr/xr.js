@@ -618,7 +618,7 @@
     function loop(time,frame){
       const dt=lastTime?clamp((time-lastTime)/1000,0,.05):1/72;lastTime=time;clock+=dt;frames++;
       const st=g.stage();
-      if(natureOn()){eyeNow();nature.update(dt,eye);}
+      if(natureOn()){eyeNow();nature.setPitch?.(targetPoint().z);nature.update(dt,eye);}
       else if(kind==='immersive-vr'){const p=g.paper();if(p!==paper){paper=p;floor.material.color.set(p);scene.background=new T.Color(p);}}
       if(placedFor!==g.mode())place();
       updateMenu(dt);
