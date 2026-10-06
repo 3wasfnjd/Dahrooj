@@ -24,7 +24,9 @@
     // Throw styles: 'trigger' (aim, hold to charge, let go), 'hand' (a real swing), 'sling'.
     let throwStyle='trigger',menuToggled=false,parked=false,placing=false,anchor=null,placedFor='',menuOpen=false,intro=null;
     // Summit: a model mountain on the table (AR) or on a plinth in front of you (VR).
-    let climbOn=false,climb3=null,climbSpot=null,climbUnit=.022;
+    // The Summit's size in metres per game unit: life-size in the VR world, tabletop in AR; the right stick changes it.
+    const CLIMB_Z=-11,CLIMB_VR=.09,CLIMB_AR=.022;
+    let climbOn=false,climb3=null,climbSpot=null,climbUnit=CLIMB_AR;
     const modeNow=()=>climbOn?'climb':g.mode();
     const rig=new T.Group();rig.name='xr-rig';
     const ray=new T.Raycaster(),wp=V(0,0,0),wq=new T.Quaternion(),fwd=V(0,0,0),eye=V(0,0,0),UP=V(0,1,0);
@@ -112,7 +114,7 @@
 
     // The menu rides on the left hand: flip it palm-up or raise it. Point with the right hand to pick.
     // A tall pane of frosted glass in Dahrooj's ink and paper: the world shows faintly through it.
-    const MW=768,MH=1200,MENU_W=.34,MENU_H=MENU_W*MH/MW;
+    const MW=768,MH=1200,MENU_W=.24,MENU_H=MENU_W*MH/MW;
     const menu=panel(MENU_W,MENU_H,MW,MH);rig.add(menu.mesh);menu.mesh.visible=false;menu.mesh.scale.setScalar(.01);menu.mesh.name='xr-menu';
     const buttons=[],PAD=36,IN=MW-PAD*2;
     MODES.forEach(([id,label],i)=>buttons.push({kind:'mode',id,label,x:PAD+(2-i%3)*232,y:182+Math.floor(i/3)*108,w:220,h:96}));
@@ -572,7 +574,8 @@
       let P,theta;
       if(kind==='immersive-ar'&&anchor){P=anchor.P;theta=anchor.theta;}
       else{
-        if(!climbSpot){const {pos,dir}=headLocal();climbSpot={P:V(pos.x+dir.x*.7,Math.max(.5,pos.y-.75),pos.z+dir.z*.7),theta:Math.atan2(dir.x,-dir.z)};}
+        // VR: the mountain stands on the ground where the goal stands, facing you, like the other modes.
+        if(!climbSpot)climbSpot={P:V(0,0,(CLIMB_Z-rig.position.z)/rig.scale.x),theta:0};
         P=climbSpot.P;theta=climbSpot.theta;
       }
       climb3.group.position.copy(P);climb3.group.rotation.set(0,-theta,0);
@@ -615,7 +618,7 @@
       lastTime=0;frames=0;renderer.setAnimationLoop(loop);
       g.respawn();
       if(opening){placing=false;beginIntro();}
-      climbSpot=null;if(climb)setClimb(true);
+      climbSpot=null;climbUnit=mode==='immersive-ar'?CLIMB_AR:CLIMB_VR;climb3?.setUnit(climbUnit);if(climb)setClimb(true);
     }
     function onEnd(){
       renderer.setAnimationLoop(null);
@@ -698,7 +701,7 @@
         // Controllers: the Y button. Hands (no buttons): turn the palm up.
         want=menuToggled;
         if(L.source?.hand){L.grip.getWorldQuaternion(wq);const up=V(0,1,0).applyQuaternion(wq).y;want=menuOpen?up<.15:up<-.3;}
-        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.3,0));eyeNow();menu.mesh.lookAt(eye);}
+        if(want){menu.mesh.position.copy(L.grip.position).add(V(0,.23,0));eyeNow();menu.mesh.lookAt(eye);}
       }
       menuOpen=want;
       const k=clamp(menu.mesh.scale.x+(want?1:-1)*dt*7,.01,1);menu.mesh.scale.setScalar(k);menu.mesh.visible=k>.02;
@@ -744,7 +747,7 @@
         if(climbOn&&axes&&axes.length>3){
           if(h===leftHand()||!leftHand())stickX=Math.abs(axes[2])>.25?axes[2]:stickX;
           // The right stick up and down resizes the mountain.
-          if(h!==leftHand()&&Math.abs(axes[3])>.4){climbUnit=clamp(climbUnit*Math.exp(-axes[3]*dt*.9),.012,.06);climb3.setUnit(climbUnit);hud.key='';}
+          if(h!==leftHand()&&Math.abs(axes[3])>.4){climbUnit=clamp(climbUnit*Math.exp(-axes[3]*dt*.9),.012,.2);climb3.setUnit(climbUnit);hud.key='';}
           continue;
         }
         // Duel: either thumbstick moves Dahrooj sideways.
