@@ -129,7 +129,8 @@
     const STYLE_DOTS={jelly:['#6b6f7a','#3a3d45'],fabric:['#a8405e','#5e1d31'],clay:['#b07a52','#6b4429'],fur:['#fffaf2','#d9cfc0'],bubble:['#e9f6ff','#9fcbe8']};
     function drawMenu(hover){
       const sky=nature?nature.settings:{time:'auto',weather:'auto'};
-      const chs=g.challenges?g.challenges():[];
+      // Padel isn't in the headset, so neither is its challenge.
+      const chs=(g.challenges?g.challenges():[]).filter(c=>c.id!=='rally10');
       const key=[modeNow(),g.style(),throwStyle,kind,sky.time,sky.weather,hover.join(','),chOpen,chs.map(c=>c.value).join(',')].join('|');if(key===menu.key)return;menu.key=key;
       const c=menu.ctx;c.clearRect(0,0,MW,MH);
       // Glass: a soft paper tint, brighter at the top, a white rim and a faint diagonal sheen.
