@@ -1,46 +1,37 @@
-Dahrooj — Aboden Games License
-Copyright (c) 2026 Aboden Games (github.com/3wasfnjd). All rights reserved except as granted below.
+Dahrooj — Aboden Games
+Copyright (c) 2026 Aboden Games (github.com/3wasfnjd). All rights reserved.
 
-Permission is granted to use, copy, modify, and share this software and the
-Dahrooj game idea (its character, modes, mechanics and styles), for personal or
-commercial purposes, on ONE condition:
-
-  ATTRIBUTION IS REQUIRED. Any use of this code, any part of it, or of the
-  Dahrooj game idea — including derivative works, ports, remakes and games
-  inspired by it — must clearly credit "Aboden Games" in a place users can
-  see (for example the game's title screen, credits, about page, or store
-  description), together with a link to the original repository:
-  https://github.com/3wasfnjd/Dahrooj
-
-  Keep this license file and the copyright notice with any copy of the code.
+This repository is published for viewing only. No license is granted to copy,
+modify, distribute, publish, sell, or create derivative works from this
+software, the Dahrooj character, its game modes, styles, artwork, models,
+textures, sounds or any other part of it, in whole or in part, without prior
+written permission from Aboden Games.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT
 SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
 FROM THE SOFTWARE OR ITS USE.
 
-Third-party parts keep their own licenses (full list in credits.html):
+Third-party parts keep their own licenses and are not covered by the notice
+above (full list in credits.html):
 - three.js r128 and GLTFLoader, MIT License (vendor/three/LICENSE).
 - Matter.js 0.20.0, MIT License (vendor/matter/LICENSE).
-- Motri's world, models and confetti motion, from Folio 2025 by Bruno Simon,
-  MIT License (assets/xr/motri/LICENSE).
+- The bowling pin and the confetti motion, from Motri / Folio 2025 by
+  Bruno Simon, MIT License (assets/bowling/LICENSE).
 - Baloo Bhaijaan 2 and Grandstander fonts, SIL Open Font License 1.1 (vendor/fonts).
-- "Carefree" by Kevin MacLeod, CC BY 4.0 (assets/audio).
+- "Carefree" by Kevin MacLeod (incompetech.com), ISRC USUAN1400037, CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/; assets/audio/credits.html).
 
 ---
 
-رخصة دحروج — عبودين قيمز
-حقوق النشر (c) 2026 عبودين قيمز.
+دحروج — عبودين قيمز
+حقوق النشر (c) 2026 عبودين قيمز (Aboden Games). جميع الحقوق محفوظة.
 
-يُسمح باستخدام هذا الكود وفكرة لعبة دحروج (الشخصية والأنماط وطريقة اللعب
-والستايلات) ونسخها وتعديلها ونشرها، لأغراض شخصية أو تجارية، بشرط واحد:
-
-  لا بد من ذكر اسم "عبودين قيمز" (Aboden Games) بشكل واضح للمستخدمين عند
-  استخدام أي جزء من الكود أو فكرة اللعبة، بما في ذلك الأعمال المشتقة
-  والنسخ المعدّلة والألعاب المستوحاة منها، مع رابط المستودع الأصلي:
-  https://github.com/3wasfnjd/Dahrooj
-  ويجب إبقاء ملف الرخصة هذا مع أي نسخة من الكود.
+هذا المستودع منشور للاطلاع فقط. لا يُمنح أي ترخيص لنسخ هذا البرنامج أو تعديله
+أو توزيعه أو نشره أو بيعه أو إنشاء أعمال مشتقة منه، ولا لشخصية دحروج أو أنماطها
+أو ستايلاتها أو رسومها أو مجسّماتها أو خاماتها أو أصواتها أو أي جزء منها، كليًا
+أو جزئيًا، دون إذن كتابي مسبق من عبودين قيمز.
 
 يُقدَّم البرنامج "كما هو" بدون أي ضمان.
 
-Third-party music exception:
-Carefree by Kevin MacLeod (incompetech.com), ISRC USUAN1400037, is licensed independently under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ . The Aboden Games conditions above do NOT apply to this music. See assets/audio/credits.html and assets/audio/CC-BY-4.0.txt for attribution, source and modifications.
+الأجزاء المأخوذة من أطراف أخرى تحتفظ بتراخيصها الخاصة ولا يشملها هذا الإشعار،
+وقائمتها في credits.html.

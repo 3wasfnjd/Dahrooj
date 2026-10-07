@@ -31,7 +31,7 @@
 <meta name="theme-color" content="#ddd2c1">
 <link rel="stylesheet" href="./vendor/fonts/fonts.css">
 <link rel="stylesheet" href="./assets/start/start-screen.css">
-<!-- Dahrooj by Aboden Games. Any use of this code or of the game idea must credit "Aboden Games". See LICENSE. -->
+<!-- Dahrooj © 2026 Aboden Games. All rights reserved. See LICENSE. -->
 <style>
 /* Layout: full-bleed paper; free mode draws on a 2D canvas, goal mode layers a transparent 3D canvas and an effects canvas over the same paper. Icon-only mode picker at the bottom. Single paper look by choice. */
 :root{
@@ -201,12 +201,6 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   </button>
 </div>
 <div class="side" role="group" aria-label="التحديات والزيارات وعالم عبودين">
-  <button id="btn-vr" hidden aria-label="الواقع الافتراضي" title="VR">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h14a1.5 1.5 0 0 1 1.5 1.5v6.2a1.8 1.8 0 0 1-1.8 1.8h-3.1c-.8 0-1.4-.5-1.7-1.2l-.6-1.4a1.5 1.5 0 0 0-2.7 0l-.6 1.4c-.3.7-.9 1.2-1.7 1.2H5.3a1.8 1.8 0 0 1-1.8-1.8z"/><circle cx="8" cy="11.6" r="1.5"/><circle cx="16" cy="11.6" r="1.5"/></svg>
-  </button>
-  <button id="btn-ar" hidden aria-label="الواقع المعزز" title="AR">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="m12 7.5 4 2.3v4.4l-4 2.3-4-2.3V9.8z"/><path d="M8 9.8l4 2.3 4-2.3M12 12.1v4.4"/></svg>
-  </button>
   <button id="btn-ch" aria-label="التحديات" title="التحديات" aria-expanded="false" aria-controls="chpanel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v3M9 20h6M10 16h4v4h-4z"/></svg>
   </button>
@@ -261,23 +255,6 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <p class="credit">Aboden Games<small><a href="credits.html" title="الحقوق والتراخيص">© 2026</a> · <a href="privacy.html" title="سياسة الخصوصية">الخصوصية</a></small></p>
 </div>
 
-<section id="xr-gate" hidden aria-label="دحروج VR">
-  <style>
-    #xr-gate{position:fixed;inset:0;z-index:60;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;direction:rtl}
-    #xr-gate img{width:min(42vw,220px);height:auto;border-radius:22%;box-shadow:0 10px 30px rgba(44,45,61,.15)}
-    #xr-gate h1{margin:6px 0 0;font:800 clamp(30px,6vw,48px)/1.1 "Baloo Bhaijaan 2","Grandstander",Tahoma,sans-serif}
-    #xr-gate p{margin:0;max-width:30em;font:600 17px/1.6 "Baloo Bhaijaan 2",Tahoma,sans-serif;opacity:.75}
-    #xr-gate button{min-width:240px;padding:16px 28px;border:0;border-radius:999px;background:var(--ink);color:var(--paper);font:800 21px/1 "Baloo Bhaijaan 2",Tahoma,sans-serif;cursor:pointer}
-    #xr-gate button.alt{background:rgba(44,45,61,.1);color:var(--ink)}
-    #xr-gate a{color:var(--ink);font:700 16px "Baloo Bhaijaan 2",Tahoma,sans-serif;opacity:.7}
-  </style>
-  <img src="./assets/icons/icon-512.png" alt="" draggable="false">
-  <h1>دحروج VR</h1>
-  <p id="xr-gate-note">ادخل، وبتتساقط كور دحروج داخل غرفتك.</p>
-  <button id="xr-gate-ar" type="button" hidden>ادخل الغرفة</button>
-  <button id="xr-gate-vr" type="button" class="alt" hidden>الواقع الافتراضي</button>
-  <a href="./">اللعبة العادية</a>
-</section>
 <section id="start-screen" aria-label="شاشة بداية دحروج">
   <img class="start-backdrop" src="./assets/start/start-poster-colors.jpg" alt="" aria-hidden="true" draggable="false" fetchpriority="high">
   <canvas id="start-balls" aria-label="كور دحروج المتساقطة؛ اسحب الكرة وارمها، أو اضغط مطولًا لتفقعها"></canvas>
@@ -298,11 +275,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <script src="./assets/duel-online/client.js?v=settle-1"></script>
 <script src="./assets/duel-online/distractions.js"></script>
 <script src="./assets/climb/climb.js"></script>
-<script src="./assets/xr/dahrooj3d.js"></script>
 <script src="./vendor/three/GLTFLoader-r128.js"></script>
-<script src="./assets/xr/nature.js"></script>
-<script src="./assets/xr/climb3d.js"></script>
-<script src="./assets/xr/xr.js"></script>
 <script>
 (() => {
 const cv = document.getElementById('c');
@@ -409,6 +382,18 @@ function thump(s){
   o.type='sine'; o.frequency.setValueAtTime(170+s*60,t); o.frequency.exponentialRampToValueAtTime(55,t+.14);
   g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.05+s*0.28,t+.006); g.gain.exponentialRampToValueAtTime(0.0001,t+.2);
   o.connect(g).connect(audio.destination); o.start(t); o.stop(t+.22);
+}
+// Dahrooj's squeak when you pat or shake him: a quick rising chirp with a wobble (made here).
+function squeak(pitch=1){
+  if(!audio) return;
+  const t=audio.currentTime;
+  for(const [d,f0,f1] of [[0,520,980],[.09,700,1250]]){
+    const o=audio.createOscillator(), g=audio.createGain(), lfo=audio.createOscillator(), lg=audio.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(f0*pitch,t+d); o.frequency.exponentialRampToValueAtTime(f1*pitch,t+d+.08);
+    lfo.frequency.value=38; lg.gain.value=30*pitch; lfo.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(.0001,t+d); g.gain.exponentialRampToValueAtTime(.09,t+d+.012); g.gain.exponentialRampToValueAtTime(.0001,t+d+.11);
+    o.connect(g).connect(audio.destination); o.start(t+d); o.stop(t+d+.12); lfo.start(t+d); lfo.stop(t+d+.12);
+  }
 }
 // A short, low burst of filtered noise for an exploding crate (made here, no recorded sounds).
 function boom(){
@@ -728,7 +713,7 @@ function drawXStitch(c,R){
 }
 
 // eyes, mouth and cheeks, drawn around (0,0) for a body of radius Rr
-// noEyes: the headset model has real 3D eyes and takes only the rest of the face from here.
+// noEyes: draw the face without its eyes.
 function drawFace(c,Rr,face,lx,ly,blushK,blinkOn,noEyes){
   if(face==='none') return;
   const er=Rr*0.19, ex=Rr*0.31, ey=-Rr*0.08+ly*Rr*0.06, exo=lx*Rr*0.08;
@@ -1197,7 +1182,7 @@ function make3D(){
   const S={pos:V(0,BR+1.2,0),vel:V(0,0,0),side:V(0,0,0),d:0,dv:0,axis:V(0,1,0),
     shot:false,shotT:0,zMax:6,xMax:16,scoredT:0,missT:0,mood:null,moodT:0,moodNext:null,idle:0,restT:0,hitT:0,blink:0,nextBlink:2,grounded:false,lastHit:0,prevZ:0,prevY:0};
   const aim={down:false,pointerId:null,pts:[],x:W/2,y:H*0.3};
-  let xr=null; // Quest VR/AR, created at the end of make3D
+  let xr=null;
   const xrOn=()=>!!(xr&&xr.presenting);
   let fxDash=[];
   const tmp2=V(0,0,0);
@@ -1360,7 +1345,7 @@ function make3D(){
       ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
       behind:P=>P.z<GZ-0.05,
       onRespawn(){ keeperReset(); },
-      // Every new throw gets a fresh save attempt, even before the last ball comes back (headset volleys).
+      // Every new throw gets a fresh save attempt, even before the last ball comes back.
       onThrow(){ K.plan=false; K.saved=false; K.wait=0; },
       keeperState:()=>K,
       collide(){
@@ -1560,7 +1545,7 @@ function make3D(){
         const cx=Math.max(-TW/2,Math.min(TW/2,P.x)), cy=Math.max(0,Math.min(TY,P.y)), cz=Math.max(TZ-TD/2,Math.min(TZ+TD/2,P.z));
         pointCollide(V(cx,cy,cz),0,0.4);
       },
-      // ball vs cans (wakes the pile); also used for extra balls in a headset volley
+      // ball vs cans (wakes the pile); also used for extra balls in a volley
       ballContact(){
         for(const c of cans){
           inv.copy(c.q).invert(); lp.copy(S.pos).sub(c.x).applyQuaternion(inv);
@@ -1642,7 +1627,7 @@ function make3D(){
       const g=new T.Group(), mesh=new T.Mesh(pinGeo,pinMat); mesh.position.y=-CH/2; mesh.castShadow=true; g.add(mesh); grp.add(g);
       pins.push({mesh:g,body:mesh,x:V(0,0,0),v:V(0,0,0),q:new T.Quaternion(),w:V(0,0,0),invM:1/m,invI,sleep:true,down:false,gone:false});
     }
-    if(T.GLTFLoader) new T.GLTFLoader().load('assets/xr/motri/bowlingPin.glb',gltf=>{
+    if(T.GLTFLoader) new T.GLTFLoader().load('assets/bowling/bowlingPin.glb',gltf=>{
       let src=null; gltf.scene.traverse(o=>{if(o.isMesh&&!src)src=o;}); if(!src) return;
       const geo=src.geometry.clone(); geo.scale(S_PIN,S_PIN,S_PIN);
       const mat=src.material; if(mat.map) mat.map.encoding=T.sRGBEncoding;
@@ -1774,7 +1759,7 @@ function make3D(){
           if(c.calm>.6) c.sleep=true;
           if(!c.down && isDown(c)){ c.down=true; knocked++; addCount('bowling'); }
         }
-        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(xrOnNow()&&xrLang==='en'?(roll===0?'Strike!':'Spare!'):(roll===0?'سترايك!':'سبير!')); if(roll===0) chProgress('strike1',1); }
+        if(!struck && S.shot && pins.every(p=>p.down)){ struck=true; S.scoredT=0; S.missT=0; success(); toast(roll===0?'سترايك!':'سبير!'); if(roll===0) chProgress('strike1',1); }
       }
     };
   }
@@ -2002,7 +1987,7 @@ function make3D(){
         body.quaternion.setFromUnitVectors(UP,O.axis);body.scale.set(OR*(1+O.d*.75),OR*(1-O.d),OR*(1+O.d*.75));
       },
       paintBehind(c){if(S.pos.z>=O.pos.z)paintOpponent(c);},
-      // Quest: the opponent and small balls as 3D sprites, aimed small throws, thumbstick movement.
+      // The opponent and small balls as 3D sprites, aimed small throws and side movement.
       xrActors(){
         const list=[];
         if(visible&&!O.touched)list.push({pos:O.pos,r:OR,style:opponentStyle,face:O.hitT>0?'closed':O.vel.length()>9?'wide':S.shot?'focus':'open',blink:O.blink>0});
@@ -2181,7 +2166,7 @@ function make3D(){
     const WZ=-11, FR=0.05;
     groundLine(grp,-14,WZ,14,WZ);
     const START=1.15, MIN=BR*2*1.2, SHRINK=0.85;
-    const W={size:START,x:2.4,y:1.6,frame:null,bars:[],pop:1,won:false};
+    const W={size:START,x:2.4,y:1.6,frame:null,bars:[],pop:1,won:false,moveT:0};
     function build(){
       if(W.frame){ grp.remove(W.frame); W.frame.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
       W.frame=new T.Group(); grp.add(W.frame);
@@ -2208,17 +2193,20 @@ function make3D(){
       grp, aimZ:WZ,
       ft:sp=>Math.max(0.5,Math.min(1.25,1.35-sp/2600)),
       behind:P=>P.z<WZ-0.05,
-      onRespawn(){ if(W.won){ W.won=false; relocate(); } },
+      // The window moves on its own a moment after a hit, whichever Dahrooj scored (with throws back to
+      // back the next one can start before the scoring ball comes back).
+      onRespawn(){ if(W.won&&W.moveT<=0){ W.won=false; relocate(); } },
       collide(){
         const P=S.pos, o=W.frame.position;
         for(const [a,b] of W.bars){ if(segCollide(wp.copy(a).add(o),wq.copy(b).add(o),FR,0.6)) ooh(); }
         segCollide(V(o.x,0,WZ),V(o.x,o.y-W.size/2-FR,WZ),0.035,0.5);
         if(S.shot && S.scoredT<=0 && S.missT<=0 && S.prevZ>=WZ && P.z<WZ){
           const h=W.size/2;
-          if(Math.abs(P.x-o.x)<h && Math.abs(P.y-o.y)<h){ W.won=true; success(); } else miss();
+          if(Math.abs(P.x-o.x)<h && Math.abs(P.y-o.y)<h){ if(!W.won){ W.won=true; W.moveT=1.2; } success(); } else miss();
         }
       },
       update(dt){
+        if(W.won&&W.moveT>0){ W.moveT-=dt; if(W.moveT<=0){ W.won=false; relocate(); } }
         if(W.pop<1){ W.pop=Math.min(1,W.pop+dt*3.5); const t=W.pop, s=1+Math.sin(t*Math.PI)*0.25*(1-t); W.frame.scale.setScalar(Math.max(0.001,t<1?Math.min(1,t*1.4)*s:1)); }
       }
     };
@@ -2311,10 +2299,10 @@ function make3D(){
   gcv.addEventListener('pointercancel',cancelPointer);
   gcv.addEventListener('lostpointercapture',cancelPointer);
 
-  // One ball's flight: physics, the stage's collisions and its scoring. Extra balls (headset volleys)
+  // One ball's flight: physics, the stage's collisions and its scoring. Extra balls (volleys)
   // share the stage but leave its animation to the main ball, and vanish instead of respawning.
   function ballStep(dt,extra){
-    // In the headset a finished throw can stay in the world (restHook) instead of vanishing.
+    // A finished throw can stay in the world (restHook) instead of vanishing.
     const P=S.pos, v=S.vel, end=()=>{ if(restHook&&xrOn()) restHook(P.clone(),v.clone()); if(extra) return true; respawn(); return false; };
     S.prevZ=P.z; S.prevY=P.y;
     if(!S.grounded){ v.y-=GRAV*dt; v.x+=S.side.x*dt; v.z+=S.side.z*dt; }
@@ -2325,7 +2313,7 @@ function make3D(){
       if(v.y<-1.4){ hit(UP,-v.y,V(P.x,0,P.z)); v.y=-v.y*0.55; v.x*=0.85; v.z*=0.85; S.side.set(0,0,0); }
       else { v.y=0; S.grounded=true; }
     } else if(S.grounded && P.y>BR+0.01) S.grounded=false;
-    // In the headset Dahrooj rolls on longer before he settles.
+    // Optionally Dahrooj rolls on longer before he settles.
     // The bowling lane is slick, so Dahrooj rolls all the way to the pins.
     if(S.grounded){ const f=Math.pow(stage.friction||(xrOn()?0.7:0.35),dt); v.x*=f; v.z*=f; S.side.set(0,0,0); }
     stage.collide();
@@ -2344,7 +2332,7 @@ function make3D(){
     }
     return false;
   }
-  // Headset volleys: a thrown Dahrooj keeps flying while a fresh one comes to the hand.
+  // Volleys: a thrown Dahrooj keeps flying while a fresh one comes along.
   const VOLLEY_KEYS=['zMax','xMax','shot','shotT','scoredT','missT','mood','moodT','moodNext','idle','restT','hitT','blink','nextBlink','grounded','lastHit','prevZ','prevY','d','dv'];
   const VOLLEY_VECS=['pos','vel','side','axis'], volley=[], VOLLEY_MAX=6;
   let restHook=null;
@@ -2400,7 +2388,7 @@ function make3D(){
     bmesh.scale.set(1+d*0.75,1-d,1+d*0.75);
     ballRoot.visible=!stage.playerVisible||stage.playerVisible();
     renderer.render(scene,camera);
-    if(xrOn()) return; // the headset shows sprites in 3D; no 2D overlay
+    if(xrOn()) return;
     fx.setTransform(dpr,0,0,dpr,0,0); fx.clearRect(0,0,W,H); fx.lineCap='round';
     if(stage.paintBehind) stage.paintBehind(fx);
     if(ballRoot.visible){
@@ -2455,12 +2443,12 @@ function make3D(){
     camera.updateProjectionMatrix();
   }
   resize3();
-  // A real throw from the headset: the same flight as a swipe, with the hand's velocity.
+  // A throw from a given velocity: the same flight as a swipe.
   function throwWith(v){
     const sp=v.length();
     S.held=false; S.vel.copy(v); S.side.set(0,0,0);
     S.shot=true; S.shotT=0; S.grounded=false; S.prevZ=S.pos.z; S.prevY=S.pos.y;
-    // In AR the player can stand far behind the court: the out-of-bounds lines follow the throw.
+    // The out-of-bounds lines follow where the throw started.
     S.zMax=Math.max(6,S.pos.z+3); S.xMax=Math.max(16,Math.abs(S.pos.x)+6);
     S.axis.copy(UP); S.dv-=6+Math.min(1,sp/18)*8;
     whoosh(Math.min(1,sp/18));
@@ -2474,47 +2462,23 @@ function make3D(){
     if(S.shot && !S.grounded && S.vel.length()>9) return 'wide';
     return 'open';
   }
-  if(window.createDahroojXR) xr=window.createDahroojXR({T,renderer,scene,camera,S,BR,GRAV,V,UP,ground,hemi,sun,lineMat,
-    stage:()=>stage, stageName:()=>stageName,
-    step(dt){ time+=dt; for(let i=0;i<3;i++) update3(dt/3); },
-    render:render3, resize:resize3, respawn, throwWith, ballFace, whoosh, bump:s=>thump(s), boom:()=>boom(),
-    popSound:()=>startPopSound(),
-    another, volley:()=>volley, clearVolley:()=>{volley.length=0;},
-    climbCore:window.DahroojClimbCore, climbEvent:e=>climbEvent(e), setRestHook:fn=>{restHook=fn;},
-    onExit:()=>{if(XR_ENTRY)document.getElementById('xr-gate').hidden=false;},
-    recall(){ if(S.shot&&S.scoredT<=0&&S.missT<=0&&stageName==='hoop') hoopStreak=0; respawn(); },
-    canHold:()=>!S.shot&&!S.scoredT&&!S.missT&&(!stage.canAim||stage.canAim()),
-    sprite:(style,face,blink)=>makeStartBallSprite(style,face,blink,{t:0,parts:[]}),
-    drawFace(c,Rr,face,lx,ly,blush,blink,style,noEyes){const prev=ballStyle;try{ballStyle=style;drawFace(c,Rr,face,lx,ly,blush,blink,noEyes);}finally{ballStyle=prev;}},
-    style:()=>ballStyle, setMode:m=>setMode(m), setStyle:v=>setStyle(v), mode:()=>mode,
-    // Challenges for the headset menu, and a step forward on one from the headset (crates, blaster).
-    challenges:()=>CHALLENGES.map(c=>({id:c.id,title:c.title,en:c.en,goal:c.goal,value:Math.min(c.goal,chState[c.id]||0)})),
-    // The headset's language for the messages it shows (the web page stays Arabic).
-    setLang:l=>{xrLang=l==='en'?'en':'ar';},
-    chAdd:id=>chProgress(id,(chState[id]||0)+1),
-    texts:()=>({count:elCount.textContent,turn:elCount.dataset.turn||'',toast:elToast.classList.contains('show')?elToast.textContent:'',title:elTitle.classList.contains('show')?elTitle.textContent:''}),
-    paper:()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#ddd2c1'});
   return {update:update3,render:render3,resize:resize3,setStage,leaveStage,get xr(){return xr;}};
 }
 
 /* ---------- challenges (saved on this device) ---------- */
 const CHALLENGES=[
-  {id:'free25',   title:'٢٥ ارتداد',                    en:'25 bounces', goal:25},
-  {id:'keeper3',  title:'سجّل على الحارس ٣ مرات',       en:'Score past the keeper 3 times', goal:3},
-  {id:'hoop3',    title:'٣ سلات ورا بعض',              en:'3 hoops in a row', goal:3},
-  {id:'windowMin',title:'صغّر الشباك لأصغر حجم', en:'Shrink the window to its smallest', goal:1},
-  {id:'rally10',  title:'رالي بادل ١٠ ضربات',             en:'A padel rally of 10 hits', goal:10},
-  {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   en:'Knock down every can in one throw', goal:1},
-  {id:'styles5',  title:'العب بكل الستايلات الخمسة',          en:'Play in all five styles', goal:5},
-  {id:'summit1',  title:'اوصل قمة الجبل',                 en:'Reach the top of the Summit', goal:1},
-  {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     en:'Beat 15 monsters on the Summit', goal:15},
-  {id:'strike1',  title:'سترايك في البولينغ',               en:'A strike in bowling', goal:1},
-  {id:'crates5',  title:'فجّر ٥ صناديق في عالم النظارة',     en:'Blow up 5 crates in the headset world', goal:5},
-  {id:'pop20',    title:'فجّر ٢٠ دحروج بالزناد اليسار',     en:'Pop 20 Dahroojs with the left trigger', goal:20},
+  {id:'free25',   title:'٢٥ ارتداد',                    goal:25},
+  {id:'keeper3',  title:'سجّل على الحارس ٣ مرات',       goal:3},
+  {id:'hoop3',    title:'٣ سلات ورا بعض',              goal:3},
+  {id:'windowMin',title:'صغّر الشباك لأصغر حجم', goal:1},
+  {id:'rally10',  title:'رالي بادل ١٠ ضربات',             goal:10},
+  {id:'cansOne',  title:'طيّح كل العلب برمية وحدة',   goal:1},
+  {id:'styles5',  title:'العب بكل الستايلات الخمسة',          goal:5},
+  {id:'summit1',  title:'اوصل قمة الجبل',                 goal:1},
+  {id:'monsters15',title:'اهزم ١٥ وحش في مرحلة القمة',     goal:15},
+  {id:'strike1',  title:'سترايك في البولينغ',               goal:1},
 ];
 let chState={}, stylesUsed=[];
-let xrLang='ar'; try{ if(localStorage.getItem('dahrooj-lang')==='en') xrLang='en'; }catch(_){}
-const xrOnNow=()=>!!(G3&&G3.xr&&G3.xr.presenting);
 try{ chState=JSON.parse(localStorage.getItem('dahrooj-ch')||'{}')||{}; stylesUsed=JSON.parse(localStorage.getItem('dahrooj-styles')||'[]')||[]; }catch(_){ chState={}; stylesUsed=[]; }
 let hoopStreak=0;
 const elToast=document.getElementById('toast'), elPanel=document.getElementById('chpanel'), btnCh=document.getElementById('btn-ch'), btnVisits=document.getElementById('btn-visits');
@@ -2534,7 +2498,7 @@ function chProgress(id,value){
   const before=chState[id]||0; if(value<=before) return;
   chState[id]=Math.min(c.goal,value);
   try{ localStorage.setItem('dahrooj-ch',JSON.stringify(chState)); }catch(_){}
-  if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+(xrOnNow()&&xrLang==='en'?c.en:c.title)); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
+  if(before<c.goal && chState[id]>=c.goal){ toast('✓ '+c.title); chime(); btnCh.classList.add('ping'); setTimeout(()=>btnCh.classList.remove('ping'),900); }
   if(!elPanel.hidden) renderPanel();
 }
 const ar=n=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
@@ -2638,7 +2602,7 @@ function makeClimb(){
     sounds:{wake:()=>{ensureAudio();played=true;},land:s=>{if(s>.08)thump(s*.8);},launch:p=>whoosh(p),hurt:()=>thump(1),pop:startPopSound,checkpoint:chime},
     onCheckpoint:climbHooks.checkpoint, onDefeat:climbHooks.defeat, onSummit:climbHooks.summit});
 }
-// Summit progress, shared by the phone climb and the headset model mountain.
+// Summit progress.
 const climbHooks={
   checkpoint:()=>toast('نقطة حفظ ✓'),
   defeat:()=>chProgress('monsters15',(chState.monsters15||0)+1),
@@ -2648,7 +2612,7 @@ const climbHooks={
     toast(`وصلت القمة في ${m?ar(m)+' د ':''}${ar(s)} ث`);
   }
 };
-// Headset events: the same sounds and progress as the phone.
+// Summit events: sounds and progress.
 function climbEvent(e){
   if(e.type==='pop'||e.type==='stomp'||e.type==='kill') startPopSound();
   if(e.type==='stomp'||e.type==='kill') climbHooks.defeat();
@@ -2676,41 +2640,6 @@ function setMode(m){
   const btn=modeBtns.find(b=>b.dataset.mode===m); if(btn) showTitle(btn.getAttribute('aria-label'));
 }
 for(const b of modeBtns) b.addEventListener('click',()=>setMode(b.dataset.mode));
-// dahrooj/vr/ (or ?xr): straight to the headset. One tap enters, since browsers need a tap to start XR.
-const XR_ENTRY=new URLSearchParams(location.search).has('xr');
-if(XR_ENTRY){
-  const gate=document.getElementById('xr-gate'),note=document.getElementById('xr-gate-note');
-  gate.hidden=false;document.title='دحروج VR';
-  const kinds=[['xr-gate-ar','immersive-ar'],['xr-gate-vr','immersive-vr']];
-  const offer=kinds.map(([id,kind])=>{
-    const btn=document.getElementById(id);
-    btn.addEventListener('click',()=>enterXR(kind));
-    return (navigator.xr?.isSessionSupported?.(kind)||Promise.resolve(false)).then(ok=>{btn.hidden=!ok;return ok;},()=>false);
-  });
-  function enterXR(kind,auto){
-    ensureAudio(); played=true;
-    if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
-    if(!G3||!G3.xr) return;
-    gate.hidden=true;
-    G3.xr.enter(kind,{opening:true}).catch(()=>{gate.hidden=false;if(!auto)note.textContent='تعذّر الدخول، جرّب مرة ثانية.';});
-  }
-  Promise.all(offer).then(ok=>{
-    if(!ok.some(Boolean)){note.textContent='افتح هذا الرابط من متصفح نظارة Meta Quest.';return;}
-    // The Quest app (?xr=app) goes straight into VR; if the headset still wants a tap, the buttons stay.
-    if(new URLSearchParams(location.search).get('xr')==='app'&&ok[1]) enterXR('immersive-vr',true);
-  });
-}
-// Quest: VR and AR, offered only when supported. The 2D modes wait for a later phase.
-for(const [id,kind] of [['btn-vr','immersive-vr'],['btn-ar','immersive-ar']]){
-  const btn=document.getElementById(id);
-  navigator.xr?.isSessionSupported?.(kind).then(ok=>{btn.hidden=!ok;},()=>{});
-  btn.addEventListener('click',()=>{
-    ensureAudio(); played=true;
-    const climbing=mode==='climb';
-    if(mode==='free'||mode==='climb'||mode==='padel') setMode('goal');
-    if(G3&&G3.xr) G3.xr.enter(kind,{climb:climbing}).catch(err=>toast('تعذّر تشغيل '+(kind==='immersive-ar'?'AR':'VR')));
-  });
-}
 
 resize();
 // Reuse the exact five game renderers. Cache their output for the many-ball intro.
@@ -2747,11 +2676,11 @@ function startPopSound(){
   o.connect(g).connect(audio.destination);o.start(t);o.stop(t+.11);
 }
 let last=performance.now();
-if(window.Matter && window.createDahroojStart && !XR_ENTRY){
+if(window.Matter && window.createDahroojStart){
   cv.setAttribute('aria-hidden','true');
   intro=window.createDahroojStart({root:document.getElementById('start-screen'),canvas:document.getElementById('start-balls'),makeSprite:makeStartBallSprite,onStart:enterGame,reducedMotion:reduce,onInteract:ensureAudio,onPop:startPopSound});
 }else{
-  // A missing optional intro file must not prevent access to the game (and dahrooj/vr/ skips it).
+  // A missing optional intro file must not prevent access to the game.
   document.getElementById('start-screen').remove();enterGame();
 }
 function frame(now){
