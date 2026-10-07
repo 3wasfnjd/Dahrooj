@@ -12,8 +12,8 @@ export async function startLocal({port=8787,host='127.0.0.1',transformHTML=html=
     try{
       const url=new URL(req.url,'http://localhost');
       if(url.pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,mode:'duel',protocol:4}));return;}
-      const path=url.pathname==='/'?'/index.html':url.pathname==='/vr/'?'/vr/index.html':decodeURIComponent(url.pathname);
-      if(!/^\/(index\.html|manifest\.webmanifest$|vr\/index\.html$|vr\/manifest\.webmanifest$|privacy\.html$|credits\.html$|assets\/|vendor\/|LICENSE$)/.test(path))throw Error('Not a public asset');
+      const path=url.pathname==='/'?'/index.html':decodeURIComponent(url.pathname);
+      if(!/^\/(index\.html|manifest\.webmanifest$|privacy\.html$|credits\.html$|assets\/|vendor\/|LICENSE$)/.test(path))throw Error('Not a public asset');
       const file=resolve(root,'.'+path);
       if(!file.startsWith(root+'/'))throw Error('Invalid path');
       let data=await readFile(file);

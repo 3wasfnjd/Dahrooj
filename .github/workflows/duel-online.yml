@@ -30,7 +30,6 @@ jobs:
       - run: node tools/test-distractions.mjs
       - run: node tools/test-fast-return.mjs
       - run: node tools/test-climb.mjs
-      - run: node tools/test-xr.mjs
       - run: npx wrangler deploy --dry-run
       - name: Deploy the separate Duel Worker when credentials are configured
         if: github.ref == 'refs/heads/main'

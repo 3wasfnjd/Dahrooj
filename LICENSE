@@ -15,8 +15,8 @@ Third-party parts keep their own licenses and are not covered by the notice
 above (full list in credits.html):
 - three.js r128 and GLTFLoader, MIT License (vendor/three/LICENSE).
 - Matter.js 0.20.0, MIT License (vendor/matter/LICENSE).
-- Parts ported from Motri / Folio 2025 by Bruno Simon, MIT License
-  (assets/xr/motri/LICENSE).
+- The bowling pin and the confetti motion, from Motri / Folio 2025 by
+  Bruno Simon, MIT License (assets/bowling/LICENSE).
 - Baloo Bhaijaan 2 and Grandstander fonts, SIL Open Font License 1.1 (vendor/fonts).
 - "Carefree" by Kevin MacLeod (incompetech.com), ISRC USUAN1400037, CC BY 4.0
   (https://creativecommons.org/licenses/by/4.0/; assets/audio/credits.html).
